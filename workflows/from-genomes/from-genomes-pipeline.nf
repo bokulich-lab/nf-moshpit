@@ -20,7 +20,6 @@ workflow ContigQCAndBinnig {
         mapped_reads = mapReadsToContigs(indexed_contigs, reads)
         bins = binContigs(contigs, mapped_reads)
         bins_qc = evaluateBins(bins)
-
 }
 
 workflow MetaSPAdes {
@@ -28,7 +27,6 @@ workflow MetaSPAdes {
         simulated_reads = simulateReads(genomes)
         contigs = assembleMetaspades(simulated_reads.reads)
         ContigQCAndBinnig(contigs, simulated_reads.reads)
-
 }
 
 workflow MEGAHIT {
