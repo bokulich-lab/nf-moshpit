@@ -7,6 +7,18 @@ on:
         description: 'Tags for the Docker image being built.'
         required: true
         type: string
+      typesVersion:
+        description: 'q2-types-genomics-version'
+        required: false
+        type: string
+      assemblyVersion:
+        description: 'q2-assembly version'
+        required: false
+        type: string
+      moshpitVersion:
+        description: 'q2-moshpit version'
+        required: false
+        type: string
 
 jobs:
   build-and-push:
@@ -30,3 +42,7 @@ jobs:
         file: ./Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ inputs.imageTags }}
+        build-args: |
+          TYPES_VERSION=${{ inputs.typesVersion }}
+          ASSEMBLY_VERSION=${{ inputs.assemblyVersion }}
+          MOSHPIT_VERSION=${{ inputs.moshpitVersion }}
