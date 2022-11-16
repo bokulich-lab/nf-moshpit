@@ -9,15 +9,15 @@ on:
         type: string
       typesVersion:
         description: 'q2-types-genomics-version'
-        required: false
+        required: true
         type: string
       assemblyVersion:
         description: 'q2-assembly version'
-        required: false
+        required: true
         type: string
       moshpitVersion:
         description: 'q2-moshpit version'
-        required: false
+        required: true
         type: string
 
 jobs:
