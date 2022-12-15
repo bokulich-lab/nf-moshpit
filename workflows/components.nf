@@ -269,3 +269,33 @@ process drawTaxaBarplot {
       --o-visualization ${params.filesBinKrakenBarplots}
     """
 }
+
+process fetchSeqs {
+    conda params.condaEnvPath
+    cpus params.cpus
+    storeDir params.storeDir
+
+    input:
+    path ids
+
+    output:
+    path "single-end-reads.qza", emit: single
+    path "paired-end-reads.qza", emit: paired
+    path "failed-runs.qza", emit: failed
+
+    """
+    qiime tools import \
+      --type NCBIAccessionIDs \
+      --input-path ${ids} \
+      --output-path accession-ids.qza
+
+    qiime fondue get-sequences \
+      --verbose \
+      --i-accession-ids accession-ids.qza \
+      --p-email ${params.email} \
+      --p-n-jobs ${task.cpus} \
+      --o-single-reads single-end-reads.qza \
+      --o-paired-reads paired-end-reads.qza \
+      --o-failed-runs failed-runs.qza
+    """
+}
