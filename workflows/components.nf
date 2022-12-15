@@ -86,6 +86,7 @@ process assembleMegahit {
 
 process evaluateContigs {
     conda params.condaEnvPath
+    cpus params.cpus
     storeDir params.storeDir
 
     input:
@@ -100,7 +101,7 @@ process evaluateContigs {
       --verbose \
       --p-min-contig 100 \
       --i-contigs ${contigs_file} \
-      --i-reads ${reads_file} --p-threads 1 \
+      --i-reads ${reads_file} --p-threads ${task.cpus} \
       --o-visualization paired-end-contigs-qc.qzv
     """
 }
@@ -159,7 +160,7 @@ process binContigs {
     path maps_file
 
     output:
-    path params.filesMags
+    path params.filesMags, emit: bins
 
     """
     qiime moshpit bin-contigs-metabat \
@@ -184,7 +185,7 @@ process evaluateBins {
     path params.filesBinQCViz
 
     """
-    qiime moshpit evaluate-bins \
+    qiime checkm evaluate-bins \
       --verbose \
       --p-threads ${task.cpus} \
       --p-pplacer-threads 4 \
@@ -192,5 +193,79 @@ process evaluateBins {
       --p-db-path ${params.checkmDBpath} \
       --i-bins ${bins_file} \
       --o-visualization ${params.filesBinQCViz}
+    """
+}
+
+process classifyBins {
+    conda params.condaEnvPath
+    cpus params.cpus
+    storeDir params.storeDir
+
+    input:
+    path bins_file
+
+    output:
+    path params.filesBinTable, emit: table
+    path params.filesBinTaxonomy, emit: taxonomy
+    path params.filesBinKrakenReports, emit: reports
+
+    """
+    qiime moshpit classify-kraken \
+      --verbose \
+      --i-seqs ${bins_file} \
+      --p-db ${params.kraken2DBpath} \
+      --p-threads ${task.cpus} \
+      --p-memory-mapping \
+      --p-quick \
+      --o-table ${params.filesBinTable} \
+      --o-taxonomy ${params.filesBinTaxonomy} \
+      --o-reports ${params.filesBinKrakenReports}
+    """
+}
+
+process classifyReads {
+    conda params.condaEnvPath
+    cpus params.cpus
+    storeDir params.storeDir
+
+    input:
+    path reads_file
+
+    output:
+    path params.filesReadsTable, emit: table
+    path params.filesReadsTaxonomy, emit: taxonomy
+    path params.filesReadsKrakenReports, emit: reports
+
+    """
+    qiime moshpit classify-kraken \
+      --verbose \
+      --i-seqs ${reads_file} \
+      --p-db ${params.kraken2DBpath} \
+      --p-threads ${task.cpus} \
+      --p-memory-mapping \
+      --p-quick \
+      --o-table ${params.filesReadsTable} \
+      --o-taxonomy ${params.filesReadsTaxonomy} \
+      --o-reports ${params.filesReadsKrakenReports}
+    """
+}
+
+process drawTaxaBarplot {
+    conda params.condaEnvPath
+    storeDir params.storeDir
+
+    input:
+    path feature_table
+    path taxonomy
+
+    output:
+    path params.filesBinKrakenBarplots
+
+    """
+    qiime taxa barplot \
+      --verbose \
+      --i-table ${feature_table} \
+      --i-taxonomy ${taxonomy} \
+      --o-visualization ${params.filesBinKrakenBarplots}
     """
 }

@@ -3,12 +3,29 @@
 include {
     simulateReads; assembleMetaspades; assembleMegahit;
     evaluateContigs; indexContigs; mapReadsToContigs;
-    binContigs; evaluateBins
+    binContigs; evaluateBins; classifyBins; classifyReads;
+     drawTaxaBarplot
 } from '../components'
 
 nextflow.enable.dsl = 2
 
 genomes = Channel.fromPath(params.genomes)
+
+workflow TaxonomicClassificationBins {
+    take:
+        bins
+    main:
+        classification = classifyBins(bins)
+        drawTaxaBarplot(classification.table, classification.taxonomy)
+}
+
+workflow TaxonomicClassificationReads {
+    take:
+        seqs
+    main:
+        classification = classifyReads(seqs)
+        drawTaxaBarplot(classification.table, classification.taxonomy)
+}
 
 workflow ContigQCAndBinnig {
     take:
@@ -20,18 +37,24 @@ workflow ContigQCAndBinnig {
         mapped_reads = mapReadsToContigs(indexed_contigs, reads)
         bins = binContigs(contigs, mapped_reads)
         bins_qc = evaluateBins(bins)
+    emit:
+        bins
 }
 
 workflow MetaSPAdes {
     main:
         simulated_reads = simulateReads(genomes)
         contigs = assembleMetaspades(simulated_reads.reads)
-        ContigQCAndBinnig(contigs, simulated_reads.reads)
+        bins = ContigQCAndBinnig(contigs, simulated_reads.reads)
+        TaxonomicClassificationBins(bins)
+        TaxonomicClassificationReads(simulated_reads.reads)
 }
 
 workflow MEGAHIT {
     main:
         simulated_reads = simulateReads(genomes)
         contigs = assembleMegahit(simulated_reads.reads)
-        ContigQCAndBinnig(contigs, simulated_reads.reads)
+        bins = ContigQCAndBinnig(contigs, simulated_reads.reads)
+        TaxonomicClassificationBins(bins)
+        TaxonomicClassificationReads(simulated_reads.reads)
 }
