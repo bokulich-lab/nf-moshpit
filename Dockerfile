@@ -3,7 +3,7 @@ ARG TYPES_VERSION=2022.11
 ARG ASSEMBLY_VERSION=2022.11
 ARG MOSHPIT_VERSION=2022.11
 
-RUN apt-get update & apt-get install uuid-runtime
+RUN apt-get update && apt-get install uuid-runtime
 
 RUN conda install mamba -n base -c conda-forge
 RUN mamba install -y -n qiime2-2022.8 \
