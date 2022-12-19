@@ -44,8 +44,8 @@ workflow ContigQCAndBinnig {
 workflow MetaSPAdes {
     main:
         reads = fetchSeqs(ids)
-        contigs = assembleMetaspades(reads.single)
-        bins = ContigQCAndBinnig(contigs, reads.single)
+        contigs = assembleMetaspades(reads.paired)
+        bins = ContigQCAndBinnig(contigs, reads.paired)
 //         TaxonomicClassificationBins(bins)
 //         TaxonomicClassificationReads(simulated_reads.reads)
 }
@@ -53,8 +53,8 @@ workflow MetaSPAdes {
 workflow MEGAHIT {
     main:
         reads = fetchSeqs(ids)
-        contigs = assembleMegahit(reads.single)
-        bins = ContigQCAndBinnig(contigs, reads.single)
+        contigs = assembleMegahit(reads.paired)
+        bins = ContigQCAndBinnig(contigs, reads.paired)
 //         TaxonomicClassificationBins(bins)
 //         TaxonomicClassificationReads(simulated_reads.reads)
 }
