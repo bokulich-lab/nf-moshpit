@@ -14,7 +14,7 @@ process CLASSIFY_BINS_KRAKEN2 {
     qiime moshpit classify-kraken \
       --verbose \
       --i-seqs ${bins_file} \
-      --p-db ${params.kraken2DBpath} \
+      --i-db ${params.kraken2DBpath} \
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
@@ -39,7 +39,7 @@ process CLASSIFY_READS_KRAKEN2 {
     qiime moshpit classify-kraken \
       --verbose \
       --i-seqs ${reads_file} \
-      --p-db ${params.kraken2DBpath} \
+      --i-db ${params.kraken2DBpath} \
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
