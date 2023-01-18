@@ -13,7 +13,7 @@ workflow ASSEMBLE {
         } else {
             error "Unknown assembler: ${params.assembler}"
         }
-        contig_qc = EVALUATE_CONTIGS(contigs, reads)
+//         contig_qc = EVALUATE_CONTIGS(contigs, reads)
     emit:
         contigs
 }
