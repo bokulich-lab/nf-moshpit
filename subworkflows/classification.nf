@@ -7,7 +7,7 @@ workflow CLASSIFY_BINS {
         bins
     main:
         classification = CLASSIFY_BINS_KRAKEN2(bins)
-        DRAW_TAXA_BARPLOT(classification.table, classification.taxonomy)
+//         DRAW_TAXA_BARPLOT(classification.table, classification.taxonomy)
 }
 
 workflow CLASSIFY_READS {
@@ -15,5 +15,5 @@ workflow CLASSIFY_READS {
         seqs
     main:
         classification = CLASSIFY_READS_KRAKEN2(seqs)
-        DRAW_TAXA_BARPLOT(classification.table, classification.taxonomy)
+//         DRAW_TAXA_BARPLOT(classification.table, classification.taxonomy)
 }

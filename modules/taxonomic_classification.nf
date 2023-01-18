@@ -7,9 +7,8 @@ process CLASSIFY_BINS_KRAKEN2 {
     path bins_file
 
     output:
-    path params.filesBinTable, emit: table
-    path params.filesBinTaxonomy, emit: taxonomy
     path params.filesBinKrakenReports, emit: reports
+    path params.filesBinKrakenOutputs, emit: outputs
 
     """
     qiime moshpit classify-kraken \
@@ -19,9 +18,8 @@ process CLASSIFY_BINS_KRAKEN2 {
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
-      --o-table ${params.filesBinTable} \
-      --o-taxonomy ${params.filesBinTaxonomy} \
-      --o-reports ${params.filesBinKrakenReports}
+      --o-reports ${params.filesBinKrakenReports} \
+      --o-outputs ${params.filesBinKrakenOutputs}
     """
 }
 
@@ -34,9 +32,8 @@ process CLASSIFY_READS_KRAKEN2 {
     path reads_file
 
     output:
-    path params.filesReadsTable, emit: table
-    path params.filesReadsTaxonomy, emit: taxonomy
     path params.filesReadsKrakenReports, emit: reports
+    path params.filesReadsKrakenOutputs, emit: outputs
 
     """
     qiime moshpit classify-kraken \
@@ -46,9 +43,8 @@ process CLASSIFY_READS_KRAKEN2 {
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
-      --o-table ${params.filesReadsTable} \
-      --o-taxonomy ${params.filesReadsTaxonomy} \
-      --o-reports ${params.filesReadsKrakenReports}
+      --o-reports ${params.filesReadsKrakenReports} \
+      --o-outputs ${params.filesReadsKrakenOutputs}
     """
 }
 

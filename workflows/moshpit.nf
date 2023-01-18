@@ -5,6 +5,8 @@ include { FETCH_GENOMES } from '../modules/data_prep'
 include { SIMULATE_READS } from '../modules/data_prep'
 include { ASSEMBLE } from '../subworkflows/assembly'
 include { BIN } from '../subworkflows/binning'
+include { CLASSIFY_READS } from '../subworkflows/classification'
+include { CLASSIFY_BINS } from '../subworkflows/classification'
 
 nextflow.enable.dsl = 2
 
@@ -30,4 +32,8 @@ workflow MOSHPIT {
 
     // bin contigs into MAGs and evaluate
     bins = BIN(contigs, reads)
+
+    // classify reads and MAGs
+    CLASSIFY_READS(reads)
+    CLASSIFY_BINS(bins)
 }
