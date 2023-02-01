@@ -58,6 +58,13 @@ process FETCH_SEQS {
     path params.filesFailedRuns, emit: failed
 
     """
+    if [ ! -d "$HOME/.ncbi" ]; then
+        mkdir $HOME/.ncbi
+        printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+    elif [ ! -f "$HOME/.ncbi/user-settings.mkfg" ]; then
+        printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+    fi
+
     qiime fondue get-sequences \
       --verbose \
       --i-accession-ids ${ids} \
