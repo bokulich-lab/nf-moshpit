@@ -7,14 +7,14 @@ process ASSEMBLE_METASPADES {
     path reads_file
 
     output:
-    path params.filesContigs
+    path "paired-end-contigs.qza"
 
     """
     qiime assembly assemble-spades \
       --verbose \
       --i-seqs ${reads_file} \
       --p-meta --p-threads ${task.cpus} \
-      --o-contigs ${params.filesContigs}
+      --o-contigs "paired-end-contigs.qza"
     """
 }
 
@@ -27,14 +27,14 @@ process ASSEMBLE_MEGAHIT {
     file reads_file
 
     output:
-    file params.filesContigs
+    file "paired-end-contigs.qza"
 
     """
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${reads_file} \
       --p-presets meta-sensitive --p-num-cpu-threads ${task.cpus} \
-      --o-contigs ${params.filesContigs}
+      --o-contigs "paired-end-contigs.qza"
     """
 }
 
@@ -69,7 +69,7 @@ process INDEX_CONTIGS {
     path contigs_file
 
     output:
-    path params.filesIndex
+    path "paired-end-index.qza"
 
     """
     qiime assembly index-contigs \
@@ -77,7 +77,7 @@ process INDEX_CONTIGS {
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-contigs ${contigs_file} \
-      --o-index ${params.filesIndex}
+      --o-index "paired-end-index.qza"
     """
 }
 
@@ -91,7 +91,7 @@ process MAP_READS_TO_CONTIGS {
     path reads_file
 
     output:
-    path params.filesAlnMap
+    path "paired-end-bowtie-map-contigs.qza"
 
     """
     qiime assembly map-reads-to-contigs \
@@ -100,6 +100,6 @@ process MAP_READS_TO_CONTIGS {
       --p-threads ${task.cpus} \
       --i-indexed-contigs ${index_file} \
       --i-reads ${reads_file} \
-      --o-alignment-map ${params.filesAlnMap}
+      --o-alignment-map "paired-end-bowtie-map-contigs.qza"
     """
 }

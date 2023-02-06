@@ -12,9 +12,9 @@ process FETCH_GENOMES {
       --p-assembly-levels complete_genome \
       --p-assembly-source refseq \
       --o-genome-assemblies ${params.sampleGenomes} \
-      --o-loci ${params.sampleLoci} \
-      --o-proteins ${params.sampleProteins} \
-      --o-taxonomies ${params.sampleTaxonomy}
+      --o-loci "sample-loci.qza" \
+      --o-proteins "sample-proteins.qza" \
+      --o-taxonomies "sample-taxonomy.qza"
     """
 }
 
@@ -27,7 +27,7 @@ process SIMULATE_READS {
     path genomes
 
     output:
-    path params.filesReads, emit: reads
+    path "paired-end.qza", emit: reads
     path "output_genomes.qza", emit: genomes
     path "output_abundances.qza", emit: abundances
 
@@ -38,7 +38,7 @@ process SIMULATE_READS {
       --p-cpus ${task.cpus} \
       --p-n-genomes ${params.nGenomes} \
       --p-n-reads ${params.readCount} --p-seed 42 \
-      --o-reads ${params.filesReads} \
+      --o-reads "paired-end.qza" \
       --o-template-genomes output_genomes.qza \
       --o-abundances output_abundances.qza
     """
@@ -53,9 +53,9 @@ process FETCH_SEQS {
     path ids
 
     output:
-    path params.filesSingleEndSeqs, emit: single
-    path params.filesPairedEndSeqs, emit: paired
-    path params.filesFailedRuns, emit: failed
+    path "single-end-seqs.qza", emit: single
+    path "paired-end-seqs.qza", emit: paired
+    path "failed-runs.qza", emit: failed
 
     """
     if [ ! -d "$HOME/.ncbi" ]; then
@@ -70,8 +70,8 @@ process FETCH_SEQS {
       --i-accession-ids ${ids} \
       --p-email ${params.email} \
       --p-n-jobs ${task.cpus} \
-      --o-single-reads ${params.filesSingleEndSeqs} \
-      --o-paired-reads ${params.filesPairedEndSeqs} \
-      --o-failed-runs ${params.filesFailedRuns}
+      --o-single-reads "single-end-seqs.qza" \
+      --o-paired-reads "paired-end-seqs.qza" \
+      --o-failed-runs "failed-runs.qza"
     """
 }

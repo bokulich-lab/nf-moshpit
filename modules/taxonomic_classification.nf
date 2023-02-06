@@ -7,8 +7,8 @@ process CLASSIFY_BINS_KRAKEN2 {
     path bins_file
 
     output:
-    path params.filesBinKrakenReports, emit: reports
-    path params.filesBinKrakenOutputs, emit: outputs
+    path "paired-end-reads-kraken-reports.qza", emit: reports
+    path "paired-end-reads-kraken-outputs.qza", emit: outputs
 
     """
     qiime moshpit classify-kraken \
@@ -18,8 +18,8 @@ process CLASSIFY_BINS_KRAKEN2 {
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
-      --o-reports ${params.filesBinKrakenReports} \
-      --o-outputs ${params.filesBinKrakenOutputs}
+      --o-reports "paired-end-reads-kraken-reports.qza" \
+      --o-outputs "paired-end-reads-kraken-outputs.qza"
     """
 }
 
@@ -32,8 +32,8 @@ process CLASSIFY_READS_KRAKEN2 {
     path reads_file
 
     output:
-    path params.filesReadsKrakenReports, emit: reports
-    path params.filesReadsKrakenOutputs, emit: outputs
+    path "paired-end-reads-kraken-reports.qza", emit: reports
+    path "paired-end-reads-kraken-outputs.qza", emit: outputs
 
     """
     qiime moshpit classify-kraken \
@@ -43,8 +43,8 @@ process CLASSIFY_READS_KRAKEN2 {
       --p-threads ${task.cpus} \
       --p-memory-mapping \
       --p-quick \
-      --o-reports ${params.filesReadsKrakenReports} \
-      --o-outputs ${params.filesReadsKrakenOutputs}
+      --o-reports "paired-end-reads-kraken-reports.qza" \
+      --o-outputs "paired-end-reads-kraken-outputs.qza"
     """
 }
 
@@ -57,13 +57,13 @@ process DRAW_TAXA_BARPLOT {
     path taxonomy
 
     output:
-    path params.filesBinKrakenBarplots
+    path "paired-end-reads-kraken.qzv"
 
     """
     qiime taxa barplot \
       --verbose \
       --i-table ${feature_table} \
       --i-taxonomy ${taxonomy} \
-      --o-visualization ${params.filesBinKrakenBarplots}
+      --o-visualization "paired-end-reads-kraken.qzv"
     """
 }

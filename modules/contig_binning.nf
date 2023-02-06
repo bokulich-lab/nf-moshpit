@@ -8,7 +8,7 @@ process BIN_CONTIGS_METABAT {
     path maps_file
 
     output:
-    path params.filesMags, emit: bins
+    path "paired-end-mags.qza", emit: bins
 
     """
     qiime moshpit bin-contigs-metabat \
@@ -17,7 +17,7 @@ process BIN_CONTIGS_METABAT {
       --p-num-threads ${task.cpus} \
       --i-contigs ${contigs_file} \
       --i-alignment-maps ${maps_file} \
-      --o-mags ${params.filesMags}
+      --o-mags "paired-end-mags.qza"
     """
 }
 
@@ -30,7 +30,7 @@ process EVALUATE_BINS {
     path bins_file
 
     output:
-    path params.filesBinQCViz
+    path "paired-end-bins-qc.qzv"
 
     """
     qiime checkm evaluate-bins \
@@ -40,6 +40,6 @@ process EVALUATE_BINS {
       --p-reduced-tree \
       --p-db-path ${params.checkmDBpath} \
       --i-bins ${bins_file} \
-      --o-visualization ${params.filesBinQCViz}
+      --o-visualization "paired-end-bins-qc.qzv"
     """
 }
