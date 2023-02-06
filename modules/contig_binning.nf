@@ -24,6 +24,7 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS {
     conda params.condaEnvPath
     cpus params.cpus
+    memory { params.checkmReducedTree ? 16.GB : 40.GB }
     storeDir params.storeDir
 
     input:
@@ -37,7 +38,7 @@ process EVALUATE_BINS {
       --verbose \
       --p-threads ${task.cpus} \
       --p-pplacer-threads 4 \
-      --p-reduced-tree \
+      --p-reduced-tree ${params.checkmReducedTree} \
       --p-db-path ${params.checkmDBpath} \
       --i-bins ${bins_file} \
       --o-visualization "paired-end-bins-qc.qzv"
