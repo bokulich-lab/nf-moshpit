@@ -13,12 +13,12 @@ nextflow.enable.dsl = 2
 workflow MOSHPIT {
 
     // prepare input reads
-    if (params.filesAccessionIds) {
-        ids = Channel.fromPath(params.filesAccessionIds)
+    if (params.fondue.filesAccessionIds) {
+        ids = Channel.fromPath(params.fondue.filesAccessionIds)
         fetched_reads = FETCH_SEQS(ids)
-        reads = (params.paired) ? fetched_reads.paired : fetched_reads.single
-    } else if (params.sampleGenomes) {
-        genomes = Channel.fromPath(params.sampleGenomes)
+        reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
+    } else if (params.read_simulation.sampleGenomes) {
+        genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
         simulated_reads = SIMULATE_READS(genomes)
         reads = simulated_reads.reads
     } else {

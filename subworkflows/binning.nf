@@ -11,7 +11,7 @@ workflow BIN {
         indexed_contigs = INDEX_CONTIGS(contigs)
         mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs, reads)
         bins = BIN_CONTIGS_METABAT(contigs, mapped_reads)
-        if (params.binningQC) {
+        if (params.binning_qc.enabled) {
             bins_qc = EVALUATE_BINS(bins)
         }
     emit:

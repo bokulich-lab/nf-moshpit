@@ -1,7 +1,8 @@
 process BIN_CONTIGS_METABAT {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.binning.cpus
     storeDir params.storeDir
+    time params.binning.time
 
     input:
     path contigs_file
@@ -23,9 +24,10 @@ process BIN_CONTIGS_METABAT {
 
 process EVALUATE_BINS {
     conda params.condaEnvPath
-    cpus params.cpus
-    memory { params.checkmReducedTree ? 16.GB : 40.GB }
+    cpus params.binning_qc.cpus
+    memory { params.binning_qc.checkmReducedTree ? 16.GB : 40.GB }
     storeDir params.storeDir
+    time params.binning_qc.time
 
     input:
     path bins_file
@@ -38,8 +40,8 @@ process EVALUATE_BINS {
       --verbose \
       --p-threads ${task.cpus} \
       --p-pplacer-threads 4 \
-      --p-reduced-tree ${params.checkmReducedTree} \
-      --p-db-path ${params.checkmDBpath} \
+      --p-reduced-tree ${params.binnign_qc.checkmReducedTree} \
+      --p-db-path ${params.binning_qc.checkmDBpath} \
       --i-bins ${bins_file} \
       --o-visualization "paired-end-bins-qc.qzv"
     """

@@ -6,12 +6,12 @@ workflow ASSEMBLE {
     take:
         reads
     main:
-        if (params.assembler.toLowerCase() == 'metaspades') {
+        if (params.genome_assembly.assembler.toLowerCase() == 'metaspades') {
             contigs = ASSEMBLE_METASPADES(reads)
-        } else if (params.assembler.toLowerCase() == 'megahit') {
+        } else if (params.genome_assembly.assembler.toLowerCase() == 'megahit') {
             contigs = ASSEMBLE_MEGAHIT(reads)
         } else {
-            error "Unknown assembler: ${params.assembler}"
+            error "Unknown assembler: ${params.genome_assembly.assembler}"
         }
 //         contig_qc = EVALUATE_CONTIGS(contigs, reads)
     emit:

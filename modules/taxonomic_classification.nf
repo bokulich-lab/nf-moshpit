@@ -1,9 +1,9 @@
 process CLASSIFY_BINS_KRAKEN2 {
     conda params.condaEnvPath
-    cpus params.cpus
-    memory { params.kraken2MemoryMapping ? 4.GB + 4.GB * task.attempt : 88.GB + 8.GB * task.attempt }
+    cpus params.taxonomic_classification.cpus
+    // memory { params.kraken2MemoryMapping == true ? 4.GB + 4.GB * task.attempt : 88.GB + 8.GB * task.attempt }
     storeDir params.storeDir
-
+    time params.taxonomic_classification.time
     errorStrategy "retry"
     maxRetries 3
 
@@ -18,9 +18,9 @@ process CLASSIFY_BINS_KRAKEN2 {
     qiime moshpit classify-kraken \
       --verbose \
       --i-seqs ${bins_file} \
-      --i-db ${params.kraken2DBpath} \
+      --i-db ${params.taxonomic_classification.kraken2DBpath} \
       --p-threads ${task.cpus} \
-      --p-memory-mapping ${params.kraken2MemoryMapping} \
+      --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
       --o-reports "paired-end-reads-kraken-reports.qza" \
       --o-outputs "paired-end-reads-kraken-outputs.qza"
@@ -29,9 +29,10 @@ process CLASSIFY_BINS_KRAKEN2 {
 
 process CLASSIFY_READS_KRAKEN2 {
     conda params.condaEnvPath
-    cpus params.cpus
-    memory { params.kraken2MemoryMapping ? 4.GB + 4.GB * task.attempt : 88.GB + 8.GB * task.attempt }
+    cpus params.taxonomic_classification.cpus
+    // memory { 88.GB + 8.GB * task.attempt }
     storeDir params.storeDir
+    time params.taxonomic_classification.time
 
     errorStrategy "retry"
     maxRetries 3
@@ -47,9 +48,9 @@ process CLASSIFY_READS_KRAKEN2 {
     qiime moshpit classify-kraken \
       --verbose \
       --i-seqs ${reads_file} \
-      --i-db ${params.kraken2DBpath} \
+      --i-db ${params.taxonomic_classification.kraken2DBpath} \
       --p-threads ${task.cpus} \
-      --p-memory-mapping ${params.kraken2MemoryMapping} \
+      --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
       --o-reports "paired-end-reads-kraken-reports.qza" \
       --o-outputs "paired-end-reads-kraken-outputs.qza"

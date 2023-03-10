@@ -3,15 +3,15 @@ process FETCH_GENOMES {
     storeDir params.storeDir
 
     output:
-    file params.sampleGenomes
+    file params.read_simulation.sampleGenomes
 
     """
     qiime rescript get-ncbi-genomes \
       --verbose \
-      --p-taxon ${params.taxon} \
+      --p-taxon ${params.read_simulation.taxon} \
       --p-assembly-levels complete_genome \
       --p-assembly-source refseq \
-      --o-genome-assemblies ${params.sampleGenomes} \
+      --o-genome-assemblies ${params.read_simulation.sampleGenomes} \
       --o-loci "sample-loci.qza" \
       --o-proteins "sample-proteins.qza" \
       --o-taxonomies "sample-taxonomy.qza"
@@ -20,7 +20,7 @@ process FETCH_GENOMES {
 
 process SIMULATE_READS {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.read_simulation.cpus
     storeDir params.storeDir
 
     input:
@@ -34,10 +34,10 @@ process SIMULATE_READS {
     """
     qiime assembly generate-reads \
       --i-genomes ${genomes} \
-      --p-sample-names ${params.sampleNames} \
+      --p-sample-names ${params.read_simulation.sampleNames} \
       --p-cpus ${task.cpus} \
-      --p-n-genomes ${params.nGenomes} \
-      --p-n-reads ${params.readCount} --p-seed 42 \
+      --p-n-genomes ${params.read_simulation.nGenomes} \
+      --p-n-reads ${params.read_simulation.readCount} --p-seed 42 \
       --o-reads "paired-end.qza" \
       --o-template-genomes output_genomes.qza \
       --o-abundances output_abundances.qza
@@ -46,8 +46,9 @@ process SIMULATE_READS {
 
 process FETCH_SEQS {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.fondue.cpus
     storeDir params.storeDir
+    module "eth_proxy"
 
     input:
     path ids

@@ -1,8 +1,8 @@
 process ASSEMBLE_METASPADES {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.genome_assembly.cpus
     storeDir params.storeDir
-
+    time params.genome_assembly.time
     input:
     path reads_file
 
@@ -20,8 +20,9 @@ process ASSEMBLE_METASPADES {
 
 process ASSEMBLE_MEGAHIT {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.genome_assembly.cpus
     storeDir params.storeDir
+    time params.genome_assembly.time
 
     input:
     file reads_file
@@ -40,8 +41,10 @@ process ASSEMBLE_MEGAHIT {
 
 process EVALUATE_CONTIGS {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.assembly_qc.cpus
     storeDir params.storeDir
+    time params.assembly_qc.time
+    module "eth_proxy"
 
     input:
     path contigs_file
@@ -62,8 +65,9 @@ process EVALUATE_CONTIGS {
 
 process INDEX_CONTIGS {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.contig_indexing.cpus
     storeDir params.storeDir
+    time params.contig_indexing.time
 
     input:
     path contigs_file
@@ -83,8 +87,9 @@ process INDEX_CONTIGS {
 
 process MAP_READS_TO_CONTIGS {
     conda params.condaEnvPath
-    cpus params.cpus
+    cpus params.read_mapping.cpus
     storeDir params.storeDir
+    time params.read_mapping.time
 
     input:
     path index_file
