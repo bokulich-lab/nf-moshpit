@@ -25,7 +25,10 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS {
     conda params.condaEnvPath
     cpus params.binning_qc.cpus
-    memory { params.binning_qc.checkmReducedTree ? 16.GB : 40.GB }
+    // memory "${params.binning_qc.checkmReducedTree ? '16.GB' : '40.GB'}"
+    // memory { (params.binning_qc.checkmReducedTree) ? '16GB' : '40GB' }
+    // memory params.binning_qc.memory
+    // memory { 16.GB }
     storeDir params.storeDir
     time params.binning_qc.time
 
@@ -39,8 +42,8 @@ process EVALUATE_BINS {
     qiime checkm evaluate-bins \
       --verbose \
       --p-threads ${task.cpus} \
-      --p-pplacer-threads 4 \
-      --p-reduced-tree ${params.binnign_qc.checkmReducedTree} \
+      --p-pplacer-threads ${params.binning_qc.pplacerThreads} \
+      --p-reduced-tree ${params.binning_qc.checkmReducedTree} \
       --p-db-path ${params.binning_qc.checkmDBpath} \
       --i-bins ${bins_file} \
       --o-visualization "paired-end-bins-qc.qzv"

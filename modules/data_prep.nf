@@ -22,6 +22,7 @@ process SIMULATE_READS {
     conda params.condaEnvPath
     cpus params.read_simulation.cpus
     storeDir params.storeDir
+    time params.read_simulation.time
 
     input:
     path genomes
@@ -49,6 +50,7 @@ process FETCH_SEQS {
     cpus params.fondue.cpus
     storeDir params.storeDir
     module "eth_proxy"
+    time params.fondue.time
 
     input:
     path ids

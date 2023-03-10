@@ -11,8 +11,8 @@ process CLASSIFY_BINS_KRAKEN2 {
     path bins_file
 
     output:
-    path "paired-end-reads-kraken-reports.qza", emit: reports
-    path "paired-end-reads-kraken-outputs.qza", emit: outputs
+    path "paired-end-mags-kraken-reports.qza", emit: reports
+    path "paired-end-mags-kraken-outputs.qza", emit: outputs
 
     """
     qiime moshpit classify-kraken \
