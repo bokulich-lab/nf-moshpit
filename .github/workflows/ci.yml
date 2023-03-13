@@ -7,17 +7,21 @@ on:
         description: 'Tags for the Docker image being built.'
         required: true
         type: string
+      qiimeVersion:
+        description: 'qiime2'
+        required: true
+        type: string
       typesVersion:
         description: 'q2-types-genomics-version'
-        required: true
+        required: false
         type: string
       assemblyVersion:
         description: 'q2-assembly version'
-        required: true
+        required: false
         type: string
       moshpitVersion:
         description: 'q2-moshpit version'
-        required: true
+        required: false
         type: string
 
 jobs:
