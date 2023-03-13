@@ -47,6 +47,7 @@ jobs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ inputs.imageTags }}
         build-args: |
+          QIIME_VERSION=${{ inputs.qiimeVersion }}
           TYPES_VERSION=${{ inputs.typesVersion }}
           ASSEMBLY_VERSION=${{ inputs.assemblyVersion }}
           MOSHPIT_VERSION=${{ inputs.moshpitVersion }}
