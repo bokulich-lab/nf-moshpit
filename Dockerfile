@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install uuid-runtime
 
 RUN conda install mamba -n base -c conda-forge
 RUN mamba install -y -n qiime2-$QIIME_VERSION \
-    -c https://packages.qiime2.org/qiime2/2022.5/tested \
-    -c https://packages.qiime2.org/qiime2/2022.2/tested \
+    -c https://packages.qiime2.org/qiime2/2023.5/tested \
+    -c https://packages.qiime2.org/qiime2/2023.2/tested \
     -c bioconda -c conda-forge -c default \
     q2-types-genomics==$TYPES_VERSION q2-assembly==$ASSEMBLY_VERSION q2-moshpit==$MOSHPIT_VERSION \
     q2-checkm q2-fondue q2-taxa
