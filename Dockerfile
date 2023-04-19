@@ -4,7 +4,7 @@ FROM quay.io/qiime2/core:$QIIME_VERSION
 
 ARG QIIME_VERSION
 ARG TYPES_VERSION=2023.2
-ARG ASSEMBLY_VERSION=2023.12
+ARG ASSEMBLY_VERSION=2023.2
 ARG MOSHPIT_VERSION=2023.2
 
 RUN echo "QIIME_VERSION=$QIIME_VERSION TYPES_VERSION=$TYPES_VERSION ASSEMBLY_VERSION=$ASSEMBLY_VERSION MOSHPIT_VERSION=$MOSHPIT_VERSION" 
@@ -23,3 +23,7 @@ RUN mamba run -n qiime2-$QIIME_VERSION qiime dev refresh-cache
 # https://github.com/ncbi/sra-tools/issues/291
 RUN mkdir $HOME/.ncbi
 RUN printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+
+# get DBs/tools for QUAST
+RUN mamba run -n qiime2-$QIIME_VERSION quast-download-silva
+RUN mamba run -n qiime2-$QIIME_VERSION quast-download-gridss
