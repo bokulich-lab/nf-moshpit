@@ -38,7 +38,10 @@ process SIMULATE_READS {
       --p-sample-names ${params.read_simulation.sampleNames} \
       --p-cpus ${task.cpus} \
       --p-n-genomes ${params.read_simulation.nGenomes} \
-      --p-n-reads ${params.read_simulation.readCount} --p-seed 42 \
+      --p-n-reads ${params.read_simulation.readCount} \
+      --p-seed ${params.read_simulation.seed} \
+      --p-abundance ${params.read_simulation.abundance} \
+      --p-gc-bias ${params.read_simulation.gc_bias} \
       --o-reads "paired-end.qza" \
       --o-template-genomes output_genomes.qza \
       --o-abundances output_abundances.qza

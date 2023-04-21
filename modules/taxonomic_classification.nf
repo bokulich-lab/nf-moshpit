@@ -1,7 +1,8 @@
 process CLASSIFY_BINS_KRAKEN2 {
     conda params.condaEnvPath
-    cpus params.taxonomic_classification.cpus
+    // cpus params.taxonomic_classification.cpus
     // memory { params.kraken2MemoryMapping == true ? 4.GB + 4.GB * task.attempt : 88.GB + 8.GB * task.attempt }
+    clusterOptions params.taxonomic_classification.clusterOptions
     storeDir params.storeDir
     time params.taxonomic_classification.time
     errorStrategy "retry"
@@ -19,18 +20,19 @@ process CLASSIFY_BINS_KRAKEN2 {
       --verbose \
       --i-seqs ${bins_file} \
       --i-db ${params.taxonomic_classification.kraken2DBpath} \
-      --p-threads ${task.cpus} \
+      --p-threads ${params.taxonomic_classification.cpus} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
-      --o-reports "paired-end-reads-kraken-reports.qza" \
-      --o-outputs "paired-end-reads-kraken-outputs.qza"
+      --o-reports "paired-end-mags-kraken-reports.qza" \
+      --o-outputs "paired-end-mags-kraken-outputs.qza"
     """
 }
 
 process CLASSIFY_READS_KRAKEN2 {
     conda params.condaEnvPath
-    cpus params.taxonomic_classification.cpus
+    // cpus params.taxonomic_classification.cpus
     // memory { 88.GB + 8.GB * task.attempt }
+    clusterOptions params.taxonomic_classification.clusterOptions
     storeDir params.storeDir
     time params.taxonomic_classification.time
 
@@ -49,7 +51,7 @@ process CLASSIFY_READS_KRAKEN2 {
       --verbose \
       --i-seqs ${reads_file} \
       --i-db ${params.taxonomic_classification.kraken2DBpath} \
-      --p-threads ${task.cpus} \
+      --p-threads ${params.taxonomic_classification.cpus} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
       --o-reports "paired-end-reads-kraken-reports.qza" \

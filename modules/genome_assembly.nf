@@ -21,6 +21,7 @@ process ASSEMBLE_METASPADES {
 process ASSEMBLE_MEGAHIT {
     conda params.condaEnvPath
     cpus params.genome_assembly.cpus
+    clusterOptions params.genome_assembly.clusterOptions
     storeDir params.storeDir
     time params.genome_assembly.time
 

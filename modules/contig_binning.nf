@@ -25,10 +25,7 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS {
     conda params.condaEnvPath
     cpus params.binning_qc.cpus
-    // memory "${params.binning_qc.checkmReducedTree ? '16.GB' : '40.GB'}"
-    // memory { (params.binning_qc.checkmReducedTree) ? '16GB' : '40GB' }
-    // memory params.binning_qc.memory
-    // memory { 16.GB }
+    clusterOptions params.binning_qc.clusterOptions
     storeDir params.storeDir
     time params.binning_qc.time
 

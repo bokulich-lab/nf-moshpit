@@ -13,17 +13,11 @@ workflow ASSEMBLE {
         } else {
             error "Unknown assembler: ${params.genome_assembly.assembler}"
         }
-//         contig_qc = EVALUATE_CONTIGS(contigs, reads)
+
+        if (params.assembly_qc.enabled) {
+            contig_qc = EVALUATE_CONTIGS(contigs, reads)
+        }
+        
     emit:
         contigs
 }
-
-// workflow ASSEMBLE_MEGAHIT {
-//     take:
-//         reads
-//     main:
-//         contigs = ASSEMBLE_MEGAHIT(reads)
-//         contig_qc = EVALUATE_CONTIGS(contigs, reads)
-//     emit:
-//         contigs
-// }
