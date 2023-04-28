@@ -12,9 +12,12 @@ process CLASSIFY_BINS_KRAKEN2 {
     path bins_file
 
     output:
-    path "paired-end-mags-kraken-reports.qza", emit: reports
-    path "paired-end-mags-kraken-outputs.qza", emit: outputs
+    path reports, emit: reports
+    path outputs, emit: outputs
 
+    script:
+    reports = "bins-kraken-reports.qza"
+    outputs = "bins-kraken-outputs.qza"
     """
     qiime moshpit classify-kraken \
       --verbose \
@@ -23,8 +26,8 @@ process CLASSIFY_BINS_KRAKEN2 {
       --p-threads ${params.taxonomic_classification.cpus} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
-      --o-reports "paired-end-mags-kraken-reports.qza" \
-      --o-outputs "paired-end-mags-kraken-outputs.qza"
+      --o-reports ${reports} \
+      --o-outputs ${outputs}
     """
 }
 
@@ -43,9 +46,12 @@ process CLASSIFY_READS_KRAKEN2 {
     path reads_file
 
     output:
-    path "paired-end-reads-kraken-reports.qza", emit: reports
-    path "paired-end-reads-kraken-outputs.qza", emit: outputs
+    path reports, emit: reports
+    path outputs, emit: outputs
 
+    script:
+    reports = "reads-kraken-reports.qza"
+    outputs = "reads-kraken-outputs.qza"
     """
     qiime moshpit classify-kraken \
       --verbose \
@@ -54,8 +60,8 @@ process CLASSIFY_READS_KRAKEN2 {
       --p-threads ${params.taxonomic_classification.cpus} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --p-quick \
-      --o-reports "paired-end-reads-kraken-reports.qza" \
-      --o-outputs "paired-end-reads-kraken-outputs.qza"
+      --o-reports ${reports} \
+      --o-outputs ${outputs}
     """
 }
 
@@ -68,13 +74,14 @@ process DRAW_TAXA_BARPLOT {
     path taxonomy
 
     output:
-    path "paired-end-reads-kraken.qzv"
+    path "kraken-barplot.qzv"
 
+    script:
     """
     qiime taxa barplot \
       --verbose \
       --i-table ${feature_table} \
       --i-taxonomy ${taxonomy} \
-      --o-visualization "paired-end-reads-kraken.qzv"
+      --o-visualization "kraken-barplot.qzv"
     """
 }

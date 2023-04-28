@@ -3,6 +3,7 @@
 include { FETCH_SEQS } from '../modules/data_prep'
 include { FETCH_GENOMES } from '../modules/data_prep'
 include { SIMULATE_READS } from '../modules/data_prep'
+include { SUBSAMPLE_READS } from '../modules/data_prep'
 include { ASSEMBLE } from '../subworkflows/assembly'
 include { BIN } from '../subworkflows/binning'
 include { CLASSIFY_READS } from '../subworkflows/classification'
@@ -25,6 +26,10 @@ workflow MOSHPIT {
         genomes = FETCH_GENOMES()
         simulated_reads = SIMULATE_READS(genomes)
         reads = simulated_reads.reads
+    }
+
+    if (params.read_subsampling.enabled) {
+        reads = SUBSAMPLE_READS(reads)
     }
 
     // assemble and evaluate contigs

@@ -3,7 +3,7 @@ process FETCH_GENOMES {
     storeDir params.storeDir
 
     output:
-    file params.read_simulation.sampleGenomes
+    path params.read_simulation.sampleGenomes
 
     """
     qiime rescript get-ncbi-genomes \
@@ -28,12 +28,13 @@ process SIMULATE_READS {
     path genomes
 
     output:
-    path "paired-end.qza", emit: reads
+    path "reads.qza", emit: reads
     path "output_genomes.qza", emit: genomes
     path "output_abundances.qza", emit: abundances
 
     """
     qiime assembly generate-reads \
+      --verbose \
       --i-genomes ${genomes} \
       --p-sample-names ${params.read_simulation.sampleNames} \
       --p-cpus ${task.cpus} \
@@ -42,7 +43,7 @@ process SIMULATE_READS {
       --p-seed ${params.read_simulation.seed} \
       --p-abundance ${params.read_simulation.abundance} \
       --p-gc-bias ${params.read_simulation.gc_bias} \
-      --o-reads "paired-end.qza" \
+      --o-reads "reads.qza" \
       --o-template-genomes output_genomes.qza \
       --o-abundances output_abundances.qza
     """
@@ -80,4 +81,36 @@ process FETCH_SEQS {
       --o-paired-reads "paired-end-seqs.qza" \
       --o-failed-runs "failed-runs.qza"
     """
+}
+
+process SUBSAMPLE_READS {
+    conda params.condaEnvPath
+    cpus params.read_subsampling.cpus
+    storeDir params.storeDir
+    time params.read_subsampling.time
+
+    input:
+    path reads
+
+    output:
+    path reads_subsampled
+
+    script:
+    reads_subsampled = "reads-subsampled-${params.read_subsampling.fraction}.qza"
+    if (params.read_subsampling.paired)
+      """
+      qiime demux subsample-paired \
+        --verbose \
+        --i-sequences ${reads} \
+        --p-fraction ${params.read_subsampling.fraction} \
+        --o-subsampled-sequences ${reads_subsampled}
+      """
+    else
+      """
+      qiime demux subsample-single \
+        --verbose \
+        --i-sequences ${reads} \
+        --p-fraction ${params.read_subsampling.fraction} \
+        --o-subsampled-sequences ${reads_subsampled}
+      """
 }

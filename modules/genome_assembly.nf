@@ -3,18 +3,20 @@ process ASSEMBLE_METASPADES {
     cpus params.genome_assembly.cpus
     storeDir params.storeDir
     time params.genome_assembly.time
+
     input:
     path reads_file
 
     output:
-    path "paired-end-contigs.qza"
+    path "contigs.qza" 
 
+    script:
     """
     qiime assembly assemble-spades \
       --verbose \
       --i-seqs ${reads_file} \
       --p-meta --p-threads ${task.cpus} \
-      --o-contigs "paired-end-contigs.qza"
+      --o-contigs "contigs.qza" 
     """
 }
 
@@ -29,14 +31,16 @@ process ASSEMBLE_MEGAHIT {
     file reads_file
 
     output:
-    file "paired-end-contigs.qza"
+    path "contigs.qza" 
 
+    script:
     """
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${reads_file} \
-      --p-presets meta-sensitive --p-num-cpu-threads ${task.cpus} \
-      --o-contigs "paired-end-contigs.qza"
+      --p-presets meta-sensitive \
+      --p-num-cpu-threads ${task.cpus} \
+      --o-contigs "contigs.qza" 
     """
 }
 
@@ -52,15 +56,16 @@ process EVALUATE_CONTIGS {
     path reads_file
 
     output:
-    path "paired-end-contigs-qc.qzv"
+    path "contigs.qzv" 
     
+    script:
     """
     qiime assembly evaluate-contigs \
       --verbose \
       --p-min-contig 100 \
       --i-contigs ${contigs_file} \
       --i-reads ${reads_file} --p-threads ${task.cpus} \
-      --o-visualization paired-end-contigs-qc.qzv
+      --o-visualization "contigs.qzv" 
     """
 }
 
@@ -74,15 +79,16 @@ process INDEX_CONTIGS {
     path contigs_file
 
     output:
-    path "paired-end-index.qza"
+    path "contigs-index.qza"
 
+    script:
     """
     qiime assembly index-contigs \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-contigs ${contigs_file} \
-      --o-index "paired-end-index.qza"
+      --o-index "contigs-index.qza"
     """
 }
 
@@ -97,8 +103,9 @@ process MAP_READS_TO_CONTIGS {
     path reads_file
 
     output:
-    path "paired-end-bowtie-map-contigs.qza"
+    path "contigs-mapped.qza"
 
+    script:
     """
     qiime assembly map-reads-to-contigs \
       --verbose \
@@ -106,6 +113,6 @@ process MAP_READS_TO_CONTIGS {
       --p-threads ${task.cpus} \
       --i-indexed-contigs ${index_file} \
       --i-reads ${reads_file} \
-      --o-alignment-map "paired-end-bowtie-map-contigs.qza"
+      --o-alignment-map "contigs-mapped.qza"
     """
 }
