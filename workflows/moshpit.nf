@@ -14,7 +14,9 @@ nextflow.enable.dsl = 2
 workflow MOSHPIT {
 
     // prepare input reads
-    if (params.fondue.filesAccessionIds) {
+    if (params.inputReads) {
+        reads = params.inputReads
+    } else if (params.fondue.filesAccessionIds) {
         ids = Channel.fromPath(params.fondue.filesAccessionIds)
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
