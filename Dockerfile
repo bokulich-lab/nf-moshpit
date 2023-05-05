@@ -29,4 +29,4 @@ RUN mamba run -n qiime2-$QIIME_VERSION quast-download-silva
 RUN mamba run -n qiime2-$QIIME_VERSION quast-download-gridss
 
 # temporarily install the patched version of QUAST
-RUN mamba run -n qiime2-$QIIME_VERSION pip install git+https://github.com/misialq/quast.git@issue-230
+RUN mamba run -n qiime2-$QIIME_VERSION pip install --user git+https://github.com/misialq/quast.git@issue-230
