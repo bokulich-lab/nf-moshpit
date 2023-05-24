@@ -48,7 +48,9 @@ process EVALUATE_CONTIGS {
     conda params.condaEnvPath
     cpus params.assembly_qc.cpus
     storeDir params.storeDir
-    time params.assembly_qc.time
+    time { params.assembly_qc.time * task.attempt }
+    errorStrategy "retry"
+    maxRetries 3
     module "eth_proxy"
 
     input:
@@ -59,14 +61,25 @@ process EVALUATE_CONTIGS {
     path "contigs.qzv" 
     
     script:
-    """
-    qiime assembly evaluate-contigs \
-      --verbose \
-      --p-min-contig 100 \
-      --i-contigs ${contigs_file} \
-      --i-reads ${reads_file} --p-threads ${task.cpus} \
-      --o-visualization "contigs.qzv" 
-    """
+    if (params.assembly_qc.useReads)
+      """
+      qiime assembly evaluate-contigs \
+        --verbose \
+        --p-min-contig 100 \
+        --i-contigs ${contigs_file} \
+        --i-reads ${reads_file} \
+        --p-threads ${task.cpus} \
+        --o-visualization "contigs.qzv" 
+      """
+    else
+      """
+      qiime assembly evaluate-contigs \
+        --verbose \
+        --p-min-contig 100 \
+        --i-contigs ${contigs_file} \
+        --p-threads ${task.cpus} \
+        --o-visualization "contigs.qzv" 
+      """
 }
 
 process INDEX_CONTIGS {
