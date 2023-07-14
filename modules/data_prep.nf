@@ -85,7 +85,6 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     conda params.condaEnvPath
-    cpus params.read_subsampling.cpus
     storeDir params.storeDir
     time params.read_subsampling.time
 
@@ -113,4 +112,121 @@ process SUBSAMPLE_READS {
         --p-fraction ${params.read_subsampling.fraction} \
         --o-subsampled-sequences ${reads_subsampled}
       """
+}
+
+process SUMMARIZE_READS {
+    conda params.condaEnvPath
+    storeDir params.storeDir
+    time params.read_qc.time
+
+    input:
+    path reads
+    val suffix
+
+    output:
+    path "seqs-qc-${suffix}.qzv"
+
+    script:
+    """
+    qiime demux summarize \
+      --verbose \
+      --i-data ${reads} \
+      --p-n ${params.read_qc.n_reads} \
+      --o-visualization seqs-qc-${suffix}.qzv
+    """
+}
+
+process TRIM_READS {
+    conda params.condaEnvPath
+    cpus params.read_trimming.cpus
+    storeDir params.storeDir
+    time params.read_trimming.time
+
+    input:
+    path reads
+
+    output:
+    path reads_trimmed
+
+    script:
+    reads_trimmed = params.read_trimming.paired ? "paired-end-seqs-trimmed.qza" : "single-end-seqs-trimmed.qza"
+    if (params.read_trimming.paired)
+      """
+      qiime cutadapt trim-paired \
+        --verbose \
+        --i-demultiplexed-sequences ${reads} \
+        --p-cores ${task.cpus} \
+        --p-adapter-f ${params.read_trimming.adapter_f} \
+        --p-front-f ${params.read_trimming.front_f} \
+        --p-anywhere-f ${params.read_trimming.anywhere_f} \
+        --p-adapter-r ${params.read_trimming.adapter_r} \
+        --p-front-r ${params.read_trimming.front_r} \
+        --p-anywhere-r ${params.read_trimming.anywhere_r} \
+        --p-error-rate ${params.read_trimming.error_rate} \
+        --p-indels ${params.read_trimming.indels} \
+        --p-times ${params.read_trimming.times} \
+        --p-overlap ${params.read_trimming.overlap} \
+        --p-match-read-wildcards ${params.read_trimming.match_read_wildcards} \
+        --p-match-adapter-wildcards ${params.read_trimming.match_adapter_wildcards} \
+        --p-minimum-length ${params.read_trimming.minimum_length} \
+        --p-discard-untrimmed ${params.read_trimming.discard_untrimmed} \
+        --p-max-expected-errors ${params.read_trimming.max_expected_errors} \
+        --p-max-n ${params.read_trimming.max_n} \
+        --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
+        --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
+        --p-quality-base ${params.read_trimming.quality_base} \
+        --o-trimmed-sequences ${reads_trimmed}
+      """
+    else
+      """
+      qiime cutadapt trim-single \
+        --verbose \
+        --i-demultiplexed-sequences ${reads} \
+        --p-cores ${task.cpus} \
+        --p-adapter ${params.read_trimming.adapter_f} \
+        --p-front ${params.read_trimming.front_f} \
+        --p-anywhere ${params.read_trimming.anywhere_f} \
+        --p-error-rate ${params.read_trimming.error_rate} \
+        --p-indels ${params.read_trimming.indels} \
+        --p-times ${params.read_trimming.times} \
+        --p-overlap ${params.read_trimming.overlap} \
+        --p-match-read-wildcards ${params.read_trimming.match_read_wildcards} \
+        --p-match-adapter-wildcards ${params.read_trimming.match_adapter_wildcards} \
+        --p-minimum-length ${params.read_trimming.minimum_length} \
+        --p-discard-untrimmed ${params.read_trimming.discard_untrimmed} \
+        --p-max-expected-errors ${params.read_trimming.max_expected_errors} \
+        --p-max-n ${params.read_trimming.max_n} \
+        --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
+        --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
+        --p-quality-base ${params.read_trimming.quality_base} \
+        --o-trimmed-sequences ${reads_trimmed}
+      """
+}
+
+process REMOVE_HOST {
+    conda params.condaEnvPath
+    cpus params.host_removal.cpus
+    storeDir params.storeDir
+    time params.host_removal.time
+
+    input:
+    path reads
+
+    output:
+    path "seqs-no-host.qza"
+
+    script:
+    """
+    qiime quality-control filter-reads \
+      --verbose \
+      --i-demultiplexed-sequences ${reads} \
+      --i-database ${params.host_removal.database} \
+      --p-n-threads ${task.cpus} \
+      --p-mode ${params.host_removal.mode} \
+      --p-sensitivity ${params.host_removal.sensitivity} \
+      --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
+      --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
+      --p-exclude-seqs ${params.host_removal.exclude_seqs} \
+      --o-filtered-sequences seqs-no-host.qza
+    """
 }
