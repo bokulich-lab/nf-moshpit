@@ -44,6 +44,7 @@ workflow MOSHPIT {
     // trim reads
     if (params.read_trimming.enabled) {
         reads = TRIM_READS(reads)
+
         // repeat read QC
         SUMMARIZE_TRIMMED(reads, "trimmed")
     }
@@ -61,9 +62,11 @@ workflow MOSHPIT {
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads)
+
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             bins = BIN(contigs, reads)
+
             // classify MAGs
             if (params.taxonomic_classification.enabled) {
                 CLASSIFY_BINS(bins)
