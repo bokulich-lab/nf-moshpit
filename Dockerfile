@@ -19,7 +19,7 @@ RUN mamba install -y -n qiime2-$QIIME_VERSION \
     q2-types-genomics==$TYPES_VERSION \
     q2-assembly==$ASSEMBLY_VERSION \
     q2-moshpit==$MOSHPIT_VERSION \
-    q2-checkm q2-fondue q2-taxa
+    q2-checkm q2-fondue q2-taxa q2-cutadapt q2-demux
 
 # this is a magical workaround to avoid running "vdb-config -i"
 # https://github.com/ncbi/sra-tools/issues/291
