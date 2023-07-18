@@ -21,6 +21,7 @@ You need to create the following directories, if they do not yet exist:
 - `$WORK/tmp`
 - `$SCRATCH/tmp` (this will be the temporary directory used by Singularity)
 - `$SCRATCH/tmp_home` (this will be mapped to `/home/qiime2` inside the Singularity container)
+
 The work directory will be mounted in the Singularity container, so if you need to make any files available to the workflow, you should put them there. If you decide to place them elsewhere, remember to mount those paths as additional volumes in the container by appending more flags using the `params.additionalRunOptionsSingularity` option. 
 
 > Please do not remove any of the flags included in the `additionalRunOptionsSingularity` param in the configuration - they are all required to make the _Slurm+Singularity+QIIME2_ work together!
