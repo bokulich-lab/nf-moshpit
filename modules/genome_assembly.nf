@@ -15,8 +15,12 @@ process ASSEMBLE_METASPADES {
     qiime assembly assemble-spades \
       --verbose \
       --i-seqs ${reads_file} \
-      --p-meta --p-threads ${task.cpus} \
-      --o-contigs "contigs.qza" 
+      --p-threads ${task.cpus} \
+      --p-k ${params.genome_assembly.spades.k} \
+      --p-debug ${params.genome_assembly.spades.debug} \
+      --p-cov-cutoff ${params.genome_assembly.spades.covCutoff} \
+      --o-contigs "contigs.qza" \
+      ${params.genome_assembly.spades.additionalFlags}
     """
 }
 
@@ -38,9 +42,12 @@ process ASSEMBLE_MEGAHIT {
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${reads_file} \
-      --p-presets meta-sensitive \
+      --p-presets ${params.genome_assembly.megahit.presets} \
+      --p-k-list ${params.genome_assembly.megahit.kList} \
+      --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
-      --o-contigs "contigs.qza" 
+      --o-contigs "contigs.qza" \
+      ${params.genome_assembly.megahit.additionalFlags}
     """
 }
 

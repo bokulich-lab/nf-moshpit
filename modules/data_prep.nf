@@ -29,8 +29,8 @@ process SIMULATE_READS {
 
     output:
     path "reads.qza", emit: reads
-    path "output_genomes.qza", emit: genomes
-    path "output_abundances.qza", emit: abundances
+    path "output-genomes.qza", emit: genomes
+    path "output-abundances.qza", emit: abundances
 
     """
     qiime assembly generate-reads \
@@ -44,8 +44,8 @@ process SIMULATE_READS {
       --p-abundance ${params.read_simulation.abundance} \
       --p-gc-bias ${params.read_simulation.gc_bias} \
       --o-reads "reads.qza" \
-      --o-template-genomes output_genomes.qza \
-      --o-abundances output_abundances.qza
+      --o-template-genomes output-genomes.qza \
+      --o-abundances output-abundances.qza
     """
 }
 
@@ -60,8 +60,8 @@ process FETCH_SEQS {
     path ids
 
     output:
-    path "single-end-seqs.qza", emit: single
-    path "paired-end-seqs.qza", emit: paired
+    path "reads-single.qza", emit: single
+    path "reads-paired.qza", emit: paired
     path "failed-runs.qza", emit: failed
 
     """
@@ -77,8 +77,8 @@ process FETCH_SEQS {
       --i-accession-ids ${ids} \
       --p-email ${params.email} \
       --p-n-jobs ${task.cpus} \
-      --o-single-reads "single-end-seqs.qza" \
-      --o-paired-reads "paired-end-seqs.qza" \
+      --o-single-reads "reads-single.qza" \
+      --o-paired-reads "reads-paired.qza" \
       --o-failed-runs "failed-runs.qza"
     """
 }
@@ -124,7 +124,7 @@ process SUMMARIZE_READS {
     val suffix
 
     output:
-    path "seqs-qc-${suffix}.qzv"
+    path "reads-qc-${suffix}.qzv"
 
     script:
     """
@@ -132,7 +132,7 @@ process SUMMARIZE_READS {
       --verbose \
       --i-data ${reads} \
       --p-n ${params.read_qc.n_reads} \
-      --o-visualization seqs-qc-${suffix}.qzv
+      --o-visualization reads-qc-${suffix}.qzv
     """
 }
 
@@ -149,7 +149,7 @@ process TRIM_READS {
     path reads_trimmed
 
     script:
-    reads_trimmed = params.read_trimming.paired ? "paired-end-seqs-trimmed.qza" : "single-end-seqs-trimmed.qza"
+    reads_trimmed = params.read_trimming.paired ? "reads-paired-trimmed.qza" : "reads-single-trimmed.qza"
     if (params.read_trimming.paired)
       """
       qiime cutadapt trim-paired \
@@ -213,7 +213,7 @@ process REMOVE_HOST {
     path reads
 
     output:
-    path "seqs-no-host.qza"
+    path "reads-no-host.qza"
 
     script:
     """
@@ -227,6 +227,6 @@ process REMOVE_HOST {
       --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
       --p-exclude-seqs ${params.host_removal.exclude_seqs} \
-      --o-filtered-sequences seqs-no-host.qza
+      --o-filtered-sequences reads-no-host.qza
     """
 }
