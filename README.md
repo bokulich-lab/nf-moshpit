@@ -25,7 +25,7 @@ The work directory will be mounted in the Singularity container, so if you need 
 
 > Please do not remove any of the flags included in the `additionalRunOptionsSingularity` param in the configuration - they are all required to make the _Slurm+Singularity+QIIME2_ work together!
 
-# Configuration details
+## Configuration details
 Some of the most useful configuration parameters are explained below:
 | Parameter | Meaning | Singularity | Docker | Conda |
 | --------- | ------- | ----------- | ------ | ----- |
@@ -40,6 +40,7 @@ Some of the most useful configuration parameters are explained below:
 | params.additionalRunOptionsDocker | Additional flags to be passed to Docker containers. | - | X | - |
 | params.inputReads | Path to the QZA file containing input reads. Needs to be accessible within the containers, if used. | X | X | X |
 
+## Usage
 To use the main workflow:
 1. navigate to the `workflows` directory
 2. execute the workflow, adjusting the required params (also, see the config file), e.g.:
