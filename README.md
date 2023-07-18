@@ -45,5 +45,8 @@ To use the main workflow:
 1. navigate to the `workflows` directory
 2. execute the workflow, adjusting the required params (also, see the config file), e.g.:
     ```shell
-    nextflow -C nextflow.config run moshpit.nf -entry MOSHPIT -profile singularity -work-dir $WORK/_data/outputs/work
+    nextflow -C nextflow.config run moshpit.nf \
+        -entry MOSHPIT \
+        -profile singularity \
+        -work-dir $WORK/_data/outputs/work
     ```
