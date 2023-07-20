@@ -1,6 +1,6 @@
 process FETCH_GENOMES {
     conda params.condaEnvPath
-    storeDir params.storeDir
+    storeDir params.read_simulation.storeDir
 
     output:
     path params.read_simulation.sampleGenomes
@@ -21,7 +21,7 @@ process FETCH_GENOMES {
 process SIMULATE_READS {
     conda params.condaEnvPath
     cpus params.read_simulation.cpus
-    storeDir params.storeDir
+    storeDir params.read_simulation.storeDir
     time params.read_simulation.time
 
     input:
@@ -52,7 +52,7 @@ process SIMULATE_READS {
 process FETCH_SEQS {
     conda params.condaEnvPath
     cpus params.fondue.cpus
-    storeDir params.storeDir
+    storeDir params.fondue.storeDir
     module "eth_proxy"
     time params.fondue.time
 
@@ -85,7 +85,7 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     conda params.condaEnvPath
-    storeDir params.storeDir
+    storeDir params.read_subsampling.storeDir
     time params.read_subsampling.time
 
     input:
@@ -116,7 +116,7 @@ process SUBSAMPLE_READS {
 
 process SUMMARIZE_READS {
     conda params.condaEnvPath
-    storeDir params.storeDir
+    storeDir params.read_qc.storeDir
     time params.read_qc.time
 
     input:
@@ -139,7 +139,7 @@ process SUMMARIZE_READS {
 process TRIM_READS {
     conda params.condaEnvPath
     cpus params.read_trimming.cpus
-    storeDir params.storeDir
+    storeDir params.read_trimming.storeDir
     time params.read_trimming.time
 
     input:
@@ -206,7 +206,7 @@ process TRIM_READS {
 process REMOVE_HOST {
     conda params.condaEnvPath
     cpus params.host_removal.cpus
-    storeDir params.storeDir
+    storeDir params.host_removal.storeDir
     time params.host_removal.time
 
     input:

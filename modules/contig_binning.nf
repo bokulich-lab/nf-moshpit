@@ -1,7 +1,7 @@
 process BIN_CONTIGS_METABAT {
     conda params.condaEnvPath
     cpus params.binning.cpus
-    storeDir params.storeDir
+    storeDir params.binning.storeDir
     time params.binning.time
 
     input:
@@ -26,7 +26,7 @@ process EVALUATE_BINS {
     conda params.condaEnvPath
     cpus params.binning_qc.cpus
     clusterOptions params.binning_qc.clusterOptions
-    storeDir params.storeDir
+    storeDir params.binning_qc.storeDir
     time params.binning_qc.time
 
     input:

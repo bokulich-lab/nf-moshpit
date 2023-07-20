@@ -1,7 +1,7 @@
 process ASSEMBLE_METASPADES {
     conda params.condaEnvPath
     cpus params.genome_assembly.cpus
-    storeDir params.storeDir
+    storeDir params.genome_assembly.storeDir
     time params.genome_assembly.time
 
     input:
@@ -28,7 +28,7 @@ process ASSEMBLE_MEGAHIT {
     conda params.condaEnvPath
     cpus params.genome_assembly.cpus
     clusterOptions params.genome_assembly.clusterOptions
-    storeDir params.storeDir
+    storeDir params.genome_assembly.storeDir
     time params.genome_assembly.time
 
     input:
@@ -54,7 +54,7 @@ process ASSEMBLE_MEGAHIT {
 process EVALUATE_CONTIGS {
     conda params.condaEnvPath
     cpus params.assembly_qc.cpus
-    storeDir params.storeDir
+    storeDir params.assembly_qc.storeDir
     time { params.assembly_qc.time * task.attempt }
     errorStrategy "retry"
     maxRetries 3
@@ -92,7 +92,7 @@ process EVALUATE_CONTIGS {
 process INDEX_CONTIGS {
     conda params.condaEnvPath
     cpus params.contig_indexing.cpus
-    storeDir params.storeDir
+    storeDir params.contig_indexing.storeDir
     time params.contig_indexing.time
 
     input:
@@ -115,7 +115,7 @@ process INDEX_CONTIGS {
 process MAP_READS_TO_CONTIGS {
     conda params.condaEnvPath
     cpus params.read_mapping.cpus
-    storeDir params.storeDir
+    storeDir params.read_mapping.storeDir
     time params.read_mapping.time
 
     input:

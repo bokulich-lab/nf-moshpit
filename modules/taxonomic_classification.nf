@@ -3,7 +3,7 @@ process CLASSIFY_BINS_KRAKEN2 {
     // cpus params.taxonomic_classification.cpus
     // memory { params.kraken2MemoryMapping == true ? 4.GB + 4.GB * task.attempt : 88.GB + 8.GB * task.attempt }
     clusterOptions params.taxonomic_classification.clusterOptions
-    storeDir params.storeDir
+    storeDir params.taxonomic_classification.storeDir
     time params.taxonomic_classification.time
     errorStrategy "retry"
     maxRetries 3
@@ -36,7 +36,7 @@ process CLASSIFY_READS_KRAKEN2 {
     // cpus params.taxonomic_classification.cpus
     // memory { 88.GB + 8.GB * task.attempt }
     clusterOptions params.taxonomic_classification.clusterOptions
-    storeDir params.storeDir
+    storeDir params.taxonomic_classification.storeDir
     time params.taxonomic_classification.time
 
     errorStrategy "retry"
@@ -67,7 +67,7 @@ process CLASSIFY_READS_KRAKEN2 {
 
 process DRAW_TAXA_BARPLOT {
     conda params.condaEnvPath
-    storeDir params.storeDir
+    storeDir params.taxonomic_classification.storeDir
 
     input:
     path feature_table
