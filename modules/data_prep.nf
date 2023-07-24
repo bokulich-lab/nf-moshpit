@@ -89,7 +89,7 @@ process SUBSAMPLE_READS {
     time params.read_subsampling.time
 
     input:
-    path reads
+    path reads, stageAs: 'reads'
 
     output:
     path reads_subsampled
@@ -100,7 +100,7 @@ process SUBSAMPLE_READS {
       """
       qiime demux subsample-paired \
         --verbose \
-        --i-sequences ${reads} \
+        --i-sequences ${reads}:${params.q2keyRawReads} \
         --p-fraction ${params.read_subsampling.fraction} \
         --o-subsampled-sequences ${reads_subsampled}
       """
@@ -108,7 +108,7 @@ process SUBSAMPLE_READS {
       """
       qiime demux subsample-single \
         --verbose \
-        --i-sequences ${reads} \
+        --i-sequences ${reads}:${params.q2keyRawReads} \
         --p-fraction ${params.read_subsampling.fraction} \
         --o-subsampled-sequences ${reads_subsampled}
       """
@@ -120,17 +120,19 @@ process SUMMARIZE_READS {
     time params.read_qc.time
 
     input:
-    path reads
+    path reads, stageAs: 'reads'
     val suffix
+    val q2key
 
     output:
     path "reads-qc-${suffix}.qzv"
 
     script:
+    reads_path = (q2key == "") ? "${reads}" : "${reads}:${q2key}"
     """
     qiime demux summarize \
       --verbose \
-      --i-data ${reads} \
+      --i-data ${reads_path} \
       --p-n ${params.read_qc.n_reads} \
       --o-visualization reads-qc-${suffix}.qzv
     """
@@ -143,18 +145,20 @@ process TRIM_READS {
     time params.read_trimming.time
 
     input:
-    path reads
+    path reads, stageAs: 'reads'
+    val q2key
 
     output:
     path reads_trimmed
 
     script:
+    reads_path = (q2key == "") ? "${reads}" : "${reads}:${q2key}"
     reads_trimmed = params.read_trimming.paired ? "reads-paired-trimmed.qza" : "reads-single-trimmed.qza"
     if (params.read_trimming.paired)
       """
       qiime cutadapt trim-paired \
         --verbose \
-        --i-demultiplexed-sequences ${reads} \
+        --i-demultiplexed-sequences ${reads_path} \
         --p-cores ${task.cpus} \
         --p-adapter-f ${params.read_trimming.adapter_f} \
         --p-front-f ${params.read_trimming.front_f} \
@@ -181,7 +185,7 @@ process TRIM_READS {
       """
       qiime cutadapt trim-single \
         --verbose \
-        --i-demultiplexed-sequences ${reads} \
+        --i-demultiplexed-sequences ${reads_path} \
         --p-cores ${task.cpus} \
         --p-adapter ${params.read_trimming.adapter_f} \
         --p-front ${params.read_trimming.front_f} \
@@ -210,16 +214,17 @@ process REMOVE_HOST {
     time params.host_removal.time
 
     input:
-    path reads
+    path reads, stageAs: 'reads'
 
     output:
     path "reads-no-host.qza"
 
     script:
+    reads_path = (params.read_subsampling.enabled || params.read_trimming.enabled) ? "${reads}" : "${reads}:${params.q2keyRawReads}"
     """
     qiime quality-control filter-reads \
       --verbose \
-      --i-demultiplexed-sequences ${reads} \
+      --i-demultiplexed-sequences ${reads_path} \
       --i-database ${params.host_removal.database} \
       --p-n-threads ${task.cpus} \
       --p-mode ${params.host_removal.mode} \

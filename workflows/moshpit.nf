@@ -14,9 +14,9 @@ workflow MOSHPIT {
     reads = PREPARE_DATA()
 
     // classify reads
-    if (params.taxonomic_classification.enabled) {
-        CLASSIFY_READS(reads)
-    }
+    // if (params.taxonomic_classification.enabled) {
+    //     CLASSIFY_READS(reads)
+    // }
 
     // assemble and evaluate
     if (params.genome_assembly.enabled) {

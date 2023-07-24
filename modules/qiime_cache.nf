@@ -6,7 +6,7 @@ process CACHE_STORE {
     val key
 
     output:
-    path "reads-qc-${suffix}.qzv"
+    path "${params.qiime2CacheDir}", stageAs: 'qiime2CacheDir'
 
     script:
     """

@@ -5,16 +5,17 @@ process ASSEMBLE_METASPADES {
     time params.genome_assembly.time
 
     input:
-    path reads_file
+    path reads, stageAs: 'reads'
 
     output:
     path "contigs.qza" 
 
     script:
+    reads_path = (params.read_subsampling.enabled || params.read_trimming.enabled || params.host_removal.enabled) ? "${reads}:${params.q2keyPreprocessedReads}" : "${reads}:${params.q2keyRawReads}"
     """
     qiime assembly assemble-spades \
       --verbose \
-      --i-seqs ${reads_file} \
+      --i-seqs ${reads_path} \
       --p-threads ${task.cpus} \
       --p-k ${params.genome_assembly.spades.k} \
       --p-debug ${params.genome_assembly.spades.debug} \
@@ -32,16 +33,17 @@ process ASSEMBLE_MEGAHIT {
     time params.genome_assembly.time
 
     input:
-    file reads_file
+    path reads, stageAs: 'reads'
 
     output:
     path "contigs.qza" 
 
     script:
+    reads_path = (params.read_subsampling.enabled || params.read_trimming.enabled || params.host_removal.enabled) ? "${reads}:${params.q2keyPreprocessedReads}" : "${reads}:${params.q2keyRawReads}"
     """
     qiime assembly assemble-megahit \
       --verbose \
-      --i-seqs ${reads_file} \
+      --i-seqs ${reads_path} \
       --p-presets ${params.genome_assembly.megahit.presets} \
       --p-k-list ${params.genome_assembly.megahit.kList} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
@@ -61,20 +63,21 @@ process EVALUATE_CONTIGS {
     module "eth_proxy"
 
     input:
-    path contigs_file
-    path reads_file
+    path contigs
+    path reads, stageAs: 'reads'
 
     output:
     path "contigs.qzv" 
     
     script:
+    reads_path = (params.read_subsampling.enabled || params.read_trimming.enabled || params.host_removal.enabled) ? "${reads}:${params.q2keyPreprocessedReads}" : "${reads}:${params.q2keyRawReads}"
     if (params.assembly_qc.useReads)
       """
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
-        --i-contigs ${contigs_file} \
-        --i-reads ${reads_file} \
+        --i-contigs ${contigs} \
+        --i-reads ${reads}:${params.q2keyPreprocessedReads} \
         --p-threads ${task.cpus} \
         --o-visualization "contigs.qzv" 
       """
@@ -83,7 +86,7 @@ process EVALUATE_CONTIGS {
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
-        --i-contigs ${contigs_file} \
+        --i-contigs ${contigs} \
         --p-threads ${task.cpus} \
         --o-visualization "contigs.qzv" 
       """
