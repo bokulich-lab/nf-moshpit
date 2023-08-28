@@ -69,7 +69,7 @@ workflow MOSHPIT {
 
             // classify MAGs
             if (params.taxonomic_classification.enabled) {
-                CLASSIFY_BINS(bins)
+                CLASSIFY_BINS(bins.out.bins)
             }
         }
     }
