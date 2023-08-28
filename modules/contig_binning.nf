@@ -3,6 +3,7 @@ process BIN_CONTIGS_METABAT {
     cpus params.binning.cpus
     storeDir params.storeDir
     time params.binning.time
+    clusterOptions "--mem-per-cpu=${params.binning.memoryPerCPU} ${params.binning.clusterOptions}"
 
     input:
     path contigs_file
@@ -25,9 +26,9 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS {
     conda params.condaEnvPath
     cpus params.binning_qc.cpus
-    clusterOptions params.binning_qc.clusterOptions
     storeDir params.storeDir
     time params.binning_qc.time
+     clusterOptions "--mem-per-cpu=${params.binning_qc.memoryPerCPU} ${params.binning_qc.clusterOptions}"
 
     input:
     path bins_file

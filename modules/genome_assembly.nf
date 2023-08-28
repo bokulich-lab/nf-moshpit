@@ -3,6 +3,7 @@ process ASSEMBLE_METASPADES {
     cpus params.genome_assembly.cpus
     storeDir params.storeDir
     time params.genome_assembly.time
+    clusterOptions "--mem-per-cpu=${params.genome_assembly.memoryPerCPU} ${params.genome_assembly.clusterOptions}"
 
     input:
     path reads_file
@@ -27,9 +28,9 @@ process ASSEMBLE_METASPADES {
 process ASSEMBLE_MEGAHIT {
     conda params.condaEnvPath
     cpus params.genome_assembly.cpus
-    clusterOptions params.genome_assembly.clusterOptions
     storeDir params.storeDir
     time params.genome_assembly.time
+    clusterOptions "--mem-per-cpu=${params.genome_assembly.memoryPerCPU} ${params.genome_assembly.clusterOptions}"
 
     input:
     file reads_file
@@ -56,6 +57,7 @@ process EVALUATE_CONTIGS {
     cpus params.assembly_qc.cpus
     storeDir params.storeDir
     time { params.assembly_qc.time * task.attempt }
+    clusterOptions "--mem-per-cpu=${params.assembly_qc.memoryPerCPU} ${params.assembly_qc.clusterOptions}"
     errorStrategy "retry"
     maxRetries 3
     module "eth_proxy"
@@ -94,6 +96,7 @@ process INDEX_CONTIGS {
     cpus params.contig_indexing.cpus
     storeDir params.storeDir
     time params.contig_indexing.time
+    clusterOptions "--mem-per-cpu=${params.contig_indexing.memoryPerCPU} ${params.contig_indexing.clusterOptions}"
 
     input:
     path contigs_file
@@ -117,6 +120,7 @@ process MAP_READS_TO_CONTIGS {
     cpus params.read_mapping.cpus
     storeDir params.storeDir
     time params.read_mapping.time
+    clusterOptions "--mem-per-cpu=${params.read_mapping.memoryPerCPU} ${params.read_mapping.clusterOptions}"
 
     input:
     path index_file

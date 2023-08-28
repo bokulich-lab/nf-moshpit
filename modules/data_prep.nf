@@ -23,6 +23,7 @@ process SIMULATE_READS {
     cpus params.read_simulation.cpus
     storeDir params.storeDir
     time params.read_simulation.time
+    clusterOptions "--mem-per-cpu=${params.read_simulation.memoryPerCPU} ${params.read_simulation.clusterOptions}"
 
     input:
     path genomes
@@ -118,6 +119,7 @@ process SUMMARIZE_READS {
     conda params.condaEnvPath
     storeDir params.storeDir
     time params.read_qc.time
+    clusterOptions "--mem-per-cpu=${params.read_qc.memoryPerCPU} ${params.read_qc.clusterOptions}"
 
     input:
     path reads
@@ -141,6 +143,7 @@ process TRIM_READS {
     cpus params.read_trimming.cpus
     storeDir params.storeDir
     time params.read_trimming.time
+    clusterOptions "--mem-per-cpu=${params.read_trimming.memoryPerCPU} ${params.read_trimming.clusterOptions}"
 
     input:
     path reads
@@ -208,6 +211,7 @@ process REMOVE_HOST {
     cpus params.host_removal.cpus
     storeDir params.storeDir
     time params.host_removal.time
+    clusterOptions "--mem-per-cpu=${params.host_removal.memoryPerCPU} ${params.host_removal.clusterOptions}"
 
     input:
     path reads
