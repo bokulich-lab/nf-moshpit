@@ -15,5 +15,6 @@ workflow BIN {
             bins_qc = EVALUATE_BINS(bins)
         }
     emit:
-        bins
+        bins = bins.bins
+        contig_map = bins.contig_map
 }
