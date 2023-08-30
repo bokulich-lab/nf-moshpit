@@ -18,7 +18,7 @@ workflow MOSHPIT {
 
     // prepare input reads
     if (params.inputReads) {
-        reads = params.inputReads
+        reads = Channel.fromPath(params.inputReads)
     } else if (params.fondue.filesAccessionIds) {
         ids = Channel.fromPath(params.fondue.filesAccessionIds)
         fetched_reads = FETCH_SEQS(ids)
