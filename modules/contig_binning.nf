@@ -12,6 +12,7 @@ process BIN_CONTIGS_METABAT {
     output:
     path "mags.qza", emit: bins
     path "contig-map.qza", emit: contig_map
+    path "unbinned-contigs.qza", emit: unbinned_contigs
 
     """
     qiime moshpit bin-contigs-metabat \
@@ -21,7 +22,8 @@ process BIN_CONTIGS_METABAT {
       --i-contigs ${contigs_file} \
       --i-alignment-maps ${maps_file} \
       --o-mags "mags.qza" \
-      --o-contig-map "contig-map.qza"
+      --o-contig-map "contig-map.qza" \
+      --o-unbinned-contigs "unbinned-contigs.qza"
     """
 }
 
