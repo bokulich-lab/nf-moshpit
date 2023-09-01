@@ -19,7 +19,7 @@ RUN mamba install -y -n qiime2-$QIIME_VERSION \
     q2-types-genomics==$TYPES_VERSION \
     q2-assembly==$ASSEMBLY_VERSION \
     q2-moshpit==$MOSHPIT_VERSION \
-    q2-checkm q2-fondue q2-taxa q2-cutadapt q2-demux q2-quality-control sourmash && \
+    q2-checkm q2-fondue q2-taxa q2-cutadapt q2-demux q2-quality-control sourmash bracken && \
     mamba run -n qiime2-$QIIME_VERSION pip install https://github.com/dib-lab/q2-sourmash/archive/master.zip
 
 # this is a magical workaround to avoid running "vdb-config -i"
