@@ -32,7 +32,7 @@ process EVALUATE_BINS {
     cpus params.binning_qc.cpus
     storeDir params.storeDir
     time params.binning_qc.time
-     clusterOptions "--mem-per-cpu=${params.binning_qc.memoryPerCPU} ${params.binning_qc.clusterOptions}"
+    clusterOptions "--mem-per-cpu=${params.binning_qc.memoryPerCPU} ${params.binning_qc.clusterOptions}"
 
     input:
     path bins_file

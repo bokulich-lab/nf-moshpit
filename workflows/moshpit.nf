@@ -9,8 +9,9 @@ include { REMOVE_HOST } from '../modules/data_prep'
 include { TRIM_READS } from '../modules/data_prep'
 include { ASSEMBLE } from '../subworkflows/assembly'
 include { BIN } from '../subworkflows/binning'
+include { DEREPLICATE } from '../subworkflows/dereplication'
 include { CLASSIFY_READS } from '../subworkflows/classification'
-include { CLASSIFY_BINS } from '../subworkflows/classification'
+include { CLASSIFY_MAGS } from '../subworkflows/classification'
 
 nextflow.enable.dsl = 2
 
@@ -65,11 +66,12 @@ workflow MOSHPIT {
 
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
-            bins = BIN(contigs, reads)
+            BIN(contigs, reads)
+            DEREPLICATE(BIN.out.bins)
 
             // classify MAGs
             if (params.taxonomic_classification.enabled) {
-                CLASSIFY_BINS(bins.out.bins)
+                CLASSIFY_MAGS(DEREPLICATE.out.bins_derep)
             }
         }
     }
