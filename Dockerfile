@@ -35,6 +35,24 @@ RUN mamba run -n qiime2-$QIIME_VERSION quast-download-gridss
 RUN git clone https://github.com/misialq/quast.git /tmp/quast
 WORKDIR /tmp/quast
 RUN git checkout issue-230 && mamba run -n qiime2-$QIIME_VERSION pip install .
-WORKDIR /data
+
+# temporarily update q2-moshpit/q2-types-genomics/q2-types/q2-assembly to the most recent version
+RUN git clone https://github.com/qiime2/q2-types.git /tmp/q2-types
+WORKDIR /tmp/q2-types
+RUN mamba run -n qiime2-$QIIME_VERSION pip install .
+
+RUN git clone https://github.com/bokulich-lab/q2-types-genomics.git /tmp/q2-types-genomics
+WORKDIR /tmp/q2-types-genomics
+RUN mamba run -n qiime2-$QIIME_VERSION pip install .
+
+RUN git clone https://github.com/bokulich-lab/q2-moshpit.git /tmp/q2-moshpit
+WORKDIR /tmp/q2-moshpit
+RUN mamba run -n qiime2-$QIIME_VERSION pip install .
+
+RUN git clone https://github.com/bokulich-lab/q2-assembly.git /tmp/q2-assembly
+WORKDIR /tmp/q2-assembly
+RUN mamba run -n qiime2-$QIIME_VERSION pip install .
 
 RUN mamba run -n qiime2-$QIIME_VERSION qiime dev refresh-cache
+
+WORKDIR /data
