@@ -23,12 +23,13 @@ process CLASSIFY_KRAKEN2 {
         reports = "kraken-reports-reads.qza"
         hits = "kraken-outputs-reads.qza"
     }
+    threads = 4 * params.taxonomic_classification.cpus
     """
     qiime moshpit classify-kraken2 \
       --verbose \
       --i-seqs ${input_file} \
       --i-kraken2-db ${params.taxonomic_classification.kraken2DBpath} \
-      --p-threads ${params.taxonomic_classification.cpus} \
+      --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
       --o-reports ${reports} \
       --o-hits ${hits} \
