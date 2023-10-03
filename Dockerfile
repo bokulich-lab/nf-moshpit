@@ -1,25 +1,26 @@
-ARG QIIME_VERSION=2023.2
+ARG QIIME_VERSION=2023.5
 
 FROM quay.io/qiime2/core:$QIIME_VERSION
 
 ARG QIIME_VERSION
-ARG TYPES_VERSION=2023.2
-ARG ASSEMBLY_VERSION=2023.2
-ARG MOSHPIT_VERSION=2023.2
+ARG TYPES_VERSION=2023.5
+ARG ASSEMBLY_VERSION=2023.5
+ARG MOSHPIT_VERSION=2023.5
 
 RUN echo "QIIME_VERSION=$QIIME_VERSION TYPES_VERSION=$TYPES_VERSION ASSEMBLY_VERSION=$ASSEMBLY_VERSION MOSHPIT_VERSION=$MOSHPIT_VERSION"
 RUN apt-get update && apt-get install uuid-runtime
 
 RUN conda install mamba=1.2.0 -n base -c conda-forge -c defaults
 RUN mamba install -y -n qiime2-$QIIME_VERSION \
-    -c https://packages.qiime2.org/qiime2/2023.5/tested \
+    -c https://packages.qiime2.org/qiime2/$QIIME_VERSION/tested \
     -c bioconda -c conda-forge -c default \
     qiime2==$QIIME_VERSION \
     q2cli==$QIIME_VERSION \
     q2-types-genomics==$TYPES_VERSION \
     q2-assembly==$ASSEMBLY_VERSION \
     q2-moshpit==$MOSHPIT_VERSION \
-    q2-checkm q2-fondue q2-taxa q2-cutadapt q2-demux q2-quality-control
+    q2-checkm q2-fondue q2-taxa q2-cutadapt q2-demux q2-quality-control sourmash bracken && \
+    mamba run -n qiime2-$QIIME_VERSION pip install https://github.com/dib-lab/q2-sourmash/archive/master.zip
 
 # this is a magical workaround to avoid running "vdb-config -i"
 # https://github.com/ncbi/sra-tools/issues/291
@@ -36,7 +37,7 @@ RUN git clone https://github.com/misialq/quast.git /tmp/quast
 WORKDIR /tmp/quast
 RUN git checkout issue-230 && mamba run -n qiime2-$QIIME_VERSION pip install .
 
-# temporarily update q2-moshpit/q2-types-genomics/q2-types/q2-assembly to the most recent version
+# temporarily update q2-moshpit/q2-types-genomics/q2-types to the most recent version
 RUN git clone https://github.com/qiime2/q2-types.git /tmp/q2-types
 WORKDIR /tmp/q2-types
 RUN mamba run -n qiime2-$QIIME_VERSION pip install .
@@ -53,6 +54,6 @@ RUN git clone https://github.com/bokulich-lab/q2-assembly.git /tmp/q2-assembly
 WORKDIR /tmp/q2-assembly
 RUN mamba run -n qiime2-$QIIME_VERSION pip install .
 
-RUN mamba run -n qiime2-$QIIME_VERSION qiime dev refresh-cache
-
 WORKDIR /data
+
+RUN mamba run -n qiime2-$QIIME_VERSION qiime dev refresh-cache
