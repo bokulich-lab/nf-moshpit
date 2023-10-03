@@ -10,7 +10,7 @@ ARG MOSHPIT_VERSION=2023.5
 RUN echo "QIIME_VERSION=$QIIME_VERSION TYPES_VERSION=$TYPES_VERSION ASSEMBLY_VERSION=$ASSEMBLY_VERSION MOSHPIT_VERSION=$MOSHPIT_VERSION"
 RUN apt-get update && apt-get install uuid-runtime
 
-RUN conda install mamba=1.2.0 -n base -c conda-forge -c defaults
+RUN conda install mamba -n base -c conda-forge -c defaults
 RUN mamba install -y -n qiime2-$QIIME_VERSION \
     -c https://packages.qiime2.org/qiime2/$QIIME_VERSION/tested \
     -c bioconda -c conda-forge -c default \
