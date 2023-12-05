@@ -12,6 +12,8 @@ include { BIN } from '../subworkflows/binning'
 include { DEREPLICATE } from '../subworkflows/dereplication'
 include { CLASSIFY_READS } from '../subworkflows/classification'
 include { CLASSIFY_MAGS } from '../subworkflows/classification'
+include { ANNOTATE_EGGNOG_MAGS } from '../subworkflows/functional_annotation'
+include { ANNOTATE_EGGNOG_CONTIGS } from '../subworkflows/functional_annotation'
 
 nextflow.enable.dsl = 2
 
@@ -64,6 +66,11 @@ workflow MOSHPIT {
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads)
 
+        // annotate contigs
+        if (params.functional_annotation.enabled) {
+            ANNOTATE_EGGNOG_CONTIGS(contigs)
+        }
+
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             BIN(contigs, reads)
@@ -73,6 +80,11 @@ workflow MOSHPIT {
             if (params.taxonomic_classification.enabled) {
                 CLASSIFY_MAGS(DEREPLICATE.out.bins_derep)
             }
+        }
+
+        // annotate MAGs
+        if (params.functional_annotation.enabled) {
+            ANNOTATE_EGGNOG_MAGS(DEREPLICATE.out.bins_derep)
         }
     }
 }
