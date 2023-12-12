@@ -18,6 +18,9 @@ RUN mamba install -y -n qiime2-$QIIME_VERSION \
     sourmash altair && \
     mamba run -n qiime2-$QIIME_VERSION pip install https://github.com/dib-lab/q2-sourmash/archive/master.zip
 
+# clean up
+RUN mamba clean --all -y -vv
+
 # this is a magical workaround to avoid running "vdb-config -i"
 # https://github.com/ncbi/sra-tools/issues/291
 RUN mkdir $HOME/.ncbi
