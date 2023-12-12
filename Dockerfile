@@ -15,7 +15,7 @@ RUN mamba env update -n qiime2-$QIIME_VERSION -f https://data.qiime2.org/distro/
 RUN mamba install -y -n qiime2-$QIIME_VERSION \
     -c https://packages.qiime2.org/qiime2/$QIIME_VERSION/shotgun/staged \
     -c bioconda -c conda-forge -c default \
-    sourmash && \
+    sourmash altair && \
     mamba run -n qiime2-$QIIME_VERSION pip install https://github.com/dib-lab/q2-sourmash/archive/master.zip
 
 # this is a magical workaround to avoid running "vdb-config -i"
