@@ -5,8 +5,9 @@ include { DEREPLICATE_MAGS } from '../modules/dereplication'
 workflow DEREPLICATE {
     take:
         bins
+        q2Cache
     main:
-        minhashes = CALCULATE_MINHASHES(bins)
+        minhashes = CALCULATE_MINHASHES(bins, q2Cache)
         distance_matrix = COMPARE_MINHASHES(minhashes)
         DEREPLICATE_MAGS(bins, distance_matrix)
     emit:

@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 
+include { INIT_CACHE } from '../modules/data_prep'
 include { FETCH_SEQS } from '../modules/data_prep'
 include { FETCH_GENOMES } from '../modules/data_prep'
 include { SIMULATE_READS } from '../modules/data_prep'
@@ -18,6 +19,7 @@ include { ANNOTATE_EGGNOG_CONTIGS } from '../subworkflows/functional_annotation'
 nextflow.enable.dsl = 2
 
 workflow MOSHPIT {
+    cache = INIT_CACHE()
 
     // prepare input reads
     if (params.inputReads) {
@@ -38,33 +40,33 @@ workflow MOSHPIT {
 
     // subsample reads
     if (params.read_subsampling.enabled) {
-        reads = SUBSAMPLE_READS(reads)
+        reads = SUBSAMPLE_READS(reads, cache)
     }
 
     // perform read QC
-    SUMMARIZE_READS(reads, "raw")
+    SUMMARIZE_READS(reads, "raw", cache)
 
     // trim reads
     if (params.read_trimming.enabled) {
-        reads = TRIM_READS(reads)
+        reads = TRIM_READS(reads, cache)
 
         // repeat read QC
-        SUMMARIZE_TRIMMED(reads, "trimmed")
+        SUMMARIZE_TRIMMED(reads, "trimmed", cache)
     }
 
     // remove host reads
     if (params.host_removal.enabled) {
-        reads = REMOVE_HOST(reads)
+        reads = REMOVE_HOST(reads, cache)
     }
 
     // classify reads
     if (params.taxonomic_classification.enabled) {
-        CLASSIFY_READS(reads)
+        CLASSIFY_READS(reads, cache)
     }
 
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
-        contigs = ASSEMBLE(reads)
+        contigs = ASSEMBLE(reads, cache)
 
         // annotate contigs
         if (params.functional_annotation.enabled) {
@@ -73,12 +75,12 @@ workflow MOSHPIT {
 
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
-            BIN(contigs, reads)
-            DEREPLICATE(BIN.out.bins)
+            BIN(contigs, reads, cache)
+            DEREPLICATE(BIN.out.bins, cache)
 
             // classify MAGs
             if (params.taxonomic_classification.enabled) {
-                CLASSIFY_MAGS(DEREPLICATE.out.bins_derep)
+                CLASSIFY_MAGS(DEREPLICATE.out.bins_derep, cache)
             }
         }
 

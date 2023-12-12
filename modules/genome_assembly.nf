@@ -7,21 +7,23 @@ process ASSEMBLE_METASPADES {
 
     input:
     path reads_file
+    path q2Cache
 
     output:
-    path "contigs.qza" 
+    path "contigs" 
 
     script:
     """
     qiime assembly assemble-spades \
       --verbose \
-      --i-seqs ${reads_file} \
+      --i-seqs ${params.q2cacheDir}:${reads_file} \
       --p-threads ${task.cpus} \
       --p-k ${params.genome_assembly.spades.k} \
       --p-debug ${params.genome_assembly.spades.debug} \
       --p-cov-cutoff ${params.genome_assembly.spades.covCutoff} \
-      --o-contigs "contigs.qza" \
-      ${params.genome_assembly.spades.additionalFlags}
+      --o-contigs "${params.q2cacheDir}:contigs" \
+      ${params.genome_assembly.spades.additionalFlags} \
+    && touch contigs
     """
 }
 
@@ -34,21 +36,23 @@ process ASSEMBLE_MEGAHIT {
 
     input:
     file reads_file
+    path q2Cache
 
     output:
-    path "contigs.qza" 
+    path "contigs" 
 
     script:
     """
     qiime assembly assemble-megahit \
       --verbose \
-      --i-seqs ${reads_file} \
+      --i-seqs ${params.q2cacheDir}:${reads_file} \
       --p-presets ${params.genome_assembly.megahit.presets} \
       --p-k-list ${params.genome_assembly.megahit.kList} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
-      --o-contigs "contigs.qza" \
-      ${params.genome_assembly.megahit.additionalFlags}
+      --o-contigs "${params.q2cacheDir}:contigs" \
+      ${params.genome_assembly.megahit.additionalFlags} \
+      && touch contigs
     """
 }
 
@@ -65,6 +69,7 @@ process EVALUATE_CONTIGS {
     input:
     path contigs_file
     path reads_file
+    path q2Cache
 
     output:
     path "contigs.qzv" 
@@ -75,8 +80,8 @@ process EVALUATE_CONTIGS {
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
-        --i-contigs ${contigs_file} \
-        --i-reads ${reads_file} \
+        --i-contigs ${params.q2cacheDir}:${contigs_file} \
+        --i-reads ${params.q2cacheDir}:${reads_file} \
         --p-threads ${task.cpus} \
         --o-visualization "contigs.qzv" 
       """
@@ -85,7 +90,7 @@ process EVALUATE_CONTIGS {
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
-        --i-contigs ${contigs_file} \
+        --i-contigs ${params.q2cacheDir}:${contigs_file} \
         --p-threads ${task.cpus} \
         --o-visualization "contigs.qzv" 
       """
@@ -100,9 +105,10 @@ process INDEX_CONTIGS {
 
     input:
     path contigs_file
+    path q2Cache
 
     output:
-    path "contigs-index.qza"
+    path "contigs_index"
 
     script:
     """
@@ -110,8 +116,9 @@ process INDEX_CONTIGS {
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
-      --i-contigs ${contigs_file} \
-      --o-index "contigs-index.qza"
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --o-index ${params.q2cacheDir}:contigs_index \
+    && touch contigs_index
     """
 }
 
@@ -125,9 +132,10 @@ process MAP_READS_TO_CONTIGS {
     input:
     path index_file
     path reads_file
+    path q2Cache
 
     output:
-    path "contigs-mapped.qza"
+    path "contigs_mapped"
 
     script:
     """
@@ -135,8 +143,9 @@ process MAP_READS_TO_CONTIGS {
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
-      --i-indexed-contigs ${index_file} \
-      --i-reads ${reads_file} \
-      --o-alignment-map "contigs-mapped.qza"
+      --i-indexed-contigs ${params.q2cacheDir}:${index_file} \
+      --i-reads ${params.q2cacheDir}:${reads_file} \
+      --o-alignment-map "${params.q2cacheDir}:contigs_mapped" \
+    && touch contigs_mapped
     """
 }

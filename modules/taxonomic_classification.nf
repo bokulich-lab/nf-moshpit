@@ -10,6 +10,7 @@ process CLASSIFY_KRAKEN2 {
     input:
     path input_file
     val input_type
+    path q2Cache
 
     output:
     path reports, emit: reports
@@ -22,6 +23,9 @@ process CLASSIFY_KRAKEN2 {
     } else if (input_type == "reads") {
         reports = "kraken-reports-reads.qza"
         hits = "kraken-outputs-reads.qza"
+        if (params.q2cacheDir != "") {
+          input_file = "${params.q2cacheDir}:${input_file}"
+        }
     }
     threads = 4 * params.taxonomic_classification.cpus
     """

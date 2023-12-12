@@ -6,6 +6,7 @@ process CALCULATE_MINHASHES {
 
     input:
     path bins_file
+    path q2Cache
 
     output:
     path "mags-minhash.qza"
@@ -17,7 +18,7 @@ process CALCULATE_MINHASHES {
       --p-ksizes ${params.dereplication.sourmash.ksizes} \
       --p-scaled ${params.dereplication.sourmash.scaled} \
       --p-track-abundance ${params.dereplication.sourmash.trackAbundance} \
-      --i-sequence-file ${bins_file} \
+      --i-sequence-file ${params.q2cacheDir}:${bins_file} \
       --o-min-hash-signature "mags-minhash.qza"
     """
 }

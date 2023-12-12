@@ -7,10 +7,11 @@ workflow BIN {
     take:
         contigs
         reads
+        q2_cache
     main:
-        indexed_contigs = INDEX_CONTIGS(contigs)
-        mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs, reads)
-        bins = BIN_CONTIGS_METABAT(contigs, mapped_reads)
+        indexed_contigs = INDEX_CONTIGS(contigs, q2_cache)
+        mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs, reads, q2_cache)
+        bins = BIN_CONTIGS_METABAT(contigs, mapped_reads, q2_cache)
         if (params.binning_qc.enabled) {
             bins_qc = EVALUATE_BINS(bins.bins)
         }

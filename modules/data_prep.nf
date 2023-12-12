@@ -65,6 +65,7 @@ process FETCH_SEQS {
     path "reads-paired.qza", emit: paired
     path "failed-runs.qza", emit: failed
 
+    script:
     """
     if [ ! -d "$HOME/.ncbi" ]; then
         mkdir $HOME/.ncbi
@@ -91,28 +92,33 @@ process SUBSAMPLE_READS {
 
     input:
     path reads
+    path q2Cache
 
     output:
     path reads_subsampled
 
     script:
-    reads_subsampled = "reads-subsampled-${params.read_subsampling.fraction}.qza"
-    if (params.read_subsampling.paired)
+    reads_subsampled = "reads_subsampled_${params.read_subsampling.fraction}"
+
+    if (params.read_subsampling.paired) {
       """
       qiime demux subsample-paired \
         --verbose \
-        --i-sequences ${reads} \
+        --i-sequences ${params.q2cacheDir}:${reads} \
         --p-fraction ${params.read_subsampling.fraction} \
-        --o-subsampled-sequences ${reads_subsampled}
+        --o-subsampled-sequences ${params.q2cacheDir}:${reads_subsampled} \
+      && touch ${reads_subsampled}
       """
-    else
+    } else {
       """
       qiime demux subsample-single \
         --verbose \
-        --i-sequences ${reads} \
+        --i-sequences ${params.q2cacheDir}:${reads} \
         --p-fraction ${params.read_subsampling.fraction} \
-        --o-subsampled-sequences ${reads_subsampled}
+        --o-subsampled-sequences ${params.q2cacheDir}:${reads_subsampled} \
+      && touch ${reads_subsampled}
       """
+  }
 }
 
 process SUMMARIZE_READS {
@@ -124,6 +130,7 @@ process SUMMARIZE_READS {
     input:
     path reads
     val suffix
+    path q2Cache
 
     output:
     path "reads-qc-${suffix}.qzv"
@@ -132,7 +139,7 @@ process SUMMARIZE_READS {
     """
     qiime demux summarize \
       --verbose \
-      --i-data ${reads} \
+      --i-data ${params.q2cacheDir}:${reads} \
       --p-n ${params.read_qc.n_reads} \
       --o-visualization reads-qc-${suffix}.qzv
     """
@@ -147,17 +154,19 @@ process TRIM_READS {
 
     input:
     path reads
+    path q2Cache
 
     output:
     path reads_trimmed
 
     script:
-    reads_trimmed = params.read_trimming.paired ? "reads-paired-trimmed.qza" : "reads-single-trimmed.qza"
-    if (params.read_trimming.paired)
+    reads_trimmed = params.read_trimming.paired ? "reads_paired_trimmed" : "reads_single_trimmed"
+
+    if (params.read_trimming.paired) {
       """
       qiime cutadapt trim-paired \
         --verbose \
-        --i-demultiplexed-sequences ${reads} \
+        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
         --p-cores ${task.cpus} \
         --p-adapter-f ${params.read_trimming.adapter_f} \
         --p-front-f ${params.read_trimming.front_f} \
@@ -178,13 +187,14 @@ process TRIM_READS {
         --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
         --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
         --p-quality-base ${params.read_trimming.quality_base} \
-        --o-trimmed-sequences ${reads_trimmed}
+        --o-trimmed-sequences ${params.q2cacheDir}:${reads_trimmed} \
+      && touch ${reads_trimmed}
       """
-    else
+    } else {
       """
       qiime cutadapt trim-single \
         --verbose \
-        --i-demultiplexed-sequences ${reads} \
+        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
         --p-cores ${task.cpus} \
         --p-adapter ${params.read_trimming.adapter_f} \
         --p-front ${params.read_trimming.front_f} \
@@ -202,8 +212,10 @@ process TRIM_READS {
         --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
         --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
         --p-quality-base ${params.read_trimming.quality_base} \
-        --o-trimmed-sequences ${reads_trimmed}
+        --o-trimmed-sequences ${params.q2cacheDir}:${reads_trimmed} \
+      && touch ${reads_trimmed}
       """
+    }
 }
 
 process REMOVE_HOST {
@@ -215,15 +227,16 @@ process REMOVE_HOST {
 
     input:
     path reads
+    path q2Cache
 
     output:
-    path "reads-no-host.qza"
+    path "reads_no_host"
 
     script:
     """
     qiime quality-control filter-reads \
       --verbose \
-      --i-demultiplexed-sequences ${reads} \
+      --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
       --i-database ${params.host_removal.database} \
       --p-n-threads ${task.cpus} \
       --p-mode ${params.host_removal.mode} \
@@ -231,6 +244,33 @@ process REMOVE_HOST {
       --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
       --p-exclude-seqs ${params.host_removal.exclude_seqs} \
-      --o-filtered-sequences reads-no-host.qza
+      --o-filtered-sequences ${params.q2cacheDir}:reads_no_host \
+      && touch reads_no_host
     """
+}
+
+process INIT_CACHE {
+    conda params.condaEnvPath
+
+    output:
+    path "cache.txt"
+
+    script:
+    if (params.q2cacheDirExists == "ok"){
+      """
+      qiime tools cache-create --cache ${params.q2cacheDir}
+      echo ${params.q2cacheDir} > cache.txt
+      """
+    } else {
+      """
+      if [ -d "${params.q2cacheDir}" ]; then
+        echo "Indicated QIIME 2 cache directory exists. Exiting."
+        exit 1
+      else
+        qiime tools cache-create --cache ${params.q2cacheDir}
+        echo ${params.q2cacheDir} > cache.txt
+      fi
+      """
+    }
+    
 }

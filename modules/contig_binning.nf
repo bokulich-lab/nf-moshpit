@@ -8,6 +8,7 @@ process BIN_CONTIGS_METABAT {
     input:
     path contigs_file
     path maps_file
+    path q2_cache
 
     output:
     path "mags.qza", emit: bins
@@ -19,8 +20,8 @@ process BIN_CONTIGS_METABAT {
       --verbose \
       --p-seed 42 \
       --p-num-threads ${task.cpus} \
-      --i-contigs ${contigs_file} \
-      --i-alignment-maps ${maps_file} \
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --i-alignment-maps ${params.q2cacheDir}:${maps_file} \
       --o-mags "mags.qza" \
       --o-contig-map "contig-map.qza" \
       --o-unbinned-contigs "unbinned-contigs.qza"
