@@ -27,8 +27,8 @@ RUN mkdir $HOME/.ncbi
 RUN printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
 
 # get DBs/tools for QUAST
-RUN mamba run -n qiime2-$QIIME_VERSION quast-download-silva
-RUN mamba run -n qiime2-$QIIME_VERSION quast-download-gridss
+# RUN mamba run -n qiime2-$QIIME_VERSION quast-download-silva
+# RUN mamba run -n qiime2-$QIIME_VERSION quast-download-gridss
 
 # temporarily install the patched version of QUAST
 # for whatever reason, this does not work with pip directly - need to clone first
