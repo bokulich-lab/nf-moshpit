@@ -30,6 +30,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Check available space
+      run: df -h
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
     
