@@ -4,15 +4,17 @@ include { ANNOTATE_EGGNOG as ANNOTATE_MAGS; ANNOTATE_EGGNOG as ANNOTATE_CONTIGS 
 workflow ANNOTATE_EGGNOG_MAGS {
     take:
         mags
+        q2_cache
     main:
-        orthologs = SEARCH_ORTHOLOGS_MAGS(mags, "mags")
+        orthologs = SEARCH_ORTHOLOGS_MAGS(mags, "mags", q2_cache)
         annotations = ANNOTATE_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits, "mags")
 }
 
 workflow ANNOTATE_EGGNOG_CONTIGS {
     take:
         contigs
+        q2_cache
     main:
-        orthologs = SEARCH_ORTHOLOGS_CONTIGS(contigs, "contigs")
+        orthologs = SEARCH_ORTHOLOGS_CONTIGS(contigs, "contigs", q2_cache)
         annotations = ANNOTATE_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits, "contigs")
 }

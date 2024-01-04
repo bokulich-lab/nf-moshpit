@@ -10,7 +10,7 @@ process CLASSIFY_KRAKEN2 {
     input:
     path input_file
     val input_type
-    path q2Cache
+    path q2_cache
 
     output:
     path reports, emit: reports
@@ -23,15 +23,12 @@ process CLASSIFY_KRAKEN2 {
     } else if (input_type == "reads") {
         reports = "kraken-reports-reads.qza"
         hits = "kraken-outputs-reads.qza"
-        if (params.q2cacheDir != "") {
-          input_file = "${params.q2cacheDir}:${input_file}"
-        }
     }
     threads = 4 * params.taxonomic_classification.cpus
     """
     qiime moshpit classify-kraken2 \
       --verbose \
-      --i-seqs ${input_file} \
+      --i-seqs ${params.q2cacheDir}:${input_file} \
       --i-kraken2-db ${params.taxonomic_classification.kraken2DBpath} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \

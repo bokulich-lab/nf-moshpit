@@ -8,6 +8,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     input:
     path input_file
     val input_type
+    path q2_cache
 
     output:
     path hits, emit: hits
@@ -24,7 +25,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     """
     qiime moshpit eggnog-diamond-search \
       --verbose \
-      --i-sequences ${input_file} \
+      --i-sequences ${params.q2cacheDir}:${input_file} \
       --i-diamond-db ${params.functional_annotation.ortholog_search.diamondDBpath} \
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \

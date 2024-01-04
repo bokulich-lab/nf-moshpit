@@ -3,6 +3,9 @@
 include { INIT_CACHE } from '../modules/data_prep'
 include { FETCH_SEQS } from '../modules/data_prep'
 include { FETCH_GENOMES } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT01 } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT02 } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT03 } from '../modules/data_prep'
 include { SIMULATE_READS } from '../modules/data_prep'
 include { SUBSAMPLE_READS } from '../modules/data_prep'
 include { SUMMARIZE_READS; SUMMARIZE_READS as SUMMARIZE_TRIMMED } from '../modules/data_prep'
@@ -67,16 +70,20 @@ workflow MOSHPIT {
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads, cache)
+        FETCH_ARTIFACT01(contigs, "contigs.qza")
+
 
         // annotate contigs
         if (params.functional_annotation.enabled) {
-            ANNOTATE_EGGNOG_CONTIGS(contigs)
+            ANNOTATE_EGGNOG_CONTIGS(contigs, cache)
         }
 
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             BIN(contigs, reads, cache)
             DEREPLICATE(BIN.out.bins, cache)
+            FETCH_ARTIFACT02(BIN.out.bins, "mags.qza")
+            FETCH_ARTIFACT03(DEREPLICATE.out.bins_derep, "mags-derep.qza")
 
             // classify MAGs
             if (params.taxonomic_classification.enabled) {
@@ -86,7 +93,7 @@ workflow MOSHPIT {
 
         // annotate MAGs
         if (params.functional_annotation.enabled) {
-            ANNOTATE_EGGNOG_MAGS(DEREPLICATE.out.bins_derep)
+            ANNOTATE_EGGNOG_MAGS(DEREPLICATE.out.bins_derep, cache)
         }
     }
 }

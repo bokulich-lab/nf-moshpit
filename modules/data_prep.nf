@@ -92,7 +92,7 @@ process SUBSAMPLE_READS {
 
     input:
     path reads
-    path q2Cache
+    path q2_cache
 
     output:
     path reads_subsampled
@@ -130,7 +130,7 @@ process SUMMARIZE_READS {
     input:
     path reads
     val suffix
-    path q2Cache
+    path q2_cache
 
     output:
     path "reads-qc-${suffix}.qzv"
@@ -154,7 +154,7 @@ process TRIM_READS {
 
     input:
     path reads
-    path q2Cache
+    path q2_cache
 
     output:
     path reads_trimmed
@@ -227,7 +227,7 @@ process REMOVE_HOST {
 
     input:
     path reads
-    path q2Cache
+    path q2_cache
 
     output:
     path "reads_no_host"
@@ -273,4 +273,25 @@ process INIT_CACHE {
       """
     }
     
+}
+
+process FETCH_ARTIFACT {
+    conda params.condaEnvPath
+    storeDir params.storeDir
+
+    input:
+    val cache_key
+    val artifact_name
+    
+    output:
+    path "${artifact_name}"
+
+    script:
+    cache_key = new File(cache_key.toString()).getName();
+    """
+    qiime tools cache-fetch \
+      --cache ${params.q2cacheDir} \
+      --key ${cache_key} \
+      --output-path ${artifact_name}
+    """
 }
