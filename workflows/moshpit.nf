@@ -29,15 +29,15 @@ workflow MOSHPIT {
         reads = Channel.fromPath(params.inputReads)
     } else if (params.fondue.filesAccessionIds) {
         ids = Channel.fromPath(params.fondue.filesAccessionIds)
-        fetched_reads = FETCH_SEQS(ids)
+        fetched_reads = FETCH_SEQS(ids, cache)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
     } else if (params.read_simulation.sampleGenomes) {
         genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
-        simulated_reads = SIMULATE_READS(genomes)
+        simulated_reads = SIMULATE_READS(genomes, cache)
         reads = simulated_reads.reads
     } else {
         genomes = FETCH_GENOMES()
-        simulated_reads = SIMULATE_READS(genomes)
+        simulated_reads = SIMULATE_READS(genomes, cache)
         reads = simulated_reads.reads
     }
 

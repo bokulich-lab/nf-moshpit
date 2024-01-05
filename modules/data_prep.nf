@@ -27,11 +27,12 @@ process SIMULATE_READS {
 
     input:
     path genomes
+    path q2_cache
 
     output:
-    path "reads.qza", emit: reads
-    path "output-genomes.qza", emit: genomes
-    path "output-abundances.qza", emit: abundances
+    path "reads", emit: reads
+    path "output_genomes", emit: genomes
+    path "output_abundances", emit: abundances
 
     """
     qiime assembly generate-reads \
@@ -44,14 +45,17 @@ process SIMULATE_READS {
       --p-seed ${params.read_simulation.seed} \
       --p-abundance ${params.read_simulation.abundance} \
       --p-gc-bias ${params.read_simulation.gc_bias} \
-      --o-reads "reads.qza" \
-      --o-template-genomes output-genomes.qza \
-      --o-abundances output-abundances.qza
+      --o-reads ${params.q2cacheDir}:reads \
+      --o-template-genomes ${params.q2cacheDir}:output_genomes \
+      --o-abundances ${params.q2cacheDir}:output_abundances \
+    && touch reads \
+    && touch output_genomes \
+    && touch output_abundances
     """
 }
 
 process FETCH_SEQS {
-    conda params.condaEnvPath
+    conda params.condaEnvPathFondue
     cpus params.fondue.cpus
     storeDir params.storeDir
     module "eth_proxy"
@@ -59,11 +63,12 @@ process FETCH_SEQS {
 
     input:
     path ids
+    path q2_cache
 
     output:
-    path "reads-single.qza", emit: single
-    path "reads-paired.qza", emit: paired
-    path "failed-runs.qza", emit: failed
+    path "reads_single", emit: single
+    path "reads_paired", emit: paired
+    path "failed_runs", emit: failed
 
     script:
     """
@@ -79,9 +84,12 @@ process FETCH_SEQS {
       --i-accession-ids ${ids} \
       --p-email ${params.email} \
       --p-n-jobs ${task.cpus} \
-      --o-single-reads "reads-single.qza" \
-      --o-paired-reads "reads-paired.qza" \
-      --o-failed-runs "failed-runs.qza"
+      --o-single-reads ${params.q2cacheDir}:reads_single \
+      --o-paired-reads ${params.q2cacheDir}:reads_paired \
+      --o-failed-runs ${params.q2cacheDir}:failed_runs \
+    && touch reads_single \
+    && touch reads_paired \
+    && touch failed_runs
     """
 }
 
