@@ -32,7 +32,7 @@ process BIN_CONTIGS_METABAT {
 }
 
 process EVALUATE_BINS_CHECKM {
-    conda params.condaEnvPath
+    conda params.condaEnvPathCheckM
     cpus params.binning_qc.checkm.cpus
     storeDir params.storeDir
     time params.binning_qc.checkm.time
