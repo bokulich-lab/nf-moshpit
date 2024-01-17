@@ -127,7 +127,9 @@ process MAP_READS_TO_CONTIGS {
     cpus params.read_mapping.cpus
     storeDir params.storeDir
     time params.read_mapping.time
-    clusterOptions "--mem-per-cpu=${params.read_mapping.memoryPerCPU} ${params.read_mapping.clusterOptions}"
+    clusterOptions "--mem-per-cpu=${params.read_mapping.memoryPerCPU.substring(0, params.read_mapping.memoryPerCPU.size() - 2).toInteger() * task.attempt}${params.read_mapping.memoryPerCPU.substring(params.read_mapping.memoryPerCPU.size() - 2)} ${params.read_mapping.clusterOptions}"
+    errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
+    maxRetries 3 
 
     input:
     path index_file

@@ -231,8 +231,12 @@ process REMOVE_HOST {
     cpus params.host_removal.cpus
     storeDir params.storeDir
     time params.host_removal.time
-    clusterOptions "--mem-per-cpu=${params.host_removal.memoryPerCPU} ${params.host_removal.clusterOptions}"
-
+    
+    def reqMem = params.host_removal.memoryPerCPU
+    clusterOptions "--mem-per-cpu=${reqMem.substring(0, reqMem.size() - 2).toInteger() * task.attempt}${reqMem.substring(reqMem.size() - 2)} ${params.read_mapping.clusterOptions}"
+    errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
+    maxRetries 3 
+    
     input:
     path reads
     path q2_cache
@@ -242,6 +246,14 @@ process REMOVE_HOST {
 
     script:
     """
+    trap 'exit_code=\$?; 
+      if [ \$exit_code -ne 0 ]; then 
+          output=\$(cat output.log); 
+          if echo "\$output" | grep -q "SIGKILL: 9"; then 
+              exit 137; 
+          fi; 
+      fi' EXIT
+    
     qiime quality-control filter-reads \
       --verbose \
       --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
@@ -252,7 +264,7 @@ process REMOVE_HOST {
       --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
       --p-exclude-seqs ${params.host_removal.exclude_seqs} \
-      --o-filtered-sequences ${params.q2cacheDir}:reads_no_host \
+      --o-filtered-sequences ${params.q2cacheDir}:reads_no_host > output.log 2>&1 \
       && touch reads_no_host
     """
 }
