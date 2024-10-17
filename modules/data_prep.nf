@@ -1,6 +1,9 @@
 process FETCH_GENOMES {
-    conda params.condaEnvPath
+    label "needsInternet"
     storeDir params.storeDir
+
+    input:
+    path q2_cache
 
     output:
     path params.read_simulation.sampleGenomes
@@ -19,11 +22,8 @@ process FETCH_GENOMES {
 }
 
 process SIMULATE_READS {
-    conda params.condaEnvPath
-    cpus params.read_simulation.cpus
+    label "readSimulation"
     storeDir params.storeDir
-    time params.read_simulation.time
-    clusterOptions "--mem-per-cpu=${params.read_simulation.memoryPerCPU} ${params.read_simulation.clusterOptions}"
 
     input:
     path genomes
@@ -55,11 +55,9 @@ process SIMULATE_READS {
 }
 
 process FETCH_SEQS {
-    conda params.condaEnvPathFondue
-    cpus params.fondue.cpus
+    label "fondue"
+    label "needsInternet"
     storeDir params.storeDir
-    module "eth_proxy"
-    time params.fondue.time
 
     input:
     path ids
@@ -73,10 +71,24 @@ process FETCH_SEQS {
     script:
     """
     if [ ! -d "$HOME/.ncbi" ]; then
+        echo 'Directory $HOME/.ncbi does not exist and will be created'
         mkdir $HOME/.ncbi
+        echo 'Creating SRA Toolkit config file in $HOME/.ncbi/user-settings.mkfg'
         printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
     elif [ ! -f "$HOME/.ncbi/user-settings.mkfg" ]; then
+        echo 'Creating SRA Toolkit config file in $HOME/.ncbi/user-settings.mkfg'
         printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+    else
+        echo 'NCBI config files exist - we will attempt to copy the config into the QIIME 2 home directory.'
+        if [ -d "/home/qiime2" ]; then
+          mkdir -p /home/qiime2/.ncbi
+          cp $HOME/.ncbi/user-settings.mkfg /home/qiime2/.ncbi/user-settings.mkfg
+          ls /home/qiime2/.ncbi
+          echo "Success - required config files were created."
+        else
+          echo "The directory /home/qiime2 does not exist - are you running the pipeline using a Singularity container?"
+          exit 1
+        fi
     fi
 
     qiime fondue get-sequences \
@@ -94,9 +106,9 @@ process FETCH_SEQS {
 }
 
 process SUBSAMPLE_READS {
-    conda params.condaEnvPath
+    label "readSubsampling"
     storeDir params.storeDir
-    time params.read_subsampling.time
+    cpus 1
 
     input:
     path reads
@@ -130,10 +142,8 @@ process SUBSAMPLE_READS {
 }
 
 process SUMMARIZE_READS {
-    conda params.condaEnvPath
     storeDir params.storeDir
-    time params.read_qc.time
-    clusterOptions "--mem-per-cpu=${params.read_qc.memoryPerCPU} ${params.read_qc.clusterOptions}"
+    cpus 1
 
     input:
     path reads
@@ -154,11 +164,8 @@ process SUMMARIZE_READS {
 }
 
 process TRIM_READS {
-    conda params.condaEnvPath
-    cpus params.read_trimming.cpus
+    label "readTrimming"
     storeDir params.storeDir
-    time params.read_trimming.time
-    clusterOptions "--mem-per-cpu=${params.read_trimming.memoryPerCPU} ${params.read_trimming.clusterOptions}"
 
     input:
     path reads
@@ -227,13 +234,9 @@ process TRIM_READS {
 }
 
 process REMOVE_HOST {
-    conda params.condaEnvPath
-    cpus params.host_removal.cpus
+    label "hostRemoval"
+    label "needsInternet"
     storeDir params.storeDir
-    time params.host_removal.time
-    
-    def reqMem = params.host_removal.memoryPerCPU
-    clusterOptions "--mem-per-cpu=${reqMem.substring(0, reqMem.size() - 2).toInteger() * task.attempt}${reqMem.substring(reqMem.size() - 2)} ${params.read_mapping.clusterOptions}"
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
     maxRetries 3 
     
@@ -242,35 +245,31 @@ process REMOVE_HOST {
     path q2_cache
 
     output:
-    path "reads_no_host"
+    path "reads_no_host", emit: reads
+    path "reference_index", emit: reference
 
     script:
-    """
-    trap 'exit_code=\$?; 
-      if [ \$exit_code -ne 0 ]; then 
-          output=\$(cat output.log); 
-          if echo "\$output" | grep -q "SIGKILL: 9"; then 
-              exit 137; 
-          fi; 
-      fi' EXIT
+    index_flag = params.host_removal.databaseKey ? "--i-index ${params.q2cacheDir}:${params.host_removal.databaseKey}" : ""
     
-    qiime quality-control filter-reads \
+    """
+    qiime moshpit filter-reads-pangenome \
       --verbose \
-      --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
-      --i-database ${params.host_removal.database} \
+      --i-reads ${params.q2cacheDir}:${reads} \
       --p-n-threads ${task.cpus} \
       --p-mode ${params.host_removal.mode} \
       --p-sensitivity ${params.host_removal.sensitivity} \
       --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
-      --p-exclude-seqs ${params.host_removal.exclude_seqs} \
-      --o-filtered-sequences ${params.q2cacheDir}:reads_no_host > output.log 2>&1 \
-      && touch reads_no_host
+      --o-filtered-reads ${params.q2cacheDir}:reads_no_host \
+      ${index_flag} \
+      --o-reference-index ${params.q2cacheDir}:reference_index > output.log 2>&1 \
+      && touch reads_no_host \
+      && touch reference_index
     """
+
 }
 
 process INIT_CACHE {
-    conda params.condaEnvPath
 
     output:
     path "cache.txt"
@@ -296,7 +295,6 @@ process INIT_CACHE {
 }
 
 process FETCH_ARTIFACT {
-    conda params.condaEnvPath
     storeDir params.storeDir
 
     input:

@@ -1,8 +1,6 @@
 process CALCULATE_MINHASHES {
-    conda params.condaEnvPath
+    label "dereplication"
     storeDir params.storeDir
-    time params.dereplication.sourmash.time
-    clusterOptions "--mem-per-cpu=${params.dereplication.sourmash.memoryPerCPU} ${params.dereplication.sourmash.clusterOptions}"
 
     input:
     path bins_file
@@ -25,10 +23,8 @@ process CALCULATE_MINHASHES {
 }
 
 process COMPARE_MINHASHES {
-    conda params.condaEnvPath
+    label "dereplication"
     storeDir params.storeDir
-    time params.dereplication.sourmash.time
-    clusterOptions "--mem-per-cpu=${params.dereplication.sourmash.memoryPerCPU} ${params.dereplication.sourmash.clusterOptions}"
 
     input:
     path hashes_file
@@ -51,10 +47,8 @@ process COMPARE_MINHASHES {
 }
 
 process DEREPLICATE_MAGS {
-    conda params.condaEnvPath
+    label "dereplication"
     storeDir params.storeDir
-    time params.dereplication.time
-    clusterOptions "--mem-per-cpu=${params.dereplication.memoryPerCPU} ${params.dereplication.clusterOptions}"
 
     input:
     path bins_file
@@ -76,5 +70,35 @@ process DEREPLICATE_MAGS {
       --o-feature-table "${params.q2cacheDir}:mags_pa_table" \
     && touch mags_dereplicated \
     && touch mags_pa_table
+    """
+}
+
+process FILTER_MAGS {
+    storeDir params.storeDir
+    cpus 1
+    memory 1.GB
+    time { 20.min * task.attempt }
+    maxRetries 3
+
+    input:
+    path bins_file
+    path metadata_file
+    val filtering_axis
+    path q2_cache
+
+    output:
+    path "mags_filtered", emit: mags_filtered
+
+    script:
+    """
+    qiime moshpit filter-mags \
+      --verbose \
+      --p-where ${params.dereplication.filtering.condition}" \
+      --p-exclude-ids ${params.dereplication.filtering.exclude_ids}" \
+      --p-on ${filtering_axis} \
+      --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
+      --i-mags ${params.q2cacheDir}:${bins_file} \
+      --o-filtered-mags "${params.q2cacheDir}:mags_filtered" \
+    && touch mags_filtered
     """
 }

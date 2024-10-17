@@ -1,10 +1,7 @@
 process ASSEMBLE_METASPADES {
-    conda params.condaEnvPath
-    cpus params.genome_assembly.cpus
+    label "genomeAssembly"
     storeDir params.storeDir
-    time params.genome_assembly.time
-    clusterOptions "--mem-per-cpu=${params.genome_assembly.memoryPerCPU} ${params.genome_assembly.clusterOptions}"
-
+    
     input:
     path reads_file
     path q2Cache
@@ -28,12 +25,12 @@ process ASSEMBLE_METASPADES {
 }
 
 process ASSEMBLE_MEGAHIT {
-    conda params.condaEnvPath
-    cpus params.genome_assembly.cpus
+    label "genomeAssembly"
+    cpus 1
+    memory 1.GB
+    time params.genomeAssembly.time
     storeDir params.storeDir
-    time params.genome_assembly.time
-    clusterOptions "--mem-per-cpu=${params.genome_assembly.memoryPerCPU} ${params.genome_assembly.clusterOptions}"
-
+    
     input:
     file reads_file
     path q2Cache
@@ -43,6 +40,18 @@ process ASSEMBLE_MEGAHIT {
 
     script:
     """
+    python ${projectDir}/../scripts/generate_toml.py \
+      -t ${projectDir}/../conf/parallel.template.toml \
+      -o parallel.toml \
+      -m '${params.genomeAssembly.memory}' \
+      -c ${params.genomeAssembly.cpus} \
+      -T "${params.genomeAssembly.time}" \
+      -n 1 \
+      -b ${params.genomeAssembly.blocks} \
+      -w "${params.genomeAssembly.workerInit}"
+
+    cat parallel.toml
+
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${reads_file} \
@@ -51,20 +60,20 @@ process ASSEMBLE_MEGAHIT {
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
       --o-contigs "${params.q2cacheDir}:contigs" \
+      --no-recycle \
+      --parallel-config parallel.toml \
+      --use-cache ${params.q2cacheDir} \
       ${params.genome_assembly.megahit.additionalFlags} \
       && touch contigs
     """
 }
 
 process EVALUATE_CONTIGS {
-    conda params.condaEnvPath
-    cpus params.assembly_qc.cpus
+    label "contigEvaluation"
+    label "needsInternet"
     storeDir params.storeDir
-    time { params.assembly_qc.time * task.attempt }
-    clusterOptions "--mem-per-cpu=${params.assembly_qc.memoryPerCPU} ${params.assembly_qc.clusterOptions}"
     errorStrategy "retry"
     maxRetries 3
-    module "eth_proxy"
 
     input:
     path contigs_file
@@ -72,7 +81,9 @@ process EVALUATE_CONTIGS {
     path q2Cache
 
     output:
-    path "contigs.qzv" 
+    path "contigs.qzv"
+    path "quast_results_table"
+    path "quast_reference_genomes"
     
     script:
     if (params.assembly_qc.useReads)
@@ -80,29 +91,37 @@ process EVALUATE_CONTIGS {
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
+        --p-threads ${task.cpus} \
         --i-contigs ${params.q2cacheDir}:${contigs_file} \
         --i-reads ${params.q2cacheDir}:${reads_file} \
-        --p-threads ${task.cpus} \
-        --o-visualization "contigs.qzv" 
+        --o-visualization "contigs.qzv" \
+        --o-results-table "${params.q2cacheDir}:quast_results_table" \
+        --o-reference-genomes "${params.q2cacheDir}:quast_reference_genomes" \
+      && touch quast_results_table \
+      && touch quast_reference_genomes
       """
     else
       """
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
-        --i-contigs ${params.q2cacheDir}:${contigs_file} \
         --p-threads ${task.cpus} \
-        --o-visualization "contigs.qzv" 
+        --i-contigs ${params.q2cacheDir}:${contigs_file} \
+        --o-visualization "contigs.qzv" \
+        --o-results-table "${params.q2cacheDir}:quast_results_table" \
+        --o-reference-genomes "${params.q2cacheDir}:quast_reference_genomes" \
+      && touch quast_results_table \
+      && touch quast_reference_genomes
       """
 }
 
 process INDEX_CONTIGS {
-    conda params.condaEnvPath
-    cpus params.contig_indexing.cpus
+    label "indexing"
+    cpus 1
+    memory 1.GB
+    time params.indexing.time
     storeDir params.storeDir
-    time params.contig_indexing.time
-    clusterOptions "--mem-per-cpu=${params.contig_indexing.memoryPerCPU} ${params.contig_indexing.clusterOptions}"
-
+    
     input:
     path contigs_file
     path q2Cache
@@ -112,22 +131,37 @@ process INDEX_CONTIGS {
 
     script:
     """
+    python ${projectDir}/../scripts/generate_toml.py \
+      -t ${projectDir}/../conf/parallel.template.toml \
+      -o parallel.toml \
+      -m '${params.indexing.memory}' \
+      -c ${params.indexing.cpus} \
+      -T ${params.indexing.time} \
+      -n 1 \
+      -b ${params.indexing.blocks} \
+      -w "${params.indexing.workerInit}"
+    
+    cat parallel.toml
+
     qiime assembly index-contigs \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --o-index ${params.q2cacheDir}:contigs_index \
+      --no-recycle \
+      --parallel-config parallel.toml \
+      --use-cache ${params.q2cacheDir} \
     && touch contigs_index
     """
 }
 
 process MAP_READS_TO_CONTIGS {
-    conda params.condaEnvPath
-    cpus params.read_mapping.cpus
+    label "readMapping"
+    cpus 1
+    memory 1.GB
+    time params.readMapping.time
     storeDir params.storeDir
-    time params.read_mapping.time
-    clusterOptions "--mem-per-cpu=${params.read_mapping.memoryPerCPU.substring(0, params.read_mapping.memoryPerCPU.size() - 2).toInteger() * task.attempt}${params.read_mapping.memoryPerCPU.substring(params.read_mapping.memoryPerCPU.size() - 2)} ${params.read_mapping.clusterOptions}"
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
     maxRetries 3 
 
@@ -137,17 +171,32 @@ process MAP_READS_TO_CONTIGS {
     path q2Cache
 
     output:
-    path "contigs_mapped"
+    path "reads_to_contigs"
 
     script:
     """
-    qiime assembly map-reads-to-contigs \
+    python ${projectDir}/../scripts/generate_toml.py \
+      -t ${projectDir}/../conf/parallel.template.toml \
+      -o parallel.toml \
+      -m '${params.readMapping.memory}' \
+      -c ${params.readMapping.cpus} \
+      -T ${params.readMapping.time} \
+      -n 1 \
+      -b ${params.readMapping.blocks} \
+      -w "${params.readMapping.workerInit}"
+
+    cat parallel.toml
+
+    qiime assembly map-reads \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
-      --i-indexed-contigs ${params.q2cacheDir}:${index_file} \
+      --i-index ${params.q2cacheDir}:${index_file} \
       --i-reads ${params.q2cacheDir}:${reads_file} \
-      --o-alignment-map "${params.q2cacheDir}:contigs_mapped" \
-    && touch contigs_mapped
+      --o-alignment-map "${params.q2cacheDir}:reads_to_contigs" \
+      --no-recycle \
+      --parallel-config parallel.toml \
+      --use-cache ${params.q2cacheDir} \
+    && touch reads_to_contigs
     """
 }

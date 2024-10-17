@@ -1,0 +1,16 @@
+[parsl]
+
+[[parsl.executors]]
+class = "HighThroughputExecutor"
+label = "default"
+max_workers = 1
+
+[parsl.executors.provider]
+class = "SlurmProvider"
+scheduler_options = "#SBATCH --mem-per-cpu={{ memory }}"
+exclusive = false
+worker_init = "{{ worker_init }}"
+walltime = "{{ total_time }}"
+nodes_per_block = {{ nodes_per_block }}
+cores_per_node = {{ cpus }}
+max_blocks = {{ max_blocks }}
