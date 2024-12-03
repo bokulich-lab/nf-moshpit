@@ -22,6 +22,9 @@ process CLASSIFY_KRAKEN2 {
     if (input_type == "mags") {
         reports = "kraken_reports_mags"
         hits = "kraken_outputs_mags"
+    } else if (input_type == "mags-derep") {
+        reports = "kraken_reports_mags_derep"
+        hits = "kraken_outputs_mags_derep"
     } else if (input_type == "reads") {
         reports = "kraken_reports_reads"
         hits = "kraken_outputs_reads"
@@ -43,15 +46,15 @@ process CLASSIFY_KRAKEN2 {
     qiime moshpit classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
-      --i-kraken2-db ${params.q2cacheDir}:${params.taxonomic_classification.kraken2DBkey} \
+      --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
       --p-threads ${threads} \
-      --p-memory-mapping ${params.taxonomic_classification.kraken2MemoryMapping} \
+      --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
       --o-reports ${params.q2cacheDir}:${reports} \
       --o-hits ${params.q2cacheDir}:${hits} \
       --no-recycle \
       --parallel-config parallel.toml \
       --use-cache ${params.q2cacheDir} \
-      ${params.taxonomic_classification.additionalFlags} \
+      ${params.taxonomic_classification.kraken2.additionalFlags} \
     && touch ${reports} \
     && touch ${hits}
     """
@@ -78,7 +81,7 @@ process ESTIMATE_BRACKEN {
     qiime moshpit estimate-bracken \
       --verbose \
       --i-kraken-reports ${params.q2cacheDir}:${kraken2_reports} \
-      --i-bracken-db ${params.q2cacheDir}:${params.taxonomic_classification.bracken.brackenDBkey} \
+      --i-bracken-db ${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key} \
       --p-threshold ${params.taxonomic_classification.bracken.threshold} \
       --p-read-len ${params.taxonomic_classification.bracken.readLength} \
       --p-level ${params.taxonomic_classification.bracken.level} \
@@ -135,6 +138,7 @@ process GET_KRAKEN_FEATURES {
 
 process DRAW_TAXA_BARPLOT {
     storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy'
 
     input:
     path feature_table
@@ -166,23 +170,23 @@ process FETCH_KRAKEN2_DB {
     path q2_cache
 
     output:
-    path params.taxonomic_classification.kraken2DBkey, emit: kraken2_db
-    path params.taxonomic_classification.bracken.brackenDBkey, emit: bracken_db
+    path params.taxonomic_classification.kraken2.database.key, emit: kraken2_db
+    path params.taxonomic_classification.bracken.database.key, emit: bracken_db
 
     script:
     """
-    if [ -f ${params.q2cacheDir}/keys/${params.taxonomic_classification.kraken2DBkey} ]; then
+    if [ -f ${params.taxonomic_classification.kraken2.database.cache}/keys/${params.taxonomic_classification.kraken2.database.key} ]; then
       echo 'Found an existing Kraken 2 database - fetching will be skipped.'
-      touch ${params.taxonomic_classification.kraken2DBkey}
-      touch ${params.taxonomic_classification.bracken.brackenDBkey}
+      touch ${params.taxonomic_classification.kraken2.database.key}
+      touch ${params.taxonomic_classification.bracken.database.key}
       exit 0
     fi
     qiime moshpit build-kraken-db \
       --verbose \
-      --p-collection ${params.taxonomic_classification.collection} \
-      --o-kraken2-database "${params.q2cacheDir}:${params.taxonomic_classification.kraken2DBkey}" \
-      --o-bracken-database "${params.q2cacheDir}:${params.taxonomic_classification.bracken.brackenDBkey}" \
-    && touch ${params.taxonomic_classification.kraken2DBkey} \
-    && touch ${params.taxonomic_classification.bracken.brackenDBkey}
+      --p-collection ${params.taxonomic_classification.kraken2.database.collection} \
+      --o-kraken2-database "${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key}" \
+      --o-bracken-database "${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key}" \
+    && touch ${params.taxonomic_classification.kraken2.database.key} \
+    && touch ${params.taxonomic_classification.bracken.database.key}
     """
 }

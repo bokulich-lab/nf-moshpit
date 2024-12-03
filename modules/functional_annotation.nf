@@ -44,7 +44,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
       --i-sequences ${params.q2cacheDir}:${input_file} \
-      --i-diamond-db ${params.q2cacheDir}:${params.functional_annotation.ortholog_search.database.key} \
+      --i-diamond-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
       --o-eggnog-hits ${params.q2cacheDir}:${hits} \
       --o-table ${params.q2cacheDir}:${table} \
       --no-recycle \
@@ -98,7 +98,7 @@ process ANNOTATE_EGGNOG {
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
       --i-eggnog-hits ${params.q2cacheDir}:${input_file} \
-      --i-eggnog-db ${params.q2cacheDir}:${params.functional_annotation.annotation.database.key} \
+      --i-eggnog-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
       --o-ortholog-annotations ${params.q2cacheDir}:${annotations} \
       --no-recycle \
       --parallel-config parallel.toml \
@@ -125,7 +125,7 @@ process FETCH_DIAMOND_DB {
     """
     qiime moshpit fetch-diamond-db \
       --verbose \
-      --o-diamond-db "${params.q2cacheDir}:${params.functional_annotation.ortholog_search.database.key}" \
+      --o-diamond-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
     && touch ${params.functional_annotation.ortholog_search.database.key}
     """
 }
@@ -148,7 +148,7 @@ process FETCH_EGGNOG_DB {
     """
     qiime moshpit fetch-eggnog-db \
       --verbose \
-      --o-eggnog-db "${params.q2cacheDir}:${params.functional_annotation.annotation.database.key}" \
+      --o-eggnog-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
     && touch ${params.functional_annotation.annotation.database.key}
     """
 }

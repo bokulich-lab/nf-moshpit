@@ -143,6 +143,7 @@ process SUBSAMPLE_READS {
 
 process SUMMARIZE_READS {
     storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy'
     cpus 1
 
     input:
@@ -246,10 +247,10 @@ process REMOVE_HOST {
 
     output:
     path "reads_no_host", emit: reads
-    path "reference_index", emit: reference
+    path "human_reference_index", emit: reference
 
     script:
-    index_flag = params.host_removal.databaseKey ? "--i-index ${params.q2cacheDir}:${params.host_removal.databaseKey}" : ""
+    index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
     
     """
     qiime moshpit filter-reads-pangenome \
@@ -262,9 +263,9 @@ process REMOVE_HOST {
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
       --o-filtered-reads ${params.q2cacheDir}:reads_no_host \
       ${index_flag} \
-      --o-reference-index ${params.q2cacheDir}:reference_index > output.log 2>&1 \
+      --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
       && touch reads_no_host \
-      && touch reference_index
+      && touch human_reference_index
     """
 
 }
@@ -296,6 +297,7 @@ process INIT_CACHE {
 
 process FETCH_ARTIFACT {
     storeDir params.storeDir
+    publishDir params.publishDir, mode: 'move'
 
     input:
     val cache_key

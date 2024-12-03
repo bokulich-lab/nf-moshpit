@@ -28,31 +28,6 @@ process BIN_CONTIGS_METABAT {
     """
 }
 
-process EVALUATE_BINS_CHECKM {
-    label "checkm"
-    conda params.condaEnvPathCheckM
-    storeDir params.storeDir
-
-    input:
-    path bins_file
-    path q2_cache
-
-    output:
-    path "mags-checkm.qzv"
-
-    script:
-    """
-    qiime checkm evaluate-bins \
-      --verbose \
-      --p-threads ${task.cpus} \
-      --p-pplacer-threads ${params.binning_qc.checkm.pplacerThreads} \
-      --p-reduced-tree ${params.binning_qc.checkm.reducedTree} \
-      --p-db-path ${params.binning_qc.checkm.DBpath} \
-      --i-bins ${params.q2cacheDir}:${bins_file} \
-      --o-visualization "mags-checkm.qzv"
-    """
-}
-
 process EVALUATE_BINS_BUSCO {
     label "busco"
     storeDir params.storeDir
@@ -67,23 +42,23 @@ process EVALUATE_BINS_BUSCO {
     path "busco_results", emit: busco_results
 
     script:
-    if (params.binning_qc.busco.lineageDataset == "auto") {
+    if (params.binning.qc.busco.lineageDataset == "auto") {
       lineage_dataset = "--p-auto-lineage"
     } else {
-      lineage_dataset = "--p-lineage-dataset ${params.binning_qc.busco.lineageDataset}"
+      lineage_dataset = "--p-lineage-dataset ${params.binning.qc.busco.lineageDataset}"
     }
     """
     export TMPDIR=${params.tempDir}
     qiime moshpit evaluate-busco \
       --verbose \
       --p-cpu ${task.cpus} \
-      --p-mode ${params.binning_qc.busco.mode} \
+      --p-mode ${params.binning.qc.busco.mode} \
       ${lineage_dataset} \
       --i-bins ${params.q2cacheDir}:${bins_file} \
-      --i-busco-db ${params.q2cacheDir}:${params.binning_qc.busco.database.key} \
+      --i-busco-db ${params.q2cacheDir}:${params.binning.qc.busco.database.key} \
       --o-visualization "mags-busco.qzv" \
       --o-results-table ${params.q2cacheDir}:busco_results \
-      ${params.binning_qc.busco.additionalFlags} \
+      ${params.binning.qc.busco.additionalFlags} \
     && touch busco_results
     """
 }
@@ -100,21 +75,51 @@ process FETCH_BUSCO_DB {
     path q2_cache
 
     output:
-    path params.binning_qc.busco.database.key
+    path params.binning.qc.busco.database.key
 
     script:
     """
-    if [ -f ${params.q2cacheDir}/keys/${params.binning_qc.busco.database.key} ]; then
+    if [ -f ${params.binning.qc.busco.database.cache}/keys/${params.binning.qc.busco.database.key} ]; then
       echo 'Found an existing BUSCO database - fetching will be skipped.'
-      touch ${params.binning_qc.busco.database.key}
+      touch ${params.binning.qc.busco.database.key}
       exit 0
     fi
     qiime moshpit fetch-busco-db \
       --verbose \
-      --p-virus ${params.binning_qc.busco.database.virus} \
-      --p-prok ${params.binning_qc.busco.database.prok} \
-      --p-euk ${params.binning_qc.busco.database.euk} \
-      --o-busco-db "${params.q2cacheDir}:${params.binning_qc.busco.database.key}" \
-    && touch ${params.binning_qc.busco.database.key}
+      --p-virus ${params.binning.qc.busco.database.virus} \
+      --p-prok ${params.binning.qc.busco.database.prok} \
+      --p-euk ${params.binning.qc.busco.database.euk} \
+      --o-busco-db "${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key}" \
+    && touch ${params.binning.qc.busco.database.key}
+    """
+}
+
+process FILTER_MAGS {
+    storeDir params.storeDir
+    cpus 1
+    memory 1.GB
+    time { 20.min * task.attempt }
+    maxRetries 3
+
+    input:
+    path bins_file
+    path metadata_file
+    val filtering_axis
+    path q2_cache
+
+    output:
+    path "mags_filtered", emit: mags_filtered
+
+    script:
+    """
+    qiime moshpit filter-mags \
+      --verbose \
+      --p-where ${params.binning.qc.filtering.condition}" \
+      --p-exclude-ids ${params.binning.qc.filtering.exclude_ids}" \
+      --p-on ${filtering_axis} \
+      --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
+      --i-mags ${params.q2cacheDir}:${bins_file} \
+      --o-filtered-mags "${params.q2cacheDir}:mags_filtered" \
+    && touch mags_filtered
     """
 }

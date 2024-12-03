@@ -26,7 +26,8 @@ Some of the most useful configuration parameters are explained below:
 | process.conda | Location of the conda environment | [conf/conda.config](conf/conda.config) |
 | params.email | Your e-mail address - only needed when using q2-fondue | [nextflow.config](nextflow.config) |
 | params.executor | Name of the executor to be used. Only Slurm/local are supported at the moment. | [nextflow.config](nextflow.config) |
-| params.storeDir | Directory where all the results will be published. | [nextflow.config](nextflow.config) |
+| params.storeDir | Directory where all temporary results will be stored (important for ressumption). | [nextflow.config](nextflow.config) |
+| params.publishDir | Directory where final results (qza and qzv) will be stored. | [nextflow.config](nextflow.config) |
 | params.traceDir | Directory where Nexftlow trace/report files will be saved. | [nextflow.config](nextflow.config) |
 | params.tempDir | Temporary directory to be used by Singularity/Docker. | [nextflow.config](nextflow.config) |
 | params.inputReads | Path to the QZA file containing input reads. Needs to be accessible within the containers, if used. | [nextflow.config](nextflow.config) |

@@ -15,10 +15,13 @@ include { REMOVE_HOST } from '../modules/data_prep'
 include { TRIM_READS } from '../modules/data_prep'
 include { ASSEMBLE } from '../subworkflows/assembly'
 include { BIN } from '../subworkflows/binning'
+include { BIN_NO_BUSCO } from '../subworkflows/binning'
 include { DEREPLICATE } from '../subworkflows/dereplication'
 include { CLASSIFY_READS } from '../subworkflows/classification'
 include { CLASSIFY_MAGS } from '../subworkflows/classification'
+include { CLASSIFY_MAGS_DEREP } from '../subworkflows/classification'
 include { ANNOTATE_EGGNOG_MAGS_DEREP } from '../subworkflows/functional_annotation'
+include { ANNOTATE_EGGNOG_MAGS } from '../subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_CONTIGS } from '../subworkflows/functional_annotation'
 include { ESTIMATE_ABUNDANCE } from '../subworkflows/abundance_estimation'
 include { FETCH_DIAMOND_DB } from '../modules/functional_annotation'
@@ -69,7 +72,7 @@ workflow MOSHPIT {
     }
 
     // classify reads
-    if (params.taxonomic_classification.enabled) {
+    if (params.taxonomic_classification.enabledFor.contains("reads")) {
         FETCH_KRAKEN2_DB(cache)
         CLASSIFY_READS(reads, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
     }
@@ -84,21 +87,33 @@ workflow MOSHPIT {
         eggnog_db = FETCH_EGGNOG_DB(cache)
 
         // annotate contigs
-        if (params.functional_annotation.enabled) {
+        if (params.functional_annotation.enabledFor.contains("contigs")) {
             ANNOTATE_EGGNOG_CONTIGS(contigs, diamond_db, eggnog_db, cache)
         }
 
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
-            BIN(contigs, reads, cache)
+            if (params.binning.qc.busco) {
+                binning_results = BIN(contigs, reads, cache)
+            } else {
+                binning_results = BIN_NO_BUSCO(contigs, reads, cache)
+            }
+            
+            // classify MAGs
+            if (params.taxonomic_classification.enabledFor.contains("mags")) {
+                CLASSIFY_MAGS(binning_results.bins, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+            }
+
+            // annotate MAGs
+            if (params.functional_annotation.enabledFor.contains("mags")) {
+                ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db, cache)
+            }
+
 
             if (params.dereplication.enabled) {
-                DEREPLICATE(BIN.out.bins, BIN.out.busco_results, cache)
-                FETCH_ARTIFACT_BINS(BIN.out.bins, "mags.qza")
+                DEREPLICATE(binning_results.bins, cache)
+                FETCH_ARTIFACT_BINS(binning_results.bins, "mags.qza")
                 FETCH_ARTIFACT_BINS_DEREP(DEREPLICATE.out.bins_derep, "mags-derep.qza")
-                if (params.dereplication.filtering.enabled) {
-                    FETCH_ARTIFACT_BINS_FILTERED(DEREPLICATE.out.bins_filtered, "mags-filtered.qza")
-                }
 
                 // estimate abundance
                 if (params.mag_abundance.enabled) {
@@ -107,12 +122,12 @@ workflow MOSHPIT {
                 }
 
                 // classify dereplicated MAGs
-                if (params.taxonomic_classification.enabled) {
-                    CLASSIFY_MAGS(DEREPLICATE.out.bins_derep, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+                if (params.taxonomic_classification.enabledFor.contains("derep")) {
+                    CLASSIFY_MAGS_DEREP(DEREPLICATE.out.bins_derep, FETCH_KRAKEN2_DB.out.bracken_db, cache)
                 }
 
                 // annotate dereplicated MAGs
-                if (params.functional_annotation.enabled) {
+                if (params.functional_annotation.enabledFor.contains("derep")) {
                     ANNOTATE_EGGNOG_MAGS_DEREP(DEREPLICATE.out.bins_derep, diamond_db, eggnog_db, cache)
                 }
             }
