@@ -8,6 +8,7 @@ process FETCH_GENOMES {
     output:
     path params.read_simulation.sampleGenomes
 
+    script:
     """
     qiime rescript get-ncbi-genomes \
       --verbose \
@@ -34,6 +35,7 @@ process SIMULATE_READS {
     path "output_genomes", emit: genomes
     path "output_abundances", emit: abundances
 
+    script:
     """
     qiime assembly generate-reads \
       --verbose \
@@ -142,6 +144,7 @@ process SUBSAMPLE_READS {
 }
 
 process SUMMARIZE_READS {
+    label "readSummarization"
     storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy'
     cpus 1
