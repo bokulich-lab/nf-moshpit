@@ -61,6 +61,8 @@ process CLASSIFY_KRAKEN2 {
 }
 
 process ESTIMATE_BRACKEN {
+    label "bracken"
+    cpus 1
     storeDir params.storeDir
     time { 12.h * task.attempt }
     errorStrategy "retry"
