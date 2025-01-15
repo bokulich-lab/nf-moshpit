@@ -55,7 +55,7 @@ process EVALUATE_BINS_BUSCO {
       --p-mode ${params.binning.qc.busco.mode} \
       ${lineage_dataset} \
       --i-bins ${params.q2cacheDir}:${bins_file} \
-      --i-busco-db ${params.q2cacheDir}:${params.binning.qc.busco.database.key} \
+      --i-busco-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
       --o-visualization "mags-busco.qzv" \
       --o-results-table ${params.q2cacheDir}:busco_results \
       ${params.binning.qc.busco.additionalFlags} \
