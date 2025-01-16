@@ -123,6 +123,11 @@ process FETCH_DIAMOND_DB {
 
     script:
     """
+    if [ -f ${params.functional_annotation.ortholog_search.database.cache}/keys/${params.functional_annotation.ortholog_search.database.key} ]; then
+      echo 'Found an existing EggNOG Diamond database - fetching will be skipped.'
+      touch ${params.functional_annotation.ortholog_search.database.key}
+      exit 0
+    fi
     qiime moshpit fetch-diamond-db \
       --verbose \
       --o-diamond-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
@@ -146,6 +151,11 @@ process FETCH_EGGNOG_DB {
 
     script:
     """
+    if [ -f ${params.functional_annotation.annotation.database.cache}/keys/${params.functional_annotation.annotation.database.key} ]; then
+      echo 'Found an existing EggNOG annotation database - fetching will be skipped.'
+      touch ${params.functional_annotation.annotation.database.key}
+      exit 0
+    fi
     qiime moshpit fetch-eggnog-db \
       --verbose \
       --o-eggnog-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
