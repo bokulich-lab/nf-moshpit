@@ -1,6 +1,5 @@
 process CALCULATE_MINHASHES {
     label "dereplication"
-    storeDir params.storeDir
 
     input:
     path bins_file
@@ -24,7 +23,6 @@ process CALCULATE_MINHASHES {
 
 process COMPARE_MINHASHES {
     label "dereplication"
-    storeDir params.storeDir
 
     input:
     path hashes_file
@@ -48,7 +46,6 @@ process COMPARE_MINHASHES {
 
 process DEREPLICATE_MAGS {
     label "dereplication"
-    storeDir params.storeDir
 
     input:
     path bins_file

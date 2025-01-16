@@ -1,67 +1,50 @@
 process CLASSIFY_KRAKEN2 {
     label "taxonomicClassification"
-    cpus 1
-    memory 1.GB
-    time params.taxonomicClassification.time
-    storeDir params.storeDir
 
     errorStrategy "retry"
     maxRetries 3
 
     input:
-    path input_file
+    tuple val(_id), path(input_file)
     path kraken2_db
     val input_type
     path q2_cache
 
     output:
-    path reports, emit: reports
-    path hits, emit: hits
+    tuple val(_id), path(reports_key), emit: reports
+    tuple val(_id), path(hits_key), emit: hits
 
     script:
     if (input_type == "mags") {
-        reports = "kraken_reports_mags"
-        hits = "kraken_outputs_mags"
+        reports_key = "kraken_reports_mags_partitioned_${_id}"
+        hits_key = "kraken_outputs_mags_partitioned_${_id}"
     } else if (input_type == "mags-derep") {
-        reports = "kraken_reports_mags_derep"
-        hits = "kraken_outputs_mags_derep"
+        reports_key = "kraken_reports_mags_derep"
+        hits_key = "kraken_outputs_mags_derep"
     } else if (input_type == "reads") {
-        reports = "kraken_reports_reads"
-        hits = "kraken_outputs_reads"
+        reports_key = "kraken_reports_reads_partitioned_${_id}"
+        hits_key = "kraken_outputs_reads_partitioned_${_id}"
+    } else if (input_type == "contigs") {
+        reports_key = "kraken_reports_contigs_partitioned_${_id}"
+        hits_key = "kraken_outputs_contigs_partitioned_${_id}"
     }
     threads = 4 * task.cpus
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.taxonomicClassification.memory}' \
-      -c ${params.taxonomicClassification.cpus} \
-      -T ${params.taxonomicClassification.time} \
-      -n 1 \
-      -b ${params.taxonomicClassification.blocks} \
-      -w "${params.taxonomicClassification.workerInit}"
-
-    cat parallel.toml
-
     qiime moshpit classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
       --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
-      --o-reports ${params.q2cacheDir}:${reports} \
-      --o-hits ${params.q2cacheDir}:${hits} \
-      --no-recycle \
-      --parallel-config parallel.toml \
-      --use-cache ${params.q2cacheDir} \
+      --o-reports ${params.q2cacheDir}:${reports_key} \
+      --o-hits ${params.q2cacheDir}:${hits_key} \
       ${params.taxonomic_classification.kraken2.additionalFlags} \
-    && touch ${reports} \
-    && touch ${hits}
+    && touch ${reports_key} \
+    && touch ${hits_key}
     """
 }
 
 process ESTIMATE_BRACKEN {
-    storeDir params.storeDir
     time { 12.h * task.attempt }
     errorStrategy "retry"
     maxRetries 3
@@ -95,7 +78,6 @@ process ESTIMATE_BRACKEN {
 }
 
 process GET_KRAKEN_FEATURES {
-    storeDir params.storeDir
     time { 12.h * task.attempt }
     errorStrategy "retry"
     maxRetries 3
@@ -110,8 +92,8 @@ process GET_KRAKEN_FEATURES {
     path "kraken_presence_absence", emit: feature_table, optional: true
 
     script:
+    features = "kraken_features_${input_type}"
     if (input_type == "reads") {
-      features = "kraken_features_reads"
       """
       qiime moshpit kraken2-to-features \
         --verbose \
@@ -123,7 +105,6 @@ process GET_KRAKEN_FEATURES {
       && touch kraken_presence_absence
       """
     } else {
-      features = "kraken_features_mags"
       """
       qiime moshpit kraken2-to-mag-features \
         --verbose \
@@ -137,7 +118,6 @@ process GET_KRAKEN_FEATURES {
 }
 
 process DRAW_TAXA_BARPLOT {
-    storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy'
 
     input:
@@ -163,8 +143,8 @@ process FETCH_KRAKEN2_DB {
     cpus 1
     memory 1.GB
     time { 1.h * task.attempt }
-    storeDir params.storeDir
     maxRetries 3
+    storeDir "${params.taxonomic_classification.kraken2.database.cache}/keys"
 
     input:
     path q2_cache

@@ -1,15 +1,15 @@
 process ASSEMBLE_METASPADES {
     label "genomeAssembly"
-    storeDir params.storeDir
     
     input:
-    path reads_file
+    tuple val(sample_id), path(reads_file)
     path q2Cache
 
     output:
-    path "contigs" 
+    tuple val(sample_id), path(key)
 
     script:
+    key = "contigs_partitioned_${sample_id}"
     """
     qiime assembly assemble-spades \
       --verbose \
@@ -18,40 +18,25 @@ process ASSEMBLE_METASPADES {
       --p-k ${params.genome_assembly.spades.k} \
       --p-debug ${params.genome_assembly.spades.debug} \
       --p-cov-cutoff ${params.genome_assembly.spades.covCutoff} \
-      --o-contigs "${params.q2cacheDir}:contigs" \
+      --o-contigs "${params.q2cacheDir}:${key}" \
       ${params.genome_assembly.spades.additionalFlags} \
-    && touch contigs
+    && touch ${key}
     """
 }
 
 process ASSEMBLE_MEGAHIT {
     label "genomeAssembly"
-    cpus 1
-    memory 1.GB
-    time params.genomeAssembly.time
-    storeDir params.storeDir
     
     input:
-    file reads_file
+    tuple val(sample_id), path(reads_file)
     path q2Cache
 
     output:
-    path "contigs" 
+    tuple val(sample_id), path(key)
 
     script:
+    key = "contigs_partitioned_${sample_id}"
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.genomeAssembly.memory}' \
-      -c ${params.genomeAssembly.cpus} \
-      -T "${params.genomeAssembly.time}" \
-      -n 1 \
-      -b ${params.genomeAssembly.blocks} \
-      -w "${params.genomeAssembly.workerInit}"
-
-    cat parallel.toml
-
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${reads_file} \
@@ -59,19 +44,17 @@ process ASSEMBLE_MEGAHIT {
       --p-k-list ${params.genome_assembly.megahit.kList} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
-      --o-contigs "${params.q2cacheDir}:contigs" \
-      --no-recycle \
-      --parallel-config parallel.toml \
+      --o-contigs "${params.q2cacheDir}:${key}" \
       --use-cache ${params.q2cacheDir} \
       ${params.genome_assembly.megahit.additionalFlags} \
-      && touch contigs
+      && touch ${key}
     """
 }
 
 process EVALUATE_CONTIGS {
     label "contigEvaluation"
     label "needsInternet"
-    storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy', pattern: 'contigs.qzv'
     errorStrategy "retry"
     maxRetries 3
 
@@ -117,86 +100,51 @@ process EVALUATE_CONTIGS {
 
 process INDEX_CONTIGS {
     label "indexing"
-    cpus 1
-    memory 1.GB
-    time params.indexing.time
-    storeDir params.storeDir
     
     input:
-    path contigs_file
+    tuple val(sample_id), path(contigs_file)
     path q2Cache
 
     output:
-    path "contigs_index"
+    tuple val(sample_id), path(key)
 
     script:
+    key = "contigs_index_partitioned_${sample_id}"
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.indexing.memory}' \
-      -c ${params.indexing.cpus} \
-      -T ${params.indexing.time} \
-      -n 1 \
-      -b ${params.indexing.blocks} \
-      -w "${params.indexing.workerInit}"
-    
-    cat parallel.toml
-
     qiime assembly index-contigs \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
-      --o-index ${params.q2cacheDir}:contigs_index \
-      --no-recycle \
-      --parallel-config parallel.toml \
+      --o-index ${params.q2cacheDir}:${key} \
       --use-cache ${params.q2cacheDir} \
-    && touch contigs_index
+    && touch ${key}
     """
 }
 
 process MAP_READS_TO_CONTIGS {
     label "readMapping"
-    cpus 1
-    memory 1.GB
-    time params.readMapping.time
-    storeDir params.storeDir
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
     maxRetries 3 
 
     input:
-    path index_file
-    path reads_file
+    tuple val(sample_id), path(index_file), path(reads_file)
     path q2Cache
 
     output:
-    path "reads_to_contigs"
+    tuple val(sample_id), path(key)
 
     script:
+    key = "reads_to_contigs_partitioned_${sample_id}"
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.readMapping.memory}' \
-      -c ${params.readMapping.cpus} \
-      -T ${params.readMapping.time} \
-      -n 1 \
-      -b ${params.readMapping.blocks} \
-      -w "${params.readMapping.workerInit}"
-
-    cat parallel.toml
-
     qiime assembly map-reads \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-index ${params.q2cacheDir}:${index_file} \
       --i-reads ${params.q2cacheDir}:${reads_file} \
-      --o-alignment-map "${params.q2cacheDir}:reads_to_contigs" \
-      --no-recycle \
-      --parallel-config parallel.toml \
+      --o-alignment-map "${params.q2cacheDir}:${key}" \
       --use-cache ${params.q2cacheDir} \
-    && touch reads_to_contigs
+    && touch ${key}
     """
 }

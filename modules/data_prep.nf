@@ -1,6 +1,5 @@
 process FETCH_GENOMES {
     label "needsInternet"
-    storeDir params.storeDir
 
     input:
     path q2_cache
@@ -23,7 +22,6 @@ process FETCH_GENOMES {
 
 process SIMULATE_READS {
     label "readSimulation"
-    storeDir params.storeDir
 
     input:
     path genomes
@@ -57,7 +55,6 @@ process SIMULATE_READS {
 process FETCH_SEQS {
     label "fondue"
     label "needsInternet"
-    storeDir params.storeDir
 
     input:
     path ids
@@ -107,19 +104,17 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     label "readSubsampling"
-    storeDir params.storeDir
     cpus 1
 
     input:
-    path reads
+    tuple val(_id), path(reads)
     path q2_cache
 
     output:
-    path reads_subsampled
+    tuple val(_id), path(reads_subsampled)
 
     script:
-    reads_subsampled = "reads_subsampled_${params.read_subsampling.fraction}"
-
+    reads_subsampled = "reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${_id}"
     if (params.read_subsampling.paired) {
       """
       qiime demux subsample-paired \
@@ -141,117 +136,78 @@ process SUBSAMPLE_READS {
   }
 }
 
-process SUMMARIZE_READS {
-    storeDir params.storeDir
-    publishDir params.publishDir, mode: 'copy'
-    cpus 1
+process PROCESS_READS_FASTP {
+    label "fastp"
 
     input:
-    path reads
-    val suffix
+    tuple val(_id), path(reads)
     path q2_cache
 
     output:
-    path "reads-qc-${suffix}.qzv"
+    tuple val(_id), path(key_reads), path(key_reports)
 
     script:
+    key_reads = "reads_fastp_${_id}"
+    key_reports = "fastp_report_${_id}"
+    qc_filtering_flag = params.read_qc.fastp.disableQualityFiltering ? "--p-disable-quality-filtering" : "--p-no-disable-quality-filtering"
+    dedup_flag = params.read_qc.fastp.deduplicate ? "--p-dedup" : "--p-no-dedup"
+    adapter_trimming_flag = params.read_qc.fastp.disableAdapterTrimming ? "--p-disable-adapter-trimming" : "--p-no-disable-adapter-trimming"
+    correction_flag = params.read_qc.fastp.enableBaseCorrection ? "--p-correction" : "--p-no-correction"
     """
-    qiime demux summarize \
+    qiime fastp process-seqs \
       --verbose \
-      --i-data ${params.q2cacheDir}:${reads} \
-      --p-n ${params.read_qc.n_reads} \
-      --o-visualization reads-qc-${suffix}.qzv
+      --i-sequences ${params.q2cacheDir}:${reads} \
+      ${qc_filtering_flag} \
+      ${dedup_flag} \
+      ${adapter_trimming_flag} \
+      ${correction_flag} \
+      ${params.read_qc.fastp.additionalFlags} \
+      --p-thread ${task.cpus} \
+      --o-processed-sequences ${params.q2cacheDir}:${key_reads} \
+      --o-reports ${params.q2cacheDir}:${key_reports} \
+    && touch ${key_reads} \
+    && touch ${key_reports}
     """
 }
 
-process TRIM_READS {
-    label "readTrimming"
-    storeDir params.storeDir
+process VISUALIZE_FASTP {
+    cpus 1
+    memory 1.GB
+    publishDir params.publishDir, mode: 'copy'
 
     input:
-    path reads
+    path fastp_reports
     path q2_cache
 
     output:
-    path reads_trimmed
+    path "reads-qc-fastp.qzv"
 
     script:
-    reads_trimmed = params.read_trimming.paired ? "reads_paired_trimmed" : "reads_single_trimmed"
-
-    if (params.read_trimming.paired) {
-      """
-      qiime cutadapt trim-paired \
-        --verbose \
-        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
-        --p-cores ${task.cpus} \
-        --p-adapter-f ${params.read_trimming.adapter_f} \
-        --p-front-f ${params.read_trimming.front_f} \
-        --p-anywhere-f ${params.read_trimming.anywhere_f} \
-        --p-adapter-r ${params.read_trimming.adapter_r} \
-        --p-front-r ${params.read_trimming.front_r} \
-        --p-anywhere-r ${params.read_trimming.anywhere_r} \
-        --p-error-rate ${params.read_trimming.error_rate} \
-        --p-indels ${params.read_trimming.indels} \
-        --p-times ${params.read_trimming.times} \
-        --p-overlap ${params.read_trimming.overlap} \
-        --p-match-read-wildcards ${params.read_trimming.match_read_wildcards} \
-        --p-match-adapter-wildcards ${params.read_trimming.match_adapter_wildcards} \
-        --p-minimum-length ${params.read_trimming.minimum_length} \
-        --p-discard-untrimmed ${params.read_trimming.discard_untrimmed} \
-        --p-max-expected-errors ${params.read_trimming.max_expected_errors} \
-        --p-max-n ${params.read_trimming.max_n} \
-        --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
-        --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
-        --p-quality-base ${params.read_trimming.quality_base} \
-        --o-trimmed-sequences ${params.q2cacheDir}:${reads_trimmed} \
-      && touch ${reads_trimmed}
-      """
-    } else {
-      """
-      qiime cutadapt trim-single \
-        --verbose \
-        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
-        --p-cores ${task.cpus} \
-        --p-adapter ${params.read_trimming.adapter_f} \
-        --p-front ${params.read_trimming.front_f} \
-        --p-anywhere ${params.read_trimming.anywhere_f} \
-        --p-error-rate ${params.read_trimming.error_rate} \
-        --p-indels ${params.read_trimming.indels} \
-        --p-times ${params.read_trimming.times} \
-        --p-overlap ${params.read_trimming.overlap} \
-        --p-match-read-wildcards ${params.read_trimming.match_read_wildcards} \
-        --p-match-adapter-wildcards ${params.read_trimming.match_adapter_wildcards} \
-        --p-minimum-length ${params.read_trimming.minimum_length} \
-        --p-discard-untrimmed ${params.read_trimming.discard_untrimmed} \
-        --p-max-expected-errors ${params.read_trimming.max_expected_errors} \
-        --p-max-n ${params.read_trimming.max_n} \
-        --p-quality-cutoff-5end ${params.read_trimming.quality_cutoff_5end} \
-        --p-quality-cutoff-3end ${params.read_trimming.quality_cutoff_3end} \
-        --p-quality-base ${params.read_trimming.quality_base} \
-        --o-trimmed-sequences ${params.q2cacheDir}:${reads_trimmed} \
-      && touch ${reads_trimmed}
-      """
-    }
+    """
+    qiime fastp visualize \
+      --verbose \
+      --i-reports ${params.q2cacheDir}:${fastp_reports} \
+      --o-visualization reads-qc-fastp.qzv
+    """
 }
 
 process REMOVE_HOST {
     label "hostRemoval"
     label "needsInternet"
-    storeDir params.storeDir
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
-    maxRetries 3 
+    maxRetries 3
     
     input:
-    path reads
+    tuple val(sample_id), path(reads)
     path q2_cache
 
     output:
-    path "reads_no_host", emit: reads
+    tuple val(sample_id), path(key), emit: reads
     path "human_reference_index", emit: reference
 
     script:
     index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
-    
+    key = "reads_no_host_partitioned_${sample_id}"
     """
     qiime moshpit filter-reads-pangenome \
       --verbose \
@@ -261,10 +217,10 @@ process REMOVE_HOST {
       --p-sensitivity ${params.host_removal.sensitivity} \
       --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
       --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
-      --o-filtered-reads ${params.q2cacheDir}:reads_no_host \
+      --o-filtered-reads ${params.q2cacheDir}:${key} \
       ${index_flag} \
       --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
-      && touch reads_no_host \
+      && touch ${key} \
       && touch human_reference_index
     """
 
@@ -296,22 +252,84 @@ process INIT_CACHE {
 }
 
 process FETCH_ARTIFACT {
-    storeDir params.storeDir
-    publishDir params.publishDir, mode: 'move'
+    publishDir params.publishDir, mode: 'copy'
 
     input:
     val cache_key
-    val artifact_name
     
     output:
-    path "${artifact_name}"
+    path artifact_name
 
     script:
     cache_key = new File(cache_key.toString()).getName();
+    artifact_name = cache_key.replace("_", "-") + ".qza"
     """
     qiime tools cache-fetch \
       --cache ${params.q2cacheDir} \
       --key ${cache_key} \
       --output-path ${artifact_name}
     """
+}
+
+process PARTITION_ARTIFACT {
+    cpus 1
+
+    input:
+    path cache_key
+    val prefix
+    val qiime_action
+    val qiime_input_flag
+    val qiime_output_flag
+
+    output:
+    path "${prefix}*"
+
+    script:
+    """
+    if [ ! -f "${params.q2cacheDir}/keys/${prefix}collection" ]; then
+      qiime ${qiime_action} \
+      ${qiime_input_flag} ${params.q2cacheDir}:${cache_key} \
+      ${qiime_output_flag} ${params.q2cacheDir}:${prefix}collection
+    else
+      echo "The ${prefix}collection result collection already exists and will not be recreated."
+    fi
+
+    bash ${projectDir}/../scripts/partition.sh \
+      -i ${params.q2cacheDir}/keys/${prefix}collection \
+      -d ${params.q2cacheDir}/keys \
+      -p ${prefix} \
+      -s
+    """
+}
+
+process COLLATE_PARTITIONS {
+    cpus 1
+    memory 4.GB
+
+    input:
+    path cache_key_in
+    val cache_key_out 
+    val qiime_action
+    val qiime_input_flag
+    val qiime_output_flag
+    val clean_up
+
+    output:
+    path "${cache_key_out}"
+
+    script:
+    """
+    keys_in=\$(for path in ${cache_key_in}; do echo "${params.q2cacheDir}:\$(basename "\$path")"; done)
+    echo \$keys_in
+    qiime ${qiime_action} \
+      ${qiime_input_flag} \$keys_in \
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
+    && touch ${cache_key_out}
+    """
+
+    // if (clean_up === true) {
+    //   """
+    //   qiime tools cache-remove --cache ${params.q2cacheDir} --key ${prefix}_collection
+    //   """
+    // }
 }
