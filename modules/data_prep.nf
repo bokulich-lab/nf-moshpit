@@ -318,3 +318,48 @@ process FETCH_ARTIFACT {
       --output-path ${artifact_name}
     """
 }
+
+process TABULATE_READ_COUNTS {
+    storeDir params.storeDir
+    maxRetries 3 
+    
+    input:
+    path reads
+    path q2_cache
+
+    output:
+    path "reads_counts"
+
+    script:
+    """
+    qiime demux tabulate-read-counts \
+      --verbose \
+      --i-sequences ${params.q2cacheDir}:${reads} \
+      --o-counts ${params.q2cacheDir}:reads_counts \
+      && touch reads_counts
+    """
+}
+
+process FILTER_SAMPLES {
+    storeDir params.storeDir
+    
+    input:
+    path reads
+    path metadata
+    val query
+    path q2_cache
+
+    output:
+    path "reads_filtered"
+
+    script:
+    """
+    qiime demux filter-samples \
+      --verbose \
+      --i-demux ${params.q2cacheDir}:${reads} \
+      --m-metadata-file ${params.q2cacheDir}:${metadata} \
+      --p-where ${query} \
+      --o-filtered-demux ${params.q2cacheDir}:reads_filtered \
+      && touch reads_filtered
+    """
+}

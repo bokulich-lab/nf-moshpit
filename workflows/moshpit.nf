@@ -71,6 +71,13 @@ workflow MOSHPIT {
         reads = filtering_results.reads
     }
 
+    // remove samples with low read counts
+    if (params.read_filtering.enabled) {
+        read_counts = TABULATE_READ_COUNTS(reads, cache)
+        reads = FILTER_SAMPLES(reads, read_counts, "'Demultiplexed sequence count'>${params.read_filtering.min_reads}", cache)
+    }
+
+
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
         FETCH_KRAKEN2_DB(cache)
