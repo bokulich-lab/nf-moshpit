@@ -341,6 +341,7 @@ process TABULATE_READ_COUNTS {
 }
 
 process FILTER_SAMPLES {
+    label "sampleFiltering"
     storeDir params.storeDir
     
     input:
