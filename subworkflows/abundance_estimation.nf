@@ -14,7 +14,7 @@ workflow ESTIMATE_ABUNDANCE {
         mags_derep_index = INDEX_DEREP_MAGS(mags_derep, q2_cache)
         combined = reads.combine(mags_derep_index)
         reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache) | map { _id, key -> key } | collect
-        maps_all = COLLATE_PARTITIONS(reads_to_mags, "reads_to_derep_mags", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
+        maps_all = COLLATE_PARTITIONS(reads_to_mags, "${params.runId}_reads_to_derep_mags", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
         lengths = GET_GENOME_LENGTHS(mags_derep, q2_cache)
         abundance = ESTIMATE_MAG_ABUNDANCE(maps_all, lengths, q2_cache)
         if (params.mag_abundance.fetchArtifact) {

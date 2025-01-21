@@ -9,7 +9,7 @@ process INDEX_DEREP_MAGS {
     path(key)
 
     script:
-    key = "mags_derep_index"
+    key = "${params.runId}_mags_derep_index"
     """
     qiime assembly index-derep-mags \
       --verbose \
@@ -34,7 +34,7 @@ process MAP_READS_TO_DEREP_MAGS {
     tuple val(_id), path(key)
 
     script:
-    key = "reads_to_derep_mags_partitioned_${_id}"
+    key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
     """
     qiime assembly map-reads \
       --verbose \
@@ -62,7 +62,7 @@ process GET_GENOME_LENGTHS {
     path key
 
     script:
-    key = "mags_derep_lengths"
+    key = "${params.runId}_mags_derep_lengths"
     """
     qiime moshpit get-feature-lengths \
       --verbose \
@@ -84,7 +84,7 @@ process ESTIMATE_MAG_ABUNDANCE {
     path key
 
     script:
-    key = "mags_derep_ft"
+    key = "${params.runId}_mags_derep_ft"
     """
     qiime moshpit estimate-mag-abundance \
       --verbose \

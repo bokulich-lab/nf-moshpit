@@ -25,7 +25,7 @@ workflow BIN {
 
         bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
         bins_all = BIN_CONTIGS_METABAT.out.bins | map { _id, _key -> _key } | collect
-        bins_all = COLLATE_BINS(bins_all, "mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
+        bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
 
         if (params.binning.fetchArtifact) {
             FETCH_ARTIFACT_MAGS(bins_all)
@@ -35,7 +35,7 @@ workflow BIN {
         lineages = Channel.from(params.binning.qc.busco.lineageDatasets.split(","))
         bins_with_lineage = lineages.combine(BIN_CONTIGS_METABAT.out.bins)
         busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db, q2_cache)
-        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned | map { _id, _key -> _key } | collect, "busco_results", "moshpit collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
+        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned | map { _id, _key -> _key } | collect, "${params.runId}_busco_results", "moshpit collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
         if (params.binning.qc.filtering.enabled) {
@@ -43,11 +43,11 @@ workflow BIN {
             if (params.binning.qc.filtering.fetchArtifact) {
                 FETCH_ARTIFACT_MAGS_FILTERED(bins)   
             }
-            bins = PARTITION_ARTIFACT(bins, "mags_filtered_partitioned_", "types partition-sample-data-mags", "--i-mags", "--o-partitioned-mags") | flatten
+            bins = PARTITION_ARTIFACT(bins, "${params.runId}_mags_filtered_partitioned_", "types partition-sample-data-mags", "--i-mags", "--o-partitioned-mags") | flatten
             bins = bins.map { partition ->
                 def path = java.nio.file.Paths.get(partition.toString())
                 def filename = path.getFileName().toString()
-                tuple(filename.substring("mags_filtered_partitioned_".length()), partition)
+                tuple(filename.substring("${params.runId}_mags_filtered_partitioned_".length()), partition)
             }
         } else {
             bins = BIN_CONTIGS_METABAT.out.bins
@@ -75,7 +75,7 @@ workflow BIN_NO_BUSCO {
         bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
 
         if (params.binning.fetchArtifact) {
-            bins_all = COLLATE_BINS(bins | map { _id, _key -> _key } | collect, "mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
+            bins_all = COLLATE_BINS(bins | map { _id, _key -> _key } | collect, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
             FETCH_ARTIFACT_MAGS(bins_all)
         }
     emit:

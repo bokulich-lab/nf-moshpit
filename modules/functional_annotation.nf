@@ -13,14 +13,14 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
     script:
     if (input_type == "mags") {
-        hits_key = "eggnog_orthologs_mags_partitioned_${_id}"
-        table_key = "eggnog_table_mags_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
-        hits_key = "eggnog_orthologs_contigs_partitioned_${_id}"
-        table_key = "eggnog_table_contigs_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_contigs_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
-        hits_key = "eggnog_orthologs_mags_derep_partitioned_${_id}"
-        table_key = "eggnog_table_mags_derep_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
     }
     """
     qiime moshpit eggnog-diamond-search \
@@ -51,11 +51,11 @@ process ANNOTATE_EGGNOG {
 
     script:
     if (input_type == "mags") {
-        annotations_key = "eggnog_annotations_mags_partitioned_${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
-        annotations_key = "eggnog_annotations_contigs_partitioned_${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
-        annotations_key = "eggnog_annotations_mags_derep_partitioned_${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
     }
     """
     qiime moshpit eggnog-annotate \
@@ -138,7 +138,7 @@ process EXTRACT_ANNOTATIONS {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path("${input_type}_${annotation_type}")
+    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}")
 
     script:
     """
@@ -148,8 +148,8 @@ process EXTRACT_ANNOTATIONS {
       --p-max-evalue ${params.functional_annotation.annotation.extract.max_evalue} \
       --p-min-score ${params.functional_annotation.annotation.extract.min_score} \
       --i-ortholog-annotations ${params.q2cacheDir}:${annotation_file} \
-      --o-annotation-frequency "${params.q2cacheDir}:${input_type}_${annotation_type}" \
-    && touch ${input_type}_${annotation_type}
+      --o-annotation-frequency "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}" \
+    && touch ${params.runId}_${input_type}_${annotation_type}
     """
 }
 
@@ -166,7 +166,7 @@ process MULTIPLY_TABLES {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path("${input_type}_${annotation_type}_ft")
+    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}_ft")
 
     script:
     """
@@ -174,7 +174,7 @@ process MULTIPLY_TABLES {
       --verbose \
       --i-table1 ${params.q2cacheDir}:${table1} \
       --i-table2 ${params.q2cacheDir}:${table2} \
-      --o-result-table "${params.q2cacheDir}:${input_type}_${annotation_type}_ft" \
-    && touch ${input_type}_${annotation_type}_ft
+      --o-result-table "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}_ft" \
+    && touch ${params.runId}_${input_type}_${annotation_type}_ft
     """
 }

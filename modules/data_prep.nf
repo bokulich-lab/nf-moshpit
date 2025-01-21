@@ -28,9 +28,9 @@ process SIMULATE_READS {
     path q2_cache
 
     output:
-    path "reads", emit: reads
-    path "output_genomes", emit: genomes
-    path "output_abundances", emit: abundances
+    path "${params.runId}_reads", emit: reads
+    path "${params.runId}_output_genomes", emit: genomes
+    path "${params.runId}_output_abundances", emit: abundances
 
     """
     qiime assembly generate-reads \
@@ -43,12 +43,12 @@ process SIMULATE_READS {
       --p-seed ${params.read_simulation.seed} \
       --p-abundance ${params.read_simulation.abundance} \
       --p-gc-bias ${params.read_simulation.gc_bias} \
-      --o-reads ${params.q2cacheDir}:reads \
-      --o-template-genomes ${params.q2cacheDir}:output_genomes \
-      --o-abundances ${params.q2cacheDir}:output_abundances \
-    && touch reads \
-    && touch output_genomes \
-    && touch output_abundances
+      --o-reads ${params.q2cacheDir}:${params.runId}_reads \
+      --o-template-genomes ${params.q2cacheDir}:${params.runId}_output_genomes \
+      --o-abundances ${params.q2cacheDir}:${params.runId}_output_abundances \
+    && touch ${params.runId}_reads \
+    && touch ${params.runId}_output_genomes \
+    && touch ${params.runId}_output_abundances
     """
 }
 
@@ -61,9 +61,9 @@ process FETCH_SEQS {
     path q2_cache
 
     output:
-    path "reads_single", emit: single
-    path "reads_paired", emit: paired
-    path "failed_runs", emit: failed
+    path "${params.runId}_reads_single", emit: single
+    path "${params.runId}_reads_paired", emit: paired
+    path "${params.runId}_failed_runs", emit: failed
 
     script:
     """
@@ -93,12 +93,12 @@ process FETCH_SEQS {
       --i-accession-ids ${ids} \
       --p-email ${params.email} \
       --p-n-jobs ${task.cpus} \
-      --o-single-reads ${params.q2cacheDir}:reads_single \
-      --o-paired-reads ${params.q2cacheDir}:reads_paired \
-      --o-failed-runs ${params.q2cacheDir}:failed_runs \
-    && touch reads_single \
-    && touch reads_paired \
-    && touch failed_runs
+      --o-single-reads ${params.q2cacheDir}:${params.runId}_reads_single \
+      --o-paired-reads ${params.q2cacheDir}:${params.runId}_reads_paired \
+      --o-failed-runs ${params.q2cacheDir}:${params.runId}_failed_runs \
+    && touch ${params.runId}_reads_single \
+    && touch ${params.runId}_reads_paired \
+    && touch ${params.runId}_failed_runs
     """
 }
 
@@ -114,7 +114,7 @@ process SUBSAMPLE_READS {
     tuple val(_id), path(reads_subsampled)
 
     script:
-    reads_subsampled = "reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${_id}"
+    reads_subsampled = "${params.runId}_reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${_id}"
     if (params.read_subsampling.paired) {
       """
       qiime demux subsample-paired \
@@ -147,8 +147,8 @@ process PROCESS_READS_FASTP {
     tuple val(_id), path(key_reads), path(key_reports)
 
     script:
-    key_reads = "reads_fastp_${_id}"
-    key_reports = "fastp_report_${_id}"
+    key_reads = "${params.runId}_reads_fastp_${_id}"
+    key_reports = "${params.runId}_fastp_report_${_id}"
     qc_filtering_flag = params.read_qc.fastp.disableQualityFiltering ? "--p-disable-quality-filtering" : "--p-no-disable-quality-filtering"
     dedup_flag = params.read_qc.fastp.deduplicate ? "--p-dedup" : "--p-no-dedup"
     adapter_trimming_flag = params.read_qc.fastp.disableAdapterTrimming ? "--p-disable-adapter-trimming" : "--p-no-disable-adapter-trimming"
@@ -180,14 +180,14 @@ process VISUALIZE_FASTP {
     path q2_cache
 
     output:
-    path "reads-qc-fastp.qzv"
+    path "${params.runId}-reads-qc-fastp.qzv"
 
     script:
     """
     qiime fastp visualize \
       --verbose \
       --i-reports ${params.q2cacheDir}:${fastp_reports} \
-      --o-visualization reads-qc-fastp.qzv
+      --o-visualization ${params.runId}-reads-qc-fastp.qzv
     """
 }
 
@@ -207,7 +207,7 @@ process REMOVE_HOST {
 
     script:
     index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
-    key = "reads_no_host_partitioned_${sample_id}"
+    key = "${params.runId}_reads_no_host_partitioned_${sample_id}"
     """
     qiime moshpit filter-reads-pangenome \
       --verbose \
@@ -343,15 +343,15 @@ process TABULATE_READ_COUNTS {
     path q2_cache
 
     output:
-    path "reads_counts"
+    path "${params.runId}_reads_counts"
 
     script:
     """
     qiime demux tabulate-read-counts \
       --verbose \
       --i-sequences ${params.q2cacheDir}:${reads} \
-      --o-counts ${params.q2cacheDir}:reads_counts \
-      && touch reads_counts
+      --o-counts ${params.q2cacheDir}:${params.runId}_reads_counts \
+      && touch ${params.runId}_reads_counts
     """
 }
 
@@ -365,7 +365,7 @@ process FILTER_SAMPLES {
     path q2_cache
 
     output:
-    path "reads_filtered"
+    path "${params.runId}_reads_filtered"
 
     script:
     """
@@ -374,7 +374,7 @@ process FILTER_SAMPLES {
       --i-demux ${params.q2cacheDir}:${reads} \
       --m-metadata-file ${params.q2cacheDir}:${metadata} \
       --p-where ${query} \
-      --o-filtered-demux ${params.q2cacheDir}:reads_filtered \
-      && touch reads_filtered
+      --o-filtered-demux ${params.q2cacheDir}:${params.runId}_reads_filtered \
+      && touch ${params.runId}_reads_filtered
     """
 }

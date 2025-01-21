@@ -16,17 +16,17 @@ process CLASSIFY_KRAKEN2 {
 
     script:
     if (input_type == "mags") {
-        reports_key = "kraken_reports_mags_partitioned_${_id}"
-        hits_key = "kraken_outputs_mags_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${_id}"
     } else if (input_type == "mags-derep") {
-        reports_key = "kraken_reports_mags_derep"
-        hits_key = "kraken_outputs_mags_derep"
+        reports_key = "${params.runId}_kraken_reports_mags_derep"
+        hits_key = "${params.runId}_kraken_outputs_mags_derep"
     } else if (input_type == "reads") {
-        reports_key = "kraken_reports_reads_partitioned_${_id}"
-        hits_key = "kraken_outputs_reads_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_reads_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_reads_partitioned_${_id}"
     } else if (input_type == "contigs") {
-        reports_key = "kraken_reports_contigs_partitioned_${_id}"
-        hits_key = "kraken_outputs_contigs_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_contigs_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_contigs_partitioned_${_id}"
     }
     threads = 4 * task.cpus
     """
@@ -55,9 +55,9 @@ process ESTIMATE_BRACKEN {
     path q2_cache
 
     output:
-    path "bracken_reports_reads", emit: reports
-    path "taxonomy_reads", emit: taxonomy
-    path "feature_table_reads", emit: feature_table
+    path "${params.runId}_bracken_reports_reads", emit: reports
+    path "${params.runId}_taxonomy_reads", emit: taxonomy
+    path "${params.runId}_feature_table_reads", emit: feature_table
 
     script:
     """
@@ -68,12 +68,12 @@ process ESTIMATE_BRACKEN {
       --p-threshold ${params.taxonomic_classification.bracken.threshold} \
       --p-read-len ${params.taxonomic_classification.bracken.readLength} \
       --p-level ${params.taxonomic_classification.bracken.level} \
-      --o-reports ${params.q2cacheDir}:bracken_reports_reads \
-      --o-taxonomy "${params.q2cacheDir}:taxonomy_reads" \
-      --o-table "${params.q2cacheDir}:feature_table_reads" \
-    && touch bracken_reports_reads \
-    && touch taxonomy_reads \
-    && touch feature_table_reads
+      --o-reports ${params.q2cacheDir}:${params.runId}_bracken_reports_reads \
+      --o-taxonomy "${params.q2cacheDir}:${params.runId}_taxonomy_reads" \
+      --o-table "${params.q2cacheDir}:${params.runId}_feature_table_reads" \
+    && touch ${params.runId}_bracken_reports_reads \
+    && touch ${params.runId}_taxonomy_reads \
+    && touch ${params.runId}_feature_table_reads
     """
 }
 
@@ -89,10 +89,10 @@ process GET_KRAKEN_FEATURES {
 
     output:
     path features, emit: taxonomy
-    path "kraken_presence_absence", emit: feature_table, optional: true
+    path "${params.runId}_kraken_presence_absence", emit: feature_table, optional: true
 
     script:
-    features = "kraken_features_${input_type}"
+    features = "${params.runId}_kraken_features_${input_type}"
     if (input_type == "reads") {
       """
       qiime moshpit kraken2-to-features \
@@ -100,9 +100,9 @@ process GET_KRAKEN_FEATURES {
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
         --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
         --o-taxonomy ${params.q2cacheDir}:${features} \
-        --o-table "${params.q2cacheDir}:kraken_presence_absence" \
+        --o-table "${params.q2cacheDir}:${params.runId}_kraken_presence_absence" \
       && touch ${features} \
-      && touch kraken_presence_absence
+      && touch ${params.runId}_kraken_presence_absence
       """
     } else {
       """
@@ -126,7 +126,7 @@ process DRAW_TAXA_BARPLOT {
     val name_suffix
 
     output:
-    path "taxa-barplot-${name_suffix}.qzv"
+    path "${params.runId}-taxa-barplot-${name_suffix}.qzv"
 
     script:
     """
@@ -134,7 +134,7 @@ process DRAW_TAXA_BARPLOT {
       --verbose \
       --i-table ${params.q2cacheDir}:${feature_table} \
       --i-taxonomy ${params.q2cacheDir}:${taxonomy} \
-      --o-visualization "taxa-barplot-${name_suffix}.qzv"
+      --o-visualization "${params.runId}-taxa-barplot-${name_suffix}.qzv"
     """
 }
 

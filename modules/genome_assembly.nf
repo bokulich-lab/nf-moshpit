@@ -9,7 +9,7 @@ process ASSEMBLE_METASPADES {
     tuple val(sample_id), path(key)
 
     script:
-    key = "contigs_partitioned_${sample_id}"
+    key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
     qiime assembly assemble-spades \
       --verbose \
@@ -35,7 +35,7 @@ process ASSEMBLE_MEGAHIT {
     tuple val(sample_id), path(key)
 
     script:
-    key = "contigs_partitioned_${sample_id}"
+    key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
     qiime assembly assemble-megahit \
       --verbose \
@@ -64,9 +64,9 @@ process EVALUATE_CONTIGS {
     path q2Cache
 
     output:
-    path "contigs.qzv"
-    path "quast_results_table"
-    path "quast_reference_genomes"
+    path "${params.runId}-contigs.qzv"
+    path "${params.runId}_quast_results_table"
+    path "${params.runId}_quast_reference_genomes"
     
     script:
     if (params.assembly_qc.useReads)
@@ -77,11 +77,11 @@ process EVALUATE_CONTIGS {
         --p-threads ${task.cpus} \
         --i-contigs ${params.q2cacheDir}:${contigs_file} \
         --i-reads ${params.q2cacheDir}:${reads_file} \
-        --o-visualization "contigs.qzv" \
-        --o-results-table "${params.q2cacheDir}:quast_results_table" \
-        --o-reference-genomes "${params.q2cacheDir}:quast_reference_genomes" \
-      && touch quast_results_table \
-      && touch quast_reference_genomes
+        --o-visualization "${params.runId}-contigs.qzv" \
+        --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
+        --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
+      && touch ${params.runId}_quast_results_table \
+      && touch ${params.runId}_quast_reference_genomes
       """
     else
       """
@@ -90,11 +90,11 @@ process EVALUATE_CONTIGS {
         --p-min-contig 100 \
         --p-threads ${task.cpus} \
         --i-contigs ${params.q2cacheDir}:${contigs_file} \
-        --o-visualization "contigs.qzv" \
-        --o-results-table "${params.q2cacheDir}:quast_results_table" \
-        --o-reference-genomes "${params.q2cacheDir}:quast_reference_genomes" \
-      && touch quast_results_table \
-      && touch quast_reference_genomes
+        --o-visualization "${params.runId}-contigs.qzv" \
+        --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
+        --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
+      && touch ${params.runId}_quast_results_table \
+      && touch ${params.runId}_quast_reference_genomes
       """
 }
 
@@ -109,7 +109,7 @@ process INDEX_CONTIGS {
     tuple val(sample_id), path(key)
 
     script:
-    key = "contigs_index_partitioned_${sample_id}"
+    key = "${params.runId}_contigs_index_partitioned_${sample_id}"
     """
     qiime assembly index-contigs \
       --verbose \
@@ -135,7 +135,7 @@ process MAP_READS_TO_CONTIGS {
     tuple val(sample_id), path(key)
 
     script:
-    key = "reads_to_contigs_partitioned_${sample_id}"
+    key = "${params.runId}_reads_to_contigs_partitioned_${sample_id}"
     """
     qiime assembly map-reads \
       --verbose \

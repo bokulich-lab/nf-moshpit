@@ -21,7 +21,7 @@ workflow ASSEMBLE {
         }
 
         contigs_all = contigs | map { _id, key -> key } | collect
-        contigs_all = COLLATE_CONTIGS(contigs_all, "contigs", "assembly collate-contigs", "--i-contigs", "--o-collated-contigs", true)
+        contigs_all = COLLATE_CONTIGS(contigs_all, "${params.runId}_contigs", "assembly collate-contigs", "--i-contigs", "--o-collated-contigs", true)
 
         if (params.genome_assembly.fetchArtifact) {
             FETCH_ARTIFACT_CONTIGS(contigs_all)

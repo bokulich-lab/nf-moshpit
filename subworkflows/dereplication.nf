@@ -10,9 +10,9 @@ workflow DEREPLICATE {
         q2_cache
     main:
         if (params.binning.qc.busco.enabled && params.binning.qc.filtering.enabled) {
-            mags_all = COLLATE_PARTITIONS(bins, "mags_filtered", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
+            mags_all = COLLATE_PARTITIONS(bins, "${params.runId}_mags_filtered", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
         } else {
-            mags_all = COLLATE_PARTITIONS(bins, "mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
+            mags_all = COLLATE_PARTITIONS(bins, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
         }
         minhashes = CALCULATE_MINHASHES(mags_all, q2_cache)
         distance_matrix = COMPARE_MINHASHES(minhashes, q2_cache)

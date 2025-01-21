@@ -11,9 +11,9 @@ process BIN_CONTIGS_METABAT {
     tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
 
     script:
-    key_mags = "mags_partitioned_${sample_id}"
-    key_contig_map = "contig_map_partitioned_${sample_id}"
-    key_unbinned_contigs = "unbinned_contigs_partitioned_${sample_id}"
+    key_mags = "${params.runId}_mags_partitioned_${sample_id}"
+    key_contig_map = "${params.runId}_contig_map_partitioned_${sample_id}"
+    key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
     """
     qiime moshpit bin-contigs-metabat \
       --verbose \
@@ -45,10 +45,10 @@ process EVALUATE_BINS_BUSCO {
     script:
     if (params.binning.qc.busco.lineageDatasets == "auto") {
       lineage_dataset = "--p-auto-lineage"
-      key = "busco_results_partitioned_autolineage_${_id}"
+      key = "${params.runId}_busco_results_partitioned_autolineage_${_id}"
     } else {
       lineage_dataset = "--p-lineage-dataset ${lineage}"
-      key = "busco_results_partitioned_${lineage}_${_id}"
+      key = "${params.runId}_busco_results_partitioned_${lineage}_${_id}"
     }
     """
     qiime moshpit evaluate-busco \
@@ -58,7 +58,7 @@ process EVALUATE_BINS_BUSCO {
       ${lineage_dataset} \
       --i-bins ${params.q2cacheDir}:${bins_file} \
       --i-busco-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
-      --o-visualization "mags-busco-${key}.qzv" \
+      --o-visualization "${params.runId}-mags-busco-${key}.qzv" \
       --o-results-table ${params.q2cacheDir}:${key} \
       ${params.binning.qc.busco.additionalFlags} \
     && touch ${key}
@@ -75,7 +75,7 @@ process VISUALIZE_BUSCO {
     path q2_cache
 
     output:
-    path "mags-busco.qzv"
+    path "${params.runId}-mags-busco.qzv"
 
     script:
     """
@@ -89,16 +89,16 @@ process VISUALIZE_BUSCO {
 
     print('Generating the final BUSCO visualization...')
     viz, = moshpit.visualizers._visualize_busco(results)
-    viz.save('mags-busco.qzv')
-    print('Visualization saved to "mags-busco.qzv"')
+    viz.save('${params.runId}-mags-busco.qzv')
+    print('Visualization saved to "${params.runId}-mags-busco.qzv"')
     """
 }
 
 process FETCH_BUSCO_DB {
     label "needsInternet"
     cpus 1
-    memory 1.GB
-    time { 3.h * task.attempt }
+    memory 4.GB
+    time { 6.h * task.attempt }
     maxRetries 3
 
     input:
@@ -140,18 +140,18 @@ process FILTER_MAGS {
     path q2_cache
 
     output:
-    path "mags_filtered", emit: mags_filtered
+    path "${params.runId}_mags_filtered", emit: mags_filtered
 
     script:
     """
     qiime moshpit filter-mags \
       --verbose \
-      --p-where ${params.binning.qc.filtering.condition}" \
-      --p-exclude-ids ${params.binning.qc.filtering.exclude_ids}" \
+      --p-where "${params.binning.qc.filtering.condition}" \
+      --p-exclude-ids ${params.binning.qc.filtering.exclude_ids} \
       --p-on ${filtering_axis} \
       --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
       --i-mags ${params.q2cacheDir}:${bins_file} \
-      --o-filtered-mags "${params.q2cacheDir}:mags_filtered" \
-    && touch mags_filtered
+      --o-filtered-mags "${params.q2cacheDir}:${params.runId}_mags_filtered" \
+    && touch ${params.runId}_mags_filtered
     """
 }
