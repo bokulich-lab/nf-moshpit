@@ -29,8 +29,8 @@ workflow ASSEMBLE {
 
         if (params.assembly_qc.enabled) {
             // reads_all = reads | map { _id, key -> key } | collect
-            reads = reads | map { _id, key -> key }
-            // TODO: reads also need to be collated!
+            reads = reads | map { _id, key -> key } | collect
+            // TODO: reads also need to be collated! use maps instead?
             EVALUATE_CONTIGS(contigs_all, reads, q2_cache)
         }
 

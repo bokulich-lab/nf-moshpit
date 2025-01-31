@@ -1,5 +1,8 @@
 process CLASSIFY_KRAKEN2 {
     label "taxonomicClassification"
+    storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     errorStrategy "retry"
     maxRetries 3
@@ -30,7 +33,8 @@ process CLASSIFY_KRAKEN2 {
     }
     threads = 4 * task.cpus
     """
-    qiime moshpit classify-kraken2 \
+    echo Processing sample ${_id}
+    qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
       --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
@@ -48,6 +52,8 @@ process ESTIMATE_BRACKEN {
     time { 12.h * task.attempt }
     errorStrategy "retry"
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path kraken2_reports
@@ -61,7 +67,7 @@ process ESTIMATE_BRACKEN {
 
     script:
     """
-    qiime moshpit estimate-bracken \
+    qiime annotate estimate-bracken \
       --verbose \
       --i-kraken-reports ${params.q2cacheDir}:${kraken2_reports} \
       --i-bracken-db ${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key} \
@@ -81,6 +87,8 @@ process GET_KRAKEN_FEATURES {
     time { 12.h * task.attempt }
     errorStrategy "retry"
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path kraken2_reports
@@ -95,7 +103,7 @@ process GET_KRAKEN_FEATURES {
     features = "${params.runId}_kraken_features_${input_type}"
     if (input_type == "reads") {
       """
-      qiime moshpit kraken2-to-features \
+      qiime annotate kraken2-to-features \
         --verbose \
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
         --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
@@ -106,7 +114,7 @@ process GET_KRAKEN_FEATURES {
       """
     } else {
       """
-      qiime moshpit kraken2-to-mag-features \
+      qiime annotate kraken2-to-mag-features \
         --verbose \
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
         --i-hits ${params.q2cacheDir}:${kraken2_hits} \
@@ -119,6 +127,7 @@ process GET_KRAKEN_FEATURES {
 
 process DRAW_TAXA_BARPLOT {
     publishDir params.publishDir, mode: 'copy'
+    scratch true
 
     input:
     path feature_table
@@ -145,6 +154,7 @@ process FETCH_KRAKEN2_DB {
     time { 1.h * task.attempt }
     maxRetries 3
     storeDir "${params.taxonomic_classification.kraken2.database.cache}/keys"
+    scratch true
 
     input:
     path q2_cache
@@ -161,7 +171,7 @@ process FETCH_KRAKEN2_DB {
       touch ${params.taxonomic_classification.bracken.database.key}
       exit 0
     fi
-    qiime moshpit build-kraken-db \
+    qiime annotate build-kraken-db \
       --verbose \
       --p-collection ${params.taxonomic_classification.kraken2.database.collection} \
       --o-kraken2-database "${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key}" \

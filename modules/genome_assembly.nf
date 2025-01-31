@@ -1,5 +1,8 @@
 process ASSEMBLE_METASPADES {
     label "genomeAssembly"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
     
     input:
     tuple val(sample_id), path(reads_file)
@@ -11,6 +14,7 @@ process ASSEMBLE_METASPADES {
     script:
     key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime assembly assemble-spades \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${reads_file} \
@@ -26,6 +30,9 @@ process ASSEMBLE_METASPADES {
 
 process ASSEMBLE_MEGAHIT {
     label "genomeAssembly"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
     
     input:
     tuple val(sample_id), path(reads_file)
@@ -37,6 +44,7 @@ process ASSEMBLE_MEGAHIT {
     script:
     key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${reads_file} \
@@ -57,6 +65,7 @@ process EVALUATE_CONTIGS {
     publishDir params.publishDir, mode: 'copy', pattern: 'contigs.qzv'
     errorStrategy "retry"
     maxRetries 3
+    scratch true
 
     input:
     path contigs_file
@@ -100,6 +109,9 @@ process EVALUATE_CONTIGS {
 
 process INDEX_CONTIGS {
     label "indexing"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
     
     input:
     tuple val(sample_id), path(contigs_file)
@@ -111,6 +123,7 @@ process INDEX_CONTIGS {
     script:
     key = "${params.runId}_contigs_index_partitioned_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime assembly index-contigs \
       --verbose \
       --p-seed 42 \
@@ -126,6 +139,9 @@ process MAP_READS_TO_CONTIGS {
     label "readMapping"
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
     maxRetries 3 
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
 
     input:
     tuple val(sample_id), path(index_file), path(reads_file)
@@ -137,6 +153,7 @@ process MAP_READS_TO_CONTIGS {
     script:
     key = "${params.runId}_reads_to_contigs_partitioned_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime assembly map-reads \
       --verbose \
       --p-seed 42 \

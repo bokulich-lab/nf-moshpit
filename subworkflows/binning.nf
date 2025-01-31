@@ -35,7 +35,7 @@ workflow BIN {
         lineages = Channel.from(params.binning.qc.busco.lineageDatasets.split(","))
         bins_with_lineage = lineages.combine(BIN_CONTIGS_METABAT.out.bins)
         busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db, q2_cache)
-        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned | map { _id, _key -> _key } | collect, "${params.runId}_busco_results", "moshpit collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
+        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned | map { _id, _key -> _key } | collect, "${params.runId}_busco_results", "annotate collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
         if (params.binning.qc.filtering.enabled) {
@@ -43,7 +43,7 @@ workflow BIN {
             if (params.binning.qc.filtering.fetchArtifact) {
                 FETCH_ARTIFACT_MAGS_FILTERED(bins)   
             }
-            bins = PARTITION_ARTIFACT(bins, "${params.runId}_mags_filtered_partitioned_", "types partition-sample-data-mags", "--i-mags", "--o-partitioned-mags") | flatten
+            bins = PARTITION_ARTIFACT(bins, "${params.runId}_mags_filtered_partitioned_", "types partition-sample-data-mags", "--i-mags", "--o-partitioned-mags", false) | flatten
             bins = bins.map { partition ->
                 def path = java.nio.file.Paths.get(partition.toString())
                 def filename = path.getFileName().toString()

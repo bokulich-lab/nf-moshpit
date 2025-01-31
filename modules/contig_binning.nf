@@ -1,5 +1,8 @@
 process BIN_CONTIGS_METABAT {
     label "contigBinning"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
 
     input:
     tuple val(sample_id), path(contigs_file), path(maps_file)
@@ -15,7 +18,8 @@ process BIN_CONTIGS_METABAT {
     key_contig_map = "${params.runId}_contig_map_partitioned_${sample_id}"
     key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
     """
-    qiime moshpit bin-contigs-metabat \
+    echo Processing sample ${sample_id}
+    qiime annotate bin-contigs-metabat \
       --verbose \
       --p-seed 42 \
       --p-num-threads ${task.cpus} \
@@ -32,7 +36,9 @@ process BIN_CONTIGS_METABAT {
 
 process EVALUATE_BINS_BUSCO {
     label "busco"
-    storeDir "${params.binning.qc.busco.database.cache}/keys"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
 
     input:
     tuple val(lineage), val(_id), path(bins_file)
@@ -51,7 +57,8 @@ process EVALUATE_BINS_BUSCO {
       key = "${params.runId}_busco_results_partitioned_${lineage}_${_id}"
     }
     """
-    qiime moshpit evaluate-busco \
+    echo Processing sample ${_id}
+    qiime annotate evaluate-busco \
       --verbose \
       --p-cpu ${task.cpus} \
       --p-mode ${params.binning.qc.busco.mode} \
@@ -69,6 +76,7 @@ process VISUALIZE_BUSCO {
     cpus 1
     memory 2.GB
     publishDir params.publishDir, mode: 'copy'
+    scratch true
 
     input:
     path busco_results
@@ -81,14 +89,14 @@ process VISUALIZE_BUSCO {
     """
     #!/usr/bin/env python
 
-    from qiime2.plugins import moshpit
+    from qiime2.plugins import annotate
     from qiime2 import Cache
 
     cache = Cache('${params.q2cacheDir}')
     results = cache.load('${busco_results}')
 
     print('Generating the final BUSCO visualization...')
-    viz, = moshpit.visualizers._visualize_busco(results)
+    viz, = annotate.visualizers._visualize_busco(results)
     viz.save('${params.runId}-mags-busco.qzv')
     print('Visualization saved to "${params.runId}-mags-busco.qzv"')
     """
@@ -100,6 +108,8 @@ process FETCH_BUSCO_DB {
     memory 4.GB
     time { 6.h * task.attempt }
     maxRetries 3
+    storeDir "${params.binning.qc.busco.database.cache}/keys"
+    scratch true
 
     input:
     path q2_cache
@@ -117,7 +127,7 @@ process FETCH_BUSCO_DB {
       touch ${params.binning.qc.busco.database.key}
       exit 0
     fi
-    qiime moshpit fetch-busco-db \
+    qiime annotate fetch-busco-db \
       --verbose \
       ${virus_flag} \
       ${prok_flag} \
@@ -132,6 +142,8 @@ process FILTER_MAGS {
     memory 1.GB
     time { 20.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path bins_file
@@ -144,7 +156,7 @@ process FILTER_MAGS {
 
     script:
     """
-    qiime moshpit filter-mags \
+    qiime annotate filter-mags \
       --verbose \
       --p-where "${params.binning.qc.filtering.condition}" \
       --p-exclude-ids ${params.binning.qc.filtering.exclude_ids} \

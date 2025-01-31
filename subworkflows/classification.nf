@@ -23,8 +23,8 @@ workflow CLASSIFY_MAGS {
         // collate reports and hits
         reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
-        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags", "moshpit collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
-        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags", "moshpit collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
+        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
+        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(collated_reports)
             FETCH_ARTIFACT_HITS(collated_hits)
@@ -63,8 +63,8 @@ workflow CLASSIFY_READS {
         // collate reports and hits
         reports_all = CLASSIFY_READS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
         hits_all = CLASSIFY_READS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
-        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_reads", "moshpit collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
-        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_reads", "moshpit collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
+        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_reads", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
+        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_reads", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
 
         if (params.taxonomic_classification.bracken.enabled) {
             ESTIMATE_BRACKEN(reports_all, bracken_db, q2_cache)
@@ -93,8 +93,8 @@ workflow CLASSIFY_CONTIGS {
         // collate reports and hits
         reports_all = CLASSIFY_CONTIGS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
         hits_all = CLASSIFY_CONTIGS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
-        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "moshpit collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
-        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "moshpit collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
+        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
+        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
 
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(reports_all)

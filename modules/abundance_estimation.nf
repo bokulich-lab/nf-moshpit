@@ -1,5 +1,7 @@
 process INDEX_DEREP_MAGS {
     label "indexing"
+    storeDir params.storeDir
+    scratch true
 
     input:
     path(mags_derep_file)
@@ -25,6 +27,9 @@ process MAP_READS_TO_DEREP_MAGS {
     label "readMapping"
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
     tuple val(_id), path(reads_file), path(index_file)
@@ -36,6 +41,7 @@ process MAP_READS_TO_DEREP_MAGS {
     script:
     key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
     """
+    echo Processing sample ${_id}
     qiime assembly map-reads \
       --verbose \
       --p-seed 42 \
@@ -53,6 +59,8 @@ process GET_GENOME_LENGTHS {
     memory 1.GB
     time { 20.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path mags_derep_file
@@ -64,7 +72,7 @@ process GET_GENOME_LENGTHS {
     script:
     key = "${params.runId}_mags_derep_lengths"
     """
-    qiime moshpit get-feature-lengths \
+    qiime annotate get-feature-lengths \
       --verbose \
       --i-features ${params.q2cacheDir}:${mags_derep_file} \
       --o-lengths ${params.q2cacheDir}:${key} \
@@ -74,6 +82,8 @@ process GET_GENOME_LENGTHS {
 
 process ESTIMATE_MAG_ABUNDANCE {
     label "abundanceEstimation"
+    storeDir params.storeDir
+    scratch true
 
     input:
     path mags_derep_index_file
@@ -86,7 +96,7 @@ process ESTIMATE_MAG_ABUNDANCE {
     script:
     key = "${params.runId}_mags_derep_ft"
     """
-    qiime moshpit estimate-mag-abundance \
+    qiime annotate estimate-mag-abundance \
       --verbose \
       --p-metric ${params.mag_abundance.metric} \
       --p-min-mapq ${params.mag_abundance.min_mapq} \

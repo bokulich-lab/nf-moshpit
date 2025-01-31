@@ -1,5 +1,8 @@
 process SEARCH_ORTHOLOGS_EGGNOG {
-    label "functionalAnnotation"
+    label "orthologSearch"
+    storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
     tuple val(_id), path(input_file)
@@ -23,7 +26,8 @@ process SEARCH_ORTHOLOGS_EGGNOG {
         table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
     }
     """
-    qiime moshpit eggnog-diamond-search \
+    echo Processing sample ${_id}
+    qiime annotate search-orthologs-diamond \
       --verbose \
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
@@ -39,6 +43,9 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
 process ANNOTATE_EGGNOG {
     label "functionalAnnotation"
+    storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
     tuple val(_id), path(input_file)
@@ -58,7 +65,8 @@ process ANNOTATE_EGGNOG {
         annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
     }
     """
-    qiime moshpit eggnog-annotate \
+    echo Processing sample ${_id}
+    qiime annotate map-eggnog \
       --verbose \
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
@@ -76,6 +84,7 @@ process FETCH_DIAMOND_DB {
     cpus 1
     maxRetries 3
     storeDir "${params.functional_annotation.ortholog_search.database.cache}/keys"
+    scratch true
 
     input:
     path q2_cache
@@ -90,7 +99,7 @@ process FETCH_DIAMOND_DB {
       touch ${params.functional_annotation.ortholog_search.database.key}
       exit 0
     fi
-    qiime moshpit fetch-diamond-db \
+    qiime annotate fetch-diamond-db \
       --verbose \
       --o-diamond-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
     && touch ${params.functional_annotation.ortholog_search.database.key}
@@ -104,6 +113,7 @@ process FETCH_EGGNOG_DB {
     time { 2.h * task.attempt }
     maxRetries 3
     storeDir "${params.functional_annotation.annotation.database.cache}/keys"
+    scratch true
 
     input:
     path q2_cache
@@ -118,7 +128,7 @@ process FETCH_EGGNOG_DB {
       touch ${params.functional_annotation.annotation.database.key}
       exit 0
     fi
-    qiime moshpit fetch-eggnog-db \
+    qiime annotate fetch-eggnog-db \
       --verbose \
       --o-eggnog-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
     && touch ${params.functional_annotation.annotation.database.key}
@@ -130,6 +140,8 @@ process EXTRACT_ANNOTATIONS {
     memory 1.GB
     time { 15.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path annotation_file
@@ -142,7 +154,7 @@ process EXTRACT_ANNOTATIONS {
 
     script:
     """
-    qiime moshpit extract-annotations \
+    qiime annotate extract-annotations \
       --verbose \
       --p-annotation ${annotation_type} \
       --p-max-evalue ${params.functional_annotation.annotation.extract.max_evalue} \
@@ -158,6 +170,8 @@ process MULTIPLY_TABLES {
     memory 1.GB
     time { 15.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path table1
@@ -170,7 +184,7 @@ process MULTIPLY_TABLES {
 
     script:
     """
-    qiime moshpit multiply-tables \
+    qiime annotate multiply-tables \
       --verbose \
       --i-table1 ${params.q2cacheDir}:${table1} \
       --i-table2 ${params.q2cacheDir}:${table2} \

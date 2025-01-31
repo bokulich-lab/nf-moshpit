@@ -61,7 +61,7 @@ workflow {
 
     // split reads into partitions
     reads_prefix = "${params.runId}_reads_partitioned_"
-    reads_partitioned = PARTITION_READS(reads, reads_prefix, "demux partition-samples-paired", "--i-demux", "--o-partitioned-demux") | flatten
+    reads_partitioned = PARTITION_READS(reads, reads_prefix, "demux partition-samples-paired", "--i-demux", "--o-partitioned-demux", true) | flatten
     reads_partitioned = reads_partitioned.map { partition ->
         def path = java.nio.file.Paths.get(partition.toString())
         def filename = path.getFileName().toString()
@@ -91,9 +91,10 @@ workflow {
     }
 
     // remove samples with low read counts
-    if (params.read_filtering.enabled) {
-        read_counts = TABULATE_READ_COUNTS(reads, cache)
-        reads = FILTER_SAMPLES(reads, read_counts, '"Demultiplexed sequence count">${params.read_filtering.min_reads}', cache)
+    if (params.sample_filtering.enabled) {
+        read_counts = TABULATE_READ_COUNTS(reads_partitioned, cache)
+        reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
+        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.min_reads}'", cache)
     }
 
 
@@ -156,7 +157,7 @@ workflow {
 
                     // annotate dereplicated MAGs
                     if (params.functional_annotation.enabledFor.contains("derep")) {
-                        mags_derep_partitioned = PARTITION_MAGS(DEREPLICATE.out.bins_derep, "${params.runId}_mags_derep_partitioned_", "types partition-feature-data-mags", "--i-mags", "--o-partitioned-mags") | flatten
+                        mags_derep_partitioned = PARTITION_MAGS(DEREPLICATE.out.bins_derep, "${params.runId}_mags_derep_partitioned_", "types partition-feature-data-mags", "--i-mags", "--o-partitioned-mags", false) | flatten
                         ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
                         if (params.mag_abundance.enabled) {
                             annotation_ft = MULTIPLY_TABLES(ESTIMATE_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)

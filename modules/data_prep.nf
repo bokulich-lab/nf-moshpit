@@ -104,19 +104,23 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     label "readSubsampling"
+    storeDir params.storeDir
     cpus 1
+    scratch true
+    tag "${sample_id}"
 
     input:
-    tuple val(_id), path(reads)
+    tuple val(sample_id), path(reads)
     path q2_cache
 
     output:
-    tuple val(_id), path(reads_subsampled)
+    tuple val(sample_id), path(reads_subsampled)
 
     script:
-    reads_subsampled = "${params.runId}_reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${_id}"
+    reads_subsampled = "${params.runId}_reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${sample_id}"
     if (params.read_subsampling.paired) {
       """
+      echo Processing sample ${sample_id}
       qiime demux subsample-paired \
         --verbose \
         --i-sequences ${params.q2cacheDir}:${reads} \
@@ -126,6 +130,7 @@ process SUBSAMPLE_READS {
       """
     } else {
       """
+      echo Processing sample ${sample_id}
       qiime demux subsample-single \
         --verbose \
         --i-sequences ${params.q2cacheDir}:${reads} \
@@ -138,22 +143,26 @@ process SUBSAMPLE_READS {
 
 process PROCESS_READS_FASTP {
     label "fastp"
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
 
     input:
-    tuple val(_id), path(reads)
+    tuple val(sample_id), path(reads)
     path q2_cache
 
     output:
-    tuple val(_id), path(key_reads), path(key_reports)
+    tuple val(sample_id), path(key_reads), path(key_reports)
 
     script:
-    key_reads = "${params.runId}_reads_fastp_${_id}"
-    key_reports = "${params.runId}_fastp_report_${_id}"
+    key_reads = "${params.runId}_reads_fastp_${sample_id}"
+    key_reports = "${params.runId}_fastp_report_${sample_id}"
     qc_filtering_flag = params.read_qc.fastp.disableQualityFiltering ? "--p-disable-quality-filtering" : "--p-no-disable-quality-filtering"
     dedup_flag = params.read_qc.fastp.deduplicate ? "--p-dedup" : "--p-no-dedup"
     adapter_trimming_flag = params.read_qc.fastp.disableAdapterTrimming ? "--p-disable-adapter-trimming" : "--p-no-disable-adapter-trimming"
     correction_flag = params.read_qc.fastp.enableBaseCorrection ? "--p-correction" : "--p-no-correction"
     """
+    echo Processing sample ${sample_id}
     qiime fastp process-seqs \
       --verbose \
       --i-sequences ${params.q2cacheDir}:${reads} \
@@ -174,6 +183,7 @@ process VISUALIZE_FASTP {
     cpus 1
     memory 1.GB
     publishDir params.publishDir, mode: 'copy'
+    scratch true
 
     input:
     path fastp_reports
@@ -196,6 +206,9 @@ process REMOVE_HOST {
     label "needsInternet"
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
     
     input:
     tuple val(sample_id), path(reads)
@@ -203,27 +216,47 @@ process REMOVE_HOST {
 
     output:
     tuple val(sample_id), path(key), emit: reads
-    path "human_reference_index", emit: reference
+    path "human_reference_index", emit: reference, optional: true
 
     script:
     index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
     key = "${params.runId}_reads_no_host_partitioned_${sample_id}"
     """
-    qiime moshpit filter-reads-pangenome \
-      --verbose \
-      --i-reads ${params.q2cacheDir}:${reads} \
-      --p-n-threads ${task.cpus} \
-      --p-mode ${params.host_removal.mode} \
-      --p-sensitivity ${params.host_removal.sensitivity} \
-      --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
-      --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
-      --o-filtered-reads ${params.q2cacheDir}:${key} \
-      ${index_flag} \
-      --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
-      && touch ${key} \
-      && touch human_reference_index
-    """
+    echo Processing sample ${sample_id}
 
+    if [ -f ${params.host_removal.database.cache}/keys/${params.host_removal.database.key} ]; then
+      echo Database ${params.host_removal.database.key} already exists in the cache ${params.host_removal.database.cache} and will be used for filtering
+      qiime quality-control filter-reads \
+        --verbose \
+        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
+        --i-database ${params.host_removal.database.cache}:${params.host_removal.database.key} \
+        --p-n-threads ${task.cpus} \
+        --p-mode ${params.host_removal.mode} \
+        --p-sensitivity ${params.host_removal.sensitivity} \
+        --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
+        --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
+        --o-filtered-sequences ${params.q2cacheDir}:${key}
+    elif [[ "${params.host_removal.human}" == "true" ]]; then
+      echo Database ${params.host_removal.database.key} does not exist in the cache ${params.host_removal.database.cache} and will be constructed by the "filter-reads-pangenome" action
+      qiime annotate filter-reads-pangenome \
+        --verbose \
+        --i-reads ${params.q2cacheDir}:${reads} \
+        --p-n-threads ${task.cpus} \
+        --p-mode ${params.host_removal.mode} \
+        --p-sensitivity ${params.host_removal.sensitivity} \
+        --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
+        --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
+        --o-filtered-reads ${params.q2cacheDir}:${key} \
+        ${index_flag} \
+        --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
+      && touch human_reference_index
+    else
+      echo Database ${params.host_removal.database.key} does not exist in the cache ${params.host_removal.database.cache} - please provide a key to an exisitng database or toggle the "human" option to "true"
+      exit 1
+    fi
+    
+    touch ${key}
+    """
 }
 
 process INIT_CACHE {
@@ -273,6 +306,8 @@ process FETCH_ARTIFACT {
 
 process PARTITION_ARTIFACT {
     cpus 1
+    storeDir params.storeDir
+    scratch true
 
     input:
     path cache_key
@@ -280,15 +315,21 @@ process PARTITION_ARTIFACT {
     val qiime_action
     val qiime_input_flag
     val qiime_output_flag
+    val isInputReads
 
     output:
     path "${prefix}*"
 
     script:
+    if (isInputReads) {
+      inputCachePath = params.inputReadsCache
+    } else {
+      inputCachePath = params.q2cacheDir
+    }
     """
     if [ ! -f "${params.q2cacheDir}/keys/${prefix}collection" ]; then
       qiime ${qiime_action} \
-      ${qiime_input_flag} ${params.q2cacheDir}:${cache_key} \
+      ${qiime_input_flag} ${inputCachePath}:${cache_key} \
       ${qiime_output_flag} ${params.q2cacheDir}:${prefix}collection
     else
       echo "The ${prefix}collection result collection already exists and will not be recreated."
@@ -303,8 +344,9 @@ process PARTITION_ARTIFACT {
 }
 
 process COLLATE_PARTITIONS {
+    label "collation"
     cpus 1
-    memory 4.GB
+    scratch true
 
     input:
     path cache_key_in
@@ -336,45 +378,59 @@ process COLLATE_PARTITIONS {
 
 process TABULATE_READ_COUNTS {
     storeDir params.storeDir
-    maxRetries 3 
+    scratch true
+    tag "${sample_id}"
     
     input:
-    path reads
+    tuple val(sample_id), path(reads)
     path q2_cache
 
     output:
-    path "${params.runId}_reads_counts"
+    tuple val(sample_id), path(key)
 
     script:
+    key = "${params.runId}_reads_counts_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime demux tabulate-read-counts \
       --verbose \
       --i-sequences ${params.q2cacheDir}:${reads} \
-      --o-counts ${params.q2cacheDir}:${params.runId}_reads_counts \
-      && touch ${params.runId}_reads_counts
+      --o-counts ${params.q2cacheDir}:${key} \
+      && touch ${key}
     """
 }
 
 process FILTER_SAMPLES {
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'terminate' }
     storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
     
     input:
-    path reads
-    path metadata
+    tuple val(sample_id), path(reads), path(metadata)
     val query
     path q2_cache
 
     output:
-    path "${params.runId}_reads_filtered"
+    tuple val(sample_id), path(key)
 
     script:
+    key = "${params.runId}_reads_filtered_${sample_id}"
     """
+    echo Processing sample ${sample_id}
     qiime demux filter-samples \
       --verbose \
       --i-demux ${params.q2cacheDir}:${reads} \
       --m-metadata-file ${params.q2cacheDir}:${metadata} \
       --p-where ${query} \
-      --o-filtered-demux ${params.q2cacheDir}:${params.runId}_reads_filtered \
-      && touch ${params.runId}_reads_filtered
+      --o-filtered-demux ${params.q2cacheDir}:${key} &> output.txt \
+      && touch ${key}
+
+    if grep -q "No filtering requested" output.txt; then
+      echo "The generated artifact did not contain any samples."
+      exit 125
+    else
+        exit 0
+    fi
     """
 }

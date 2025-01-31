@@ -1,5 +1,7 @@
 process CALCULATE_MINHASHES {
     label "dereplication"
+    storeDir params.storeDir
+    scratch true
 
     input:
     path bins_file
@@ -23,6 +25,8 @@ process CALCULATE_MINHASHES {
 
 process COMPARE_MINHASHES {
     label "dereplication"
+    storeDir params.storeDir
+    scratch true
 
     input:
     path hashes_file
@@ -46,6 +50,8 @@ process COMPARE_MINHASHES {
 
 process DEREPLICATE_MAGS {
     label "dereplication"
+    storeDir params.storeDir
+    scratch true
 
     input:
     path bins_file
@@ -58,7 +64,7 @@ process DEREPLICATE_MAGS {
 
     script:
     """
-    qiime moshpit dereplicate-mags \
+    qiime annotate dereplicate-mags \
       --verbose \
       --p-threshold ${params.dereplication.threshold} \
       --i-mags ${params.q2cacheDir}:${bins_file} \
