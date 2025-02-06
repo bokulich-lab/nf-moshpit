@@ -78,33 +78,40 @@ process EVALUATE_CONTIGS {
     path "${params.runId}_quast_reference_genomes"
     
     script:
-    if (params.assembly_qc.useReads)
+    if (params.assembly_qc.useMappedReads) {
       """
+      contigs=\$(for path in ${contigs_file}; do echo "${params.q2cacheDir}:\$(basename "\$path")"; done)
+      echo \$contigs
+      maps=\$(for path in ${reads_file}; do echo "${params.q2cacheDir}:\$(basename "\$path")"; done)
+      echo \$maps
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
         --p-threads ${task.cpus} \
-        --i-contigs ${params.q2cacheDir}:${contigs_file} \
-        --i-reads ${params.q2cacheDir}:${reads_file} \
+        --i-contigs \$contigs \
+        --i-mapped-reads \$maps \
         --o-visualization "${params.runId}-contigs.qzv" \
         --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
         --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
       && touch ${params.runId}_quast_results_table \
       && touch ${params.runId}_quast_reference_genomes
       """
-    else
+    } else {
       """
+      contigs=\$(for path in ${contigs_file}; do echo "${params.q2cacheDir}:\$(basename "\$path")"; done)
+      echo \$contigs
       qiime assembly evaluate-contigs \
         --verbose \
         --p-min-contig 100 \
         --p-threads ${task.cpus} \
-        --i-contigs ${params.q2cacheDir}:${contigs_file} \
+        --i-contigs \$contigs \
         --o-visualization "${params.runId}-contigs.qzv" \
         --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
         --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
       && touch ${params.runId}_quast_results_table \
       && touch ${params.runId}_quast_reference_genomes
       """
+    }
 }
 
 process INDEX_CONTIGS {

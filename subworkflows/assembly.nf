@@ -1,3 +1,5 @@
+include { INDEX_CONTIGS } from '../modules/genome_assembly'
+include { MAP_READS_TO_CONTIGS } from '../modules/genome_assembly'
 include { ASSEMBLE_METASPADES } from '../modules/genome_assembly'
 include { ASSEMBLE_MEGAHIT } from '../modules/genome_assembly'
 include { EVALUATE_CONTIGS } from '../modules/genome_assembly'
@@ -27,13 +29,22 @@ workflow ASSEMBLE {
             FETCH_ARTIFACT_CONTIGS(contigs_all)
         }
 
-        if (params.assembly_qc.enabled) {
-            // reads_all = reads | map { _id, key -> key } | collect
-            reads = reads | map { _id, key -> key } | collect
-            // TODO: reads also need to be collated! use maps instead?
-            EVALUATE_CONTIGS(contigs_all, reads, q2_cache)
+        if (params.assembly_qc.enabled || params.binning.enabled) {
+            indexed_contigs = INDEX_CONTIGS(contigs, q2_cache)
+            indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
+
+            mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads, q2_cache)
+            
+            contigs_with_maps = contigs.combine(mapped_reads, by: 0) | collect
+            contigs_collected = contigs_with_maps | map {_id, _contig, _map -> _contig } | collect
+            maps_collected = contigs_with_maps | map {_id, _contig, _map -> _map } | collect
+
+            if (params.assembly_qc.enabled) {
+                EVALUATE_CONTIGS(contigs_collected, maps_collected, q2_cache)
+            }
         }
 
     emit:
         contigs
+        mapped_reads
 }

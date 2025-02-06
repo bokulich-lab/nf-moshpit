@@ -1,41 +1,41 @@
 #!/usr/bin/env nextflow
 
-include { INIT_CACHE } from '../modules/data_prep'
-include { FETCH_SEQS } from '../modules/data_prep'
-include { FETCH_GENOMES } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP_FT } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_FILTERED } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from '../modules/data_prep'
-include { SIMULATE_READS } from '../modules/data_prep'
-include { SUBSAMPLE_READS } from '../modules/data_prep'
-include { REMOVE_HOST } from '../modules/data_prep'
-include { PROCESS_READS_FASTP } from '../modules/data_prep'
-include { VISUALIZE_FASTP } from '../modules/data_prep'
-include { PARTITION_ARTIFACT as PARTITION_READS } from '../modules/data_prep'
-include { PARTITION_ARTIFACT as PARTITION_MAGS } from '../modules/data_prep'
-include { COLLATE_PARTITIONS } from '../modules/data_prep'
-include { COLLATE_PARTITIONS as COLLATE_FASTP_REPORTS } from '../modules/data_prep'
-include { TABULATE_READ_COUNTS } from '../modules/data_prep'
-include { FILTER_SAMPLES } from '../modules/data_prep'
-include { ASSEMBLE } from '../subworkflows/assembly'
-include { BIN } from '../subworkflows/binning'
-include { BIN_NO_BUSCO } from '../subworkflows/binning'
-include { DEREPLICATE } from '../subworkflows/dereplication'
-include { CLASSIFY_READS } from '../subworkflows/classification'
-include { CLASSIFY_CONTIGS } from '../subworkflows/classification'
-include { CLASSIFY_MAGS } from '../subworkflows/classification'
-include { CLASSIFY_MAGS_DEREP } from '../subworkflows/classification'
-include { ANNOTATE_EGGNOG_MAGS_DEREP } from '../subworkflows/functional_annotation'
-include { ANNOTATE_EGGNOG_MAGS } from '../subworkflows/functional_annotation'
-include { ANNOTATE_EGGNOG_CONTIGS } from '../subworkflows/functional_annotation'
-include { ESTIMATE_ABUNDANCE } from '../subworkflows/abundance_estimation'
-include { FETCH_DIAMOND_DB } from '../modules/functional_annotation'
-include { FETCH_EGGNOG_DB } from '../modules/functional_annotation'
-include { FETCH_KRAKEN2_DB } from '../modules/taxonomic_classification'
-include { MULTIPLY_TABLES } from '../modules/functional_annotation'
+include { INIT_CACHE } from './modules/data_prep'
+include { FETCH_SEQS } from './modules/data_prep'
+include { FETCH_GENOMES } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP_FT } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_FILTERED } from './modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from './modules/data_prep'
+include { SIMULATE_READS } from './modules/data_prep'
+include { SUBSAMPLE_READS } from './modules/data_prep'
+include { REMOVE_HOST } from './modules/data_prep'
+include { PROCESS_READS_FASTP } from './modules/data_prep'
+include { VISUALIZE_FASTP } from './modules/data_prep'
+include { PARTITION_ARTIFACT as PARTITION_READS } from './modules/data_prep'
+include { PARTITION_ARTIFACT as PARTITION_MAGS } from './modules/data_prep'
+include { COLLATE_PARTITIONS } from './modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_FASTP_REPORTS } from './modules/data_prep'
+include { TABULATE_READ_COUNTS } from './modules/data_prep'
+include { FILTER_SAMPLES } from './modules/data_prep'
+include { ASSEMBLE } from './subworkflows/assembly'
+include { BIN } from './subworkflows/binning'
+include { BIN_NO_BUSCO } from './subworkflows/binning'
+include { DEREPLICATE } from './subworkflows/dereplication'
+include { CLASSIFY_READS } from './subworkflows/classification'
+include { CLASSIFY_CONTIGS } from './subworkflows/classification'
+include { CLASSIFY_MAGS } from './subworkflows/classification'
+include { CLASSIFY_MAGS_DEREP } from './subworkflows/classification'
+include { ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
+include { ANNOTATE_EGGNOG_MAGS } from './subworkflows/functional_annotation'
+include { ANNOTATE_EGGNOG_CONTIGS } from './subworkflows/functional_annotation'
+include { ESTIMATE_ABUNDANCE } from './subworkflows/abundance_estimation'
+include { FETCH_DIAMOND_DB } from './modules/functional_annotation'
+include { FETCH_EGGNOG_DB } from './modules/functional_annotation'
+include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
+include { MULTIPLY_TABLES } from './modules/functional_annotation'
 
 nextflow.enable.dsl = 2
 
@@ -114,20 +114,20 @@ workflow {
 
         // classify contigs
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
-            CLASSIFY_CONTIGS(contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+            CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
         }
 
         // annotate contigs
         if (params.functional_annotation.enabledFor.contains("contigs")) {
-            ANNOTATE_EGGNOG_CONTIGS(contigs, diamond_db, eggnog_db, cache)
+            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
         }
 
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             if (params.binning.qc.busco.enabled) {
-                binning_results = BIN(contigs, reads_partitioned, cache)
+                binning_results = BIN(contigs.contigs, contigs.maps, cache)
             } else {
-                binning_results = BIN_NO_BUSCO(contigs, reads_partitioned, cache)
+                binning_results = BIN_NO_BUSCO(contigs.contigs, contigs.maps, cache)
             }
             
             // classify MAGs

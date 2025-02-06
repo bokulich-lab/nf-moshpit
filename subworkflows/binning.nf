@@ -1,5 +1,3 @@
-include { INDEX_CONTIGS } from '../modules/genome_assembly'
-include { MAP_READS_TO_CONTIGS } from '../modules/genome_assembly'
 include { BIN_CONTIGS_METABAT } from '../modules/contig_binning'
 include { EVALUATE_BINS_BUSCO } from '../modules/contig_binning'
 include { VISUALIZE_BUSCO } from '../modules/contig_binning'
@@ -14,14 +12,10 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS_FILTERED } from '../modules/data
 workflow BIN {
     take:
         contigs
-        reads
+        maps
         q2_cache
     main:
-        indexed_contigs = INDEX_CONTIGS(contigs, q2_cache)
-        indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
-
-        mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads, q2_cache)
-        contigs_with_maps = contigs.combine(mapped_reads, by: 0)
+        contigs_with_maps = contigs.combine(maps, by: 0)
 
         bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
         bins_all = BIN_CONTIGS_METABAT.out.bins | map { _id, _key -> _key } | collect
@@ -63,14 +57,10 @@ workflow BIN {
 workflow BIN_NO_BUSCO {
     take:
         contigs
-        reads
+        maps
         q2_cache
     main:
-        indexed_contigs = INDEX_CONTIGS(contigs, q2_cache)
-        indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
-
-        mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads, q2_cache)
-        contigs_with_maps = contigs.combine(mapped_reads, by: 0)
+        contigs_with_maps = contigs.combine(maps, by: 0)
 
         bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
 
