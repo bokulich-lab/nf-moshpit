@@ -3,8 +3,10 @@ include { MAP_READS_TO_CONTIGS } from '../modules/genome_assembly'
 include { ASSEMBLE_METASPADES } from '../modules/genome_assembly'
 include { ASSEMBLE_MEGAHIT } from '../modules/genome_assembly'
 include { EVALUATE_CONTIGS } from '../modules/genome_assembly'
+include { FILTER_CONTIGS } from '../modules/genome_assembly'
 include { COLLATE_PARTITIONS as COLLATE_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_CONTIGS } from '../modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_MAPS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from '../modules/data_prep'
 
 
@@ -22,6 +24,10 @@ workflow ASSEMBLE {
             error "Unknown assembler: ${params.genome_assembly.assembler}"
         }
 
+        if (params.genome_assembly.filtering.enabled) {
+            contigs = FILTER_CONTIGS(contigs, q2_cache)
+        }
+
         contigs_all = contigs | map { _id, key -> key } | collect
         contigs_all = COLLATE_CONTIGS(contigs_all, "${params.runId}_contigs", "assembly collate-contigs", "--i-contigs", "--o-collated-contigs", true)
 
@@ -34,13 +40,11 @@ workflow ASSEMBLE {
             indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
             mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads, q2_cache)
-            
-            contigs_with_maps = contigs.combine(mapped_reads, by: 0) | collect
-            contigs_collected = contigs_with_maps | map {_id, _contig, _map -> _contig } | collect
-            maps_collected = contigs_with_maps | map {_id, _contig, _map -> _map } | collect
+            maps_all = mapped_reads | map { _id, key -> key } | collect
+            maps_all = COLLATE_MAPS(maps_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
 
             if (params.assembly_qc.enabled) {
-                EVALUATE_CONTIGS(contigs_collected, maps_collected, q2_cache)
+                EVALUATE_CONTIGS(contigs_all, maps_all, q2_cache)
             }
         }
 

@@ -125,9 +125,9 @@ workflow {
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             if (params.binning.qc.busco.enabled) {
-                binning_results = BIN(contigs.contigs, contigs.maps, cache)
+                binning_results = BIN(contigs.contigs, contigs.mapped_reads, cache)
             } else {
-                binning_results = BIN_NO_BUSCO(contigs.contigs, contigs.maps, cache)
+                binning_results = BIN_NO_BUSCO(contigs.contigs, contigs.mapped_reads, cache)
             }
             
             // classify MAGs

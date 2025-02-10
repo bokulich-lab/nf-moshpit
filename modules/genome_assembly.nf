@@ -172,3 +172,42 @@ process MAP_READS_TO_CONTIGS {
     && touch ${key}
     """
 }
+
+process FILTER_CONTIGS {
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'terminate' }
+    cpus 1
+    memory 4.GB
+    time { 1.h * task.attempt }
+    maxRetries 3
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
+    
+    input:
+    tuple val(sample_id), path(contigs_file)
+    path q2Cache
+
+    output:
+    tuple val(sample_id), path(key)
+
+    script:
+    key = "${params.runId}_contigs_filtered_partitioned_${sample_id}"
+    removeEmpty_flag = params.genome_assembly.filtering.removeEmpty ? "--p-remove-empty True" : ""
+    """
+    echo Processing sample ${sample_id}
+    qiime assembly filter-contigs \
+      --verbose \
+      --p-length-threshold ${params.genome_assembly.filtering.lengthThreshold} \
+      ${removeEmpty_flag} \
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --o-filtered-contigs ${params.q2cacheDir}:${key} &> output.txt \
+    && touch ${key}
+
+    if grep -q "No samples remain after filtering" output.txt; then
+      echo "All contigs were removed from this sample - the output was empty."
+      exit 125
+    else
+      exit 0
+    fi
+    """
+}
