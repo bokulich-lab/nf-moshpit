@@ -1,4 +1,4 @@
-name: Build q2-shotgun Docker image
+name: Build MOSHPIT Docker image
 
 on:
   workflow_dispatch:
@@ -8,49 +8,40 @@ on:
         required: true
         type: string
       qiimeVersion:
-        description: 'qiime2'
+        description: 'QIIME release version.'
         required: true
         type: string
-      typesVersion:
-        description: 'q2-types-genomics-version'
-        required: false
-        type: string
-      assemblyVersion:
-        description: 'q2-assembly version'
-        required: false
-        type: string
-      moshpitVersion:
-        description: 'q2-moshpit version'
-        required: false
+      baseImageTag:
+        description: 'Base image tag.'
+        required: true
         type: string
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
     
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
 
-    - name: Login to DockerHub
-      uses: docker/login-action@v2
+    - name: Login to the remote registry
+      uses: docker/login-action@v3
       with:
+        registry: quay.io
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push Docker images
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ./Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ inputs.imageTags }}
         build-args: |
-          QIIME_VERSION=${{ inputs.qiimeVersion }}
-          TYPES_VERSION=${{ inputs.typesVersion }}
-          ASSEMBLY_VERSION=${{ inputs.assemblyVersion }}
-          MOSHPIT_VERSION=${{ inputs.moshpitVersion }}
+          BASE_IMAGE_TAG=${{ inputs.baseImageTag }}
+          VERSION=${{ inputs.qiimeVersion }}
