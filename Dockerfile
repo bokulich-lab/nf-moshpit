@@ -16,4 +16,13 @@ RUN mamba run -n ${ENV_NAME} pip install \
     git+https://github.com/bokulich-lab/q2-annotate.git \
     git+https://github.com/bokulich-lab/q2-fastp.git@collate-reports
 
+# this is a magical workaround to avoid running "vdb-config -i"
+# https://github.com/ncbi/sra-tools/issues/291
+RUN mkdir $HOME/.ncbi
+RUN printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+
+# get DBs/tools for QUAST
+RUN mamba run -n ${ENV_NAME} quast-download-silva
+RUN mamba run -n ${ENV_NAME} quast-download-gridss
+
 RUN mamba run -n ${ENV_NAME} qiime dev refresh-cache
