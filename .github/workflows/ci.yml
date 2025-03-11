@@ -21,6 +21,11 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
+    - name: Make some space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        
     - uses: actions/checkout@v4
 
     - name: Set up QEMU
