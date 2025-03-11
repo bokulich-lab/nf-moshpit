@@ -14,7 +14,7 @@ RUN mamba install -n ${ENV_NAME} -c bioconda -c conda-forge -c defaults fastp mu
 
 RUN mamba run -n ${ENV_NAME} pip install \
     git+https://github.com/bokulich-lab/q2-annotate.git \
-    git+https://github.com/bokulich-lab/q2-fastp.git@collate-reports
+    git+https://github.com/bokulich-lab/q2-fastp.git
 
 # this is a magical workaround to avoid running "vdb-config -i"
 # https://github.com/ncbi/sra-tools/issues/291
