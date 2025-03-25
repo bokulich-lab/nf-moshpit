@@ -6,7 +6,6 @@ process BIN_CONTIGS_METABAT {
 
     input:
     tuple val(sample_id), path(contigs_file), path(maps_file)
-    path q2_cache
 
     output:
     tuple val(sample_id), path(key_mags), emit: bins
@@ -14,6 +13,7 @@ process BIN_CONTIGS_METABAT {
     tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
 
     script:
+    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
     key_mags = "${params.runId}_mags_partitioned_${sample_id}"
     key_contig_map = "${params.runId}_contig_map_partitioned_${sample_id}"
     key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
@@ -23,11 +23,11 @@ process BIN_CONTIGS_METABAT {
       --verbose \
       --p-seed 42 \
       --p-num-threads ${task.cpus} \
-      --i-contigs ${params.q2cacheDir}:${contigs_file} \
-      --i-alignment-maps ${params.q2cacheDir}:${maps_file} \
-      --o-mags "${params.q2cacheDir}:${key_mags}" \
-      --o-contig-map "${params.q2cacheDir}:${key_contig_map}" \
-      --o-unbinned-contigs "${params.q2cacheDir}:${key_unbinned_contigs}" \
+      --i-contigs ${q2cacheDir}:${contigs_file} \
+      --i-alignment-maps ${q2cacheDir}:${maps_file} \
+      --o-mags "${q2cacheDir}:${key_mags}" \
+      --o-contig-map "${q2cacheDir}:${key_contig_map}" \
+      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" \
     && touch ${key_mags} \
     && touch ${key_contig_map} \
     && touch ${key_unbinned_contigs}
@@ -43,12 +43,12 @@ process EVALUATE_BINS_BUSCO {
     input:
     tuple val(lineage), val(_id), path(bins_file)
     path busco_db
-    path q2_cache
 
     output:
     tuple val(_id), path(key), emit: busco_results
 
     script:
+    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
     if (params.binning.qc.busco.lineageDatasets == "auto") {
       lineage_dataset = "--p-auto-lineage"
       key = "${params.runId}_busco_results_partitioned_autolineage_${_id}"
@@ -63,10 +63,10 @@ process EVALUATE_BINS_BUSCO {
       --p-cpu ${task.cpus} \
       --p-mode ${params.binning.qc.busco.mode} \
       ${lineage_dataset} \
-      --i-bins ${params.q2cacheDir}:${bins_file} \
+      --i-bins ${q2cacheDir}:${bins_file} \
       --i-busco-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
       --o-visualization "${params.runId}-mags-busco-${key}.qzv" \
-      --o-results-table ${params.q2cacheDir}:${key} \
+      --o-results-table ${q2cacheDir}:${key} \
       ${params.binning.qc.busco.additionalFlags} \
     && touch ${key}
     """
@@ -110,9 +110,7 @@ process FETCH_BUSCO_DB {
     maxRetries 3
     storeDir "${params.binning.qc.busco.database.cache}/keys"
     scratch true
-
-    input:
-    path q2_cache
+    clusterOptions = "--tmp=200G"
 
     output:
     path params.binning.qc.busco.database.key

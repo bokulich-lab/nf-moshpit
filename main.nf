@@ -13,11 +13,13 @@ include { SIMULATE_READS } from './modules/data_prep'
 include { SUBSAMPLE_READS } from './modules/data_prep'
 include { REMOVE_HOST } from './modules/data_prep'
 include { PROCESS_READS_FASTP } from './modules/data_prep'
+// include { FILTER_EMPTY_SEQS } from './modules/data_prep'
 include { VISUALIZE_FASTP } from './modules/data_prep'
 include { PARTITION_ARTIFACT as PARTITION_READS } from './modules/data_prep'
 include { PARTITION_ARTIFACT as PARTITION_MAGS } from './modules/data_prep'
 include { COLLATE_PARTITIONS } from './modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_FASTP_REPORTS } from './modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_READS } from './modules/data_prep'
 include { TABULATE_READ_COUNTS } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
 include { ASSEMBLE } from './subworkflows/assembly'
@@ -42,13 +44,26 @@ nextflow.enable.dsl = 2
 workflow {
     cache = INIT_CACHE()
 
+    def logFile = new File( "${params.sampleReport}" )
+    def writeLog = { value ->
+        logFile << value + "\n"
+    }
+
     // prepare input reads
     if (params.inputReads) {
         reads = Channel.fromPath(params.inputReads)
-    } else if (params.fondue.filesAccessionIds) {
-        ids = Channel.fromPath(params.fondue.filesAccessionIds)
-        fetched_reads = FETCH_SEQS(ids, cache)
+    } else if (params.fondueAccessionIds) {
+        ids = Channel
+            .fromPath(params.fondueAccessionIds)
+            .splitCsv(header: true, sep: '\t')
+            .map { row -> row.ID }
+
+        fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
+
+        // report the fetched reads
+        all_reads = reads | count | subscribe { writeLog("Samples received from fondue: " + it) }
+
     } else if (params.read_simulation.sampleGenomes) {
         genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
         simulated_reads = SIMULATE_READS(genomes, cache)
@@ -59,13 +74,17 @@ workflow {
         reads = simulated_reads.reads
     }
 
-    // split reads into partitions
-    reads_prefix = "${params.runId}_reads_partitioned_"
-    reads_partitioned = PARTITION_READS(reads, reads_prefix, "demux partition-samples-paired", "--i-demux", "--o-partitioned-demux", true) | flatten
-    reads_partitioned = reads_partitioned.map { partition ->
-        def path = java.nio.file.Paths.get(partition.toString())
-        def filename = path.getFileName().toString()
-        tuple(filename.substring(reads_prefix.length()), partition)
+    // split reads into partitions, if necessary
+    if (params.fondueAccessionIds) {
+        reads_partitioned = reads
+    } else {
+        reads_prefix = "${params.runId}_reads_partitioned_"
+        reads_partitioned = PARTITION_READS(reads, reads_prefix, "demux partition-samples-paired", "--i-demux", "--o-partitioned-demux", true) | flatten
+        reads_partitioned = reads_partitioned.map { partition ->
+            def path = java.nio.file.Paths.get(partition.toString())
+            def filename = path.getFileName().toString()
+            tuple(filename.substring(reads_prefix.length()), partition)
+        }
     }
 
     // subsample reads
@@ -74,9 +93,9 @@ workflow {
     }
 
     // perform read QC and trimming
-    fastp_results = PROCESS_READS_FASTP(reads_partitioned, cache)
+    fastp_results = PROCESS_READS_FASTP(reads_partitioned)
     reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
-    fastp_reports = fastp_results | map { _id, reads, report -> report } | collect
+    fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
     VISUALIZE_FASTP(fastp_reports_all, cache)
 
@@ -106,6 +125,8 @@ workflow {
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
+
+        contigs.contigs | count | subscribe { writeLog("Samples after contig filtering: " + it) }
 
         if (params.functional_annotation.enabledFor != "") {
             diamond_db = FETCH_DIAMOND_DB(cache)

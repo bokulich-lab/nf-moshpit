@@ -17,7 +17,7 @@ workflow BIN {
     main:
         contigs_with_maps = contigs.combine(maps, by: 0)
 
-        bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
+        bins = BIN_CONTIGS_METABAT(contigs_with_maps)
         bins_all = BIN_CONTIGS_METABAT.out.bins | map { _id, _key -> _key } | collect
         bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
 
@@ -25,10 +25,10 @@ workflow BIN {
             FETCH_ARTIFACT_MAGS(bins_all)
         }    
 
-        busco_db = FETCH_BUSCO_DB(q2_cache)
+        busco_db = FETCH_BUSCO_DB()
         lineages = Channel.from(params.binning.qc.busco.lineageDatasets.split(","))
         bins_with_lineage = lineages.combine(BIN_CONTIGS_METABAT.out.bins)
-        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db, q2_cache)
+        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db)
         busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned | map { _id, _key -> _key } | collect, "${params.runId}_busco_results", "annotate collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
@@ -62,7 +62,7 @@ workflow BIN_NO_BUSCO {
     main:
         contigs_with_maps = contigs.combine(maps, by: 0)
 
-        bins = BIN_CONTIGS_METABAT(contigs_with_maps, q2_cache)
+        bins = BIN_CONTIGS_METABAT(contigs_with_maps)
 
         if (params.binning.fetchArtifact) {
             bins_all = COLLATE_BINS(bins | map { _id, _key -> _key } | collect, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)

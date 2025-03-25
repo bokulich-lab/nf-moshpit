@@ -55,18 +55,34 @@ process SIMULATE_READS {
 process FETCH_SEQS {
     label "fondue"
     label "needsInternet"
+    scratch true
+    tag "${_id}"
+    errorStrategy { task.exitStatus in [125, 126] ? 'ignore' : 'retry' }
+    maxRetries 3
 
     input:
-    path ids
-    path q2_cache
+    val _id
+    // path q2_cache
 
     output:
-    path "${params.runId}_reads_single", emit: single
-    path "${params.runId}_reads_paired", emit: paired
-    path "${params.runId}_failed_runs", emit: failed
+    tuple val(_id), path(reads_single), emit: single
+    tuple val(_id), path(reads_paired), emit: paired
+    tuple val(_id), path(failed_runs), emit: failed
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+    reads_paired = "${params.runId}_reads_paired_${_id}"
+    reads_single = "${params.runId}_reads_single_${_id}"
+    failed_runs = "${params.runId}_failed_runs_${_id}"
     """
+    qiime tools cache-create --cache ${q2cacheDir}
+
+    if [ -f ${q2cacheDir}/keys/${reads_paired} ] && [ -f ${q2cacheDir}/keys/${reads_single} ] && [ -f ${q2cacheDir}/keys/${failed_runs} ]; then
+      echo "All cache keys exist for sample ${_id}"
+      touch ${reads_paired} && touch ${reads_single} && touch ${failed_runs}
+      exit 0
+    fi
+
     if [ ! -d "$HOME/.ncbi" ]; then
         echo 'Directory $HOME/.ncbi does not exist and will be created'
         mkdir $HOME/.ncbi
@@ -88,19 +104,104 @@ process FETCH_SEQS {
         fi
     fi
 
+    echo -e "id\n${_id}" > ids.tsv
+
+    echo "Importing IDs into an artifact..."
+
+    qiime tools import \
+      --type NCBIAccessionIDs \
+      --input-path ids.tsv \
+      --output-path ids.qza
+
+    echo "Starting data fetch..."
+
+    set +e
     qiime fondue get-sequences \
       --verbose \
-      --i-accession-ids ${ids} \
+      --i-accession-ids ids.qza \
       --p-email ${params.email} \
       --p-n-jobs ${task.cpus} \
-      --o-single-reads ${params.q2cacheDir}:${params.runId}_reads_single \
-      --o-paired-reads ${params.q2cacheDir}:${params.runId}_reads_paired \
-      --o-failed-runs ${params.q2cacheDir}:${params.runId}_failed_runs \
-    && touch ${params.runId}_reads_single \
-    && touch ${params.runId}_reads_paired \
-    && touch ${params.runId}_failed_runs
+      --o-single-reads ${q2cacheDir}:${reads_single} \
+      --o-paired-reads ${q2cacheDir}:${reads_paired} \
+      --o-failed-runs ${q2cacheDir}:${failed_runs} > output.txt 2> error.txt
+
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
+
+    if [ \$qiime_exit_code -eq 0 ]; then
+      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${reads_paired}|${reads_single}|${failed_runs}' | wc -l)
+      echo "File count is: \$count."
+      if [ "\$count" -ne 3 ]; then
+        echo "Some of the required keys are missing in the cache."
+        exit 1
+      fi
+    fi
+    
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    if grep -q "Neither single- nor paired-end sequences could be downloaded" output.txt || grep -q "Neither single- nor paired-end sequences could be downloaded" error.txt; then
+      echo "Neither single- nor paired-end sequences could be downloaded."
+      exit 125
+    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
+      echo "Already unlocked error - please investigate the full log."
+      echo "This error will be ignored since all the required keys are present in the cache."
+      qiime_exit_code=0
+    fi
+
+    if [[ ${params.fondue.paired} == 'true' ]]; then
+      key=${reads_paired}
+    else
+      key=${reads_single}
+    fi
+
+    uuid=\$(cat ${q2cacheDir}/keys/\$key | grep 'data' | awk '{print \$2}')
+    paths=\$(ls ${q2cacheDir}/data/\$uuid/data | grep 'fastq')
+    echo "Samples found: \$paths"
+    
+    if [[ \$paths == *"xxx_"* ]]; then
+      echo "Empty sample found for key \$key"
+      exit 125
+    else
+      echo "No empty samples found for key \$key"
+    fi
+
+    touch ${reads_paired} && touch ${reads_single} && touch ${failed_runs}
+
+    exit \$qiime_exit_code
     """
 }
+
+
+// process FILTER_EMPTY_SEQS {
+//     scratch true
+//     tag "${_id}"
+//     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'terminate' }
+
+//     input:
+//     tuple val(_id), path(key)
+//     path q2_cache
+
+//     output:
+//     tuple val(_id), path(key)
+
+//     script:
+//     """
+//     uuid=\$(cat ${params.q2cacheDir}/keys/${key} | grep 'data' | awk '{print \$2}')
+//     paths=\$(ls ${params.q2cacheDir}/data/\$uuid/data | grep 'fastq')
+//     echo "Samples found: \$paths"
+    
+//     if [[ \$paths == *"xxx_"* ]]; then
+//       echo "Empty sample found for key ${key}"
+//       exit 125
+//     else
+//       echo "No empty samples found for key ${key}"
+//       touch ${key}
+//       exit 0
+//     fi
+//     """
+// }
 
 process SUBSAMPLE_READS {
     label "readSubsampling"
@@ -146,15 +247,18 @@ process PROCESS_READS_FASTP {
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
+    errorStrategy { task.exitStatus in [125, 126] ? 'ignore' : 'retry' }
+    maxRetries 3
 
     input:
     tuple val(sample_id), path(reads)
-    path q2_cache
+    // path q2_cache
 
     output:
     tuple val(sample_id), path(key_reads), path(key_reports)
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key_reads = "${params.runId}_reads_fastp_${sample_id}"
     key_reports = "${params.runId}_fastp_report_${sample_id}"
     qc_filtering_flag = params.read_qc.fastp.disableQualityFiltering ? "--p-disable-quality-filtering" : "--p-no-disable-quality-filtering"
@@ -163,25 +267,70 @@ process PROCESS_READS_FASTP {
     correction_flag = params.read_qc.fastp.enableBaseCorrection ? "--p-correction" : "--p-no-correction"
     """
     echo Processing sample ${sample_id}
+
+    set +e
     qiime fastp process-seqs \
       --verbose \
-      --i-sequences ${params.q2cacheDir}:${reads} \
+      --i-sequences ${q2cacheDir}:${reads} \
       ${qc_filtering_flag} \
       ${dedup_flag} \
       ${adapter_trimming_flag} \
       ${correction_flag} \
       ${params.read_qc.fastp.additionalFlags} \
       --p-thread ${task.cpus} \
-      --o-processed-sequences ${params.q2cacheDir}:${key_reads} \
-      --o-reports ${params.q2cacheDir}:${key_reports} \
-    && touch ${key_reads} \
-    && touch ${key_reports}
+      --o-processed-sequences ${q2cacheDir}:${key_reads} \
+      --o-reports ${q2cacheDir}:${key_reports} > output.txt 2> error.txt
+
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
+
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    if [ \$qiime_exit_code -eq 0 ]; then
+      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${key_reads}|${key_reports}' | wc -l)
+      echo "File count is: \$count."
+      if [ "\$count" -eq 2 ]; then
+        touch ${key_reads} && touch ${key_reports}
+      else
+        echo "Some of the required keys are missing in the cache."
+        exit 1
+      fi
+    fi
+
+    if grep -q "All samples are empty after processing with fastp" output.txt || grep -q "All samples are empty after processing with fastp" error.txt; then
+      echo "All reads were removed from this sample - the output was empty."
+      exit 125
+    elif grep -q "xxx_00" output.txt || grep -q "xxx_00" error.txt; then
+      echo "Empty XXX samples found in the data."
+      exit 126
+    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
+      echo "Already unlocked error - please investigate the full log."
+
+      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${key_reads}|${key_reports}' | wc -l)
+      echo "File count is: \$count."
+      if [ "\$count" -eq 2 ]; then
+        touch ${key_reads} && touch ${key_reports}
+      else
+        echo "Some of the required keys are missing in the cache."
+        exit 1
+      fi
+
+      echo "This error will be ignored since all the required keys are present in the cache."
+      qiime_exit_code=0
+    fi
+
+    exit \$qiime_exit_code
     """
 }
 
 process VISUALIZE_FASTP {
     cpus 1
-    memory 1.GB
+    memory { 4.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    time { 2.h * task.attempt }
     publishDir params.publishDir, mode: 'copy'
     scratch true
 
@@ -308,6 +457,8 @@ process PARTITION_ARTIFACT {
     cpus 1
     storeDir params.storeDir
     scratch true
+    time { 2.h * task.attempt }
+    maxRetries 3
 
     input:
     path cache_key
@@ -347,9 +498,11 @@ process COLLATE_PARTITIONS {
     label "collation"
     cpus 1
     scratch true
+    time { 2.h * task.attempt }
+    maxRetries 3
 
     input:
-    path cache_key_in
+    val id_and_paths
     val cache_key_out 
     val qiime_action
     val qiime_input_flag
@@ -360,12 +513,19 @@ process COLLATE_PARTITIONS {
     path "${cache_key_out}"
 
     script:
+    def inputString = id_and_paths.collect { item ->
+        def sample_id = item[0]
+        def path = item[1]
+        def key = new File(path.toString()).getName()
+        "${params.q2TemporaryCachesDir}/${sample_id}:${key}"
+    }.join(' ')
+  
     """
-    keys_in=\$(for path in ${cache_key_in}; do echo "${params.q2cacheDir}:\$(basename "\$path")"; done)
-    echo \$keys_in
-    qiime ${qiime_action} \
-      ${qiime_input_flag} \$keys_in \
-      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
+    echo "Combined input: ${inputString}"
+    
+    qiime ${qiime_action} \\
+      ${qiime_input_flag} ${inputString} \\
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \\
     && touch ${cache_key_out}
     """
 
@@ -380,6 +540,8 @@ process TABULATE_READ_COUNTS {
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
+    time { 2.h * task.attempt }
+    maxRetries 3
     
     input:
     tuple val(sample_id), path(reads)
@@ -401,10 +563,12 @@ process TABULATE_READ_COUNTS {
 }
 
 process FILTER_SAMPLES {
-    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'terminate' }
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
+    time { 2.h * task.attempt }
+    maxRetries 3
     
     input:
     tuple val(sample_id), path(reads), path(metadata)
@@ -418,19 +582,50 @@ process FILTER_SAMPLES {
     key = "${params.runId}_reads_filtered_${sample_id}"
     """
     echo Processing sample ${sample_id}
+
+    set +e
     qiime demux filter-samples \
       --verbose \
       --i-demux ${params.q2cacheDir}:${reads} \
       --m-metadata-file ${params.q2cacheDir}:${metadata} \
       --p-where ${query} \
-      --o-filtered-demux ${params.q2cacheDir}:${key} &> output.txt \
-      && touch ${key}
+      --o-filtered-demux ${params.q2cacheDir}:${key} > output.txt 2> error.txt
+    
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
 
-    if grep -q "No filtering requested" output.txt; then
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    if [ \$qiime_exit_code -eq 0 ]; then
+      count=\$(ls ${params.q2cacheDir}/keys/ | grep ${key} | wc -l)
+      if [ "\$count" -eq 0 ]; then
+        echo "Some of the required keys are missing in the cache."
+        exit 1
+      else
+        touch ${key}
+      fi
+    fi
+
+    if grep -q "No filtering requested" output.txt || grep -q "No filtering requested" error.txt; then
       echo "The generated artifact did not contain any samples."
       exit 125
-    else
-        exit 0
+    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
+      echo "Already unlocked error - please investigate the full log."
+
+      count=\$(ls ${params.q2cacheDir}/keys/ | grep ${key} | wc -l)
+      if [ "\$count" -eq 0 ]; then
+        echo "Some of the required keys are missing in the cache."
+        exit 1
+      else
+        touch ${key}
+      fi
+
+      echo "This error will be ignored since all the required keys are present in the cache."
+      qiime_exit_code=0
     fi
+
+    exit \$qiime_exit_code
     """
 }
