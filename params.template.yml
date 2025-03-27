@@ -1,10 +1,14 @@
-runId: EXAMPLE_RUN
+runId: EXAMPLE
 outputDir: /path/to/output
 email: user@example.com
 container: /path/to/container.sif
 condaEnv: /path/to/conda/env
 internetModule: module_name
 fondueAccessionIds: /path/to/tsv
+inputReadsManifest: /path/to/manifest
+inputReads: <reads cache key>
+inputReadsCache: /path/to/reads/cache
+additionalVolumeMounts: "additional volumes to be mounted in the containers"
 
 fondue:
   paired: true
@@ -20,7 +24,7 @@ read_simulation:
   abundance: "uniform"
   gc_bias: true
   sampleGenomes: ""
-  sampleNames: "sample1 sample2"
+  sampleNames: "sample1,sample2"
   taxon: ""
 
 read_subsampling:
@@ -77,7 +81,7 @@ assembly_qc:
   useMappedReads: false
 
 binning:
-  enabled: false
+  enabled: true
   clusterOptions: ""
   fetchArtifact: false
   qc:
@@ -118,7 +122,7 @@ mag_abundance:
   min_base_quality: 0
 
 taxonomic_classification:
-  enabledFor: "" # reads, contigs, mags, derep
+  enabledFor: "derep" # reads, contigs, mags, derep
   fetchArtifact: false
   kraken2:
     clusterOptions: ""
@@ -150,21 +154,19 @@ functional_annotation:
     database:
       cache: ""
       key: ""
-      clusterOptions: ""
   annotation:
     clusterOptions: ""
     fetchArtifact: false
     dbInMemory: true
     additionalFlags: ""
-    types: "caz,cog"
     extract:
+      types: "caz,cog"
       max_evalue: 0.00001
       min_score: 0
       fetchArtifact: false
     database:
       cache: ""
       key: ""
-      clusterOptions: ""
 
 env:
   NUMBA_DISABLE_INTEL_SVML: 1 

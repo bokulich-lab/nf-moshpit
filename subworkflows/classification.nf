@@ -1,4 +1,5 @@
-include { CLASSIFY_KRAKEN2 as CLASSIFY_READS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_CONTIGS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_MAGS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modules/taxonomic_classification'
+include { CLASSIFY_KRAKEN2 as CLASSIFY_READS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_CONTIGS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_MAGS_KRAKEN2 } from '../modules/taxonomic_classification'
+include { CLASSIFY_KRAKEN2_DEREP as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modules/taxonomic_classification'
 include { ESTIMATE_BRACKEN } from '../modules/taxonomic_classification'
 include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES } from '../modules/taxonomic_classification'
 include { DRAW_TAXA_BARPLOT } from '../modules/taxonomic_classification'
@@ -18,11 +19,11 @@ workflow CLASSIFY_MAGS {
         kraken2_db
         q2_cache
     main:
-        classification = CLASSIFY_MAGS_KRAKEN2(bins, kraken2_db, "mags", q2_cache)
+        classification = CLASSIFY_MAGS_KRAKEN2(bins, kraken2_db, "mags")
 
         // collate reports and hits
-        reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
-        hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
+        reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | collect(flat: false)
+        hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
         collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
         collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
         if (params.taxonomic_classification.fetchArtifact) {
@@ -37,18 +38,14 @@ workflow CLASSIFY_MAGS_DEREP {
         kraken2_db
         q2_cache
     main:
-        bins = bins.map { bin -> ["mags-derep", bin] }
-        CLASSIFY_MAGS_DEREP_KRAKEN2(bins, kraken2_db, "mags-derep", q2_cache)
-
-        reports = CLASSIFY_MAGS_DEREP_KRAKEN2.out.reports | map { _id, report -> report }
-        hits = CLASSIFY_MAGS_DEREP_KRAKEN2.out.hits | map { _id, hit -> hit }
+        CLASSIFY_MAGS_DEREP_KRAKEN2(bins, kraken2_db, q2_cache)
 
         if (params.taxonomic_classification.fetchArtifact) {
-            FETCH_ARTIFACT_REPORTS(reports)
-            FETCH_ARTIFACT_HITS(hits)
+            FETCH_ARTIFACT_REPORTS(CLASSIFY_MAGS_DEREP_KRAKEN2.out.reports)
+            FETCH_ARTIFACT_HITS(CLASSIFY_MAGS_DEREP_KRAKEN2.out.hits)
         }
 
-        GET_KRAKEN_MAG_DEREP_FEATURES(reports, hits, "mags_derep")
+        GET_KRAKEN_MAG_DEREP_FEATURES(CLASSIFY_MAGS_DEREP_KRAKEN2.out.reports, CLASSIFY_MAGS_DEREP_KRAKEN2.out.hits, "mags_derep")
 }
 
 workflow CLASSIFY_READS {
@@ -58,11 +55,10 @@ workflow CLASSIFY_READS {
         bracken_db
         q2_cache
     main:
-        classification = CLASSIFY_READS_KRAKEN2(reads, kraken2_db, "reads", q2_cache)
+        classification = CLASSIFY_READS_KRAKEN2(reads, kraken2_db, "reads")
 
-        // collate reports and hits
-        reports_all = CLASSIFY_READS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
-        hits_all = CLASSIFY_READS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
+        reports_all = CLASSIFY_READS_KRAKEN2.out.reports | collect(flat: false)
+        hits_all = CLASSIFY_READS_KRAKEN2.out.hits | collect(flat: false)
         reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_reads", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
         hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_reads", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
 
@@ -88,11 +84,10 @@ workflow CLASSIFY_CONTIGS {
         kraken2_db
         q2_cache
     main:
-        classification = CLASSIFY_CONTIGS_KRAKEN2(contigs, kraken2_db, "contigs", q2_cache)
+        classification = CLASSIFY_CONTIGS_KRAKEN2(contigs, kraken2_db, "contigs")
 
-        // collate reports and hits
-        reports_all = CLASSIFY_CONTIGS_KRAKEN2.out.reports | map { _id, _key -> _key } | collect
-        hits_all = CLASSIFY_CONTIGS_KRAKEN2.out.hits | map { _id, _key -> _key } | collect
+        reports_all = CLASSIFY_CONTIGS_KRAKEN2.out.reports | collect(flat: false)
+        hits_all = CLASSIFY_CONTIGS_KRAKEN2.out.hits | collect(flat: false)
         reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "annotate collate-kraken2-reports", "--i-kraken2-reports", "--o-collated-kraken2-reports", true)
         hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "annotate collate-kraken2-outputs", "--i-kraken2-outputs", "--o-collated-kraken2-outputs", true)
 

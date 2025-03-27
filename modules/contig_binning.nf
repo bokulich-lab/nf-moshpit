@@ -13,7 +13,7 @@ process BIN_CONTIGS_METABAT {
     tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
 
     script:
-    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key_mags = "${params.runId}_mags_partitioned_${sample_id}"
     key_contig_map = "${params.runId}_contig_map_partitioned_${sample_id}"
     key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
@@ -37,8 +37,8 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS_BUSCO {
     label "busco"
     storeDir params.storeDir
-    scratch true
-    tag "${sample_id}"
+    // scratch true
+    tag "${_id}"
 
     input:
     tuple val(lineage), val(_id), path(bins_file)
@@ -48,7 +48,7 @@ process EVALUATE_BINS_BUSCO {
     tuple val(_id), path(key), emit: busco_results
 
     script:
-    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (params.binning.qc.busco.lineageDatasets == "auto") {
       lineage_dataset = "--p-auto-lineage"
       key = "${params.runId}_busco_results_partitioned_autolineage_${_id}"
@@ -108,7 +108,7 @@ process FETCH_BUSCO_DB {
     memory 4.GB
     time { 6.h * task.attempt }
     maxRetries 3
-    storeDir "${params.binning.qc.busco.database.cache}/keys"
+    storeDir params.storeDir
     scratch true
     clusterOptions = "--tmp=200G"
 
@@ -118,7 +118,7 @@ process FETCH_BUSCO_DB {
     script:
     virus_flag = params.binning.qc.busco.database.types.contains("virus") ? "--p-virus True" : "--p-virus False"
     prok_flag = params.binning.qc.busco.database.types.contains("prok") ? "--p-prok True" : "--p-prok False"
-    euk_flag = params.binning.qc.busco.database.types.contains("virus") ? "--p-euk True" : "--p-euk False"
+    euk_flag = params.binning.qc.busco.database.types.contains("euk") ? "--p-euk True" : "--p-euk False"
     """
     if [ -f ${params.binning.qc.busco.database.cache}/keys/${params.binning.qc.busco.database.key} ]; then
       echo 'Found an existing BUSCO database - fetching will be skipped.'
@@ -142,17 +142,20 @@ process FILTER_MAGS {
     maxRetries 3
     storeDir params.storeDir
     scratch true
+    tag "${_id}"
 
     input:
-    path bins_file
+    tuple val(_id), path(bins_file)
     path metadata_file
     val filtering_axis
     path q2_cache
 
     output:
-    path "${params.runId}_mags_filtered", emit: mags_filtered
+    tuple val(_id), path(key_mags_filtered), emit: mags_filtered
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+    key_mags_filtered = "${params.runId}_mags_filtered_${_id}"
     """
     qiime annotate filter-mags \
       --verbose \
@@ -160,8 +163,8 @@ process FILTER_MAGS {
       --p-exclude-ids ${params.binning.qc.filtering.exclude_ids} \
       --p-on ${filtering_axis} \
       --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
-      --i-mags ${params.q2cacheDir}:${bins_file} \
-      --o-filtered-mags "${params.q2cacheDir}:${params.runId}_mags_filtered" \
-    && touch ${params.runId}_mags_filtered
+      --i-mags ${q2cacheDir}:${bins_file} \
+      --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" \
+    && touch ${key_mags_filtered}
     """
 }

@@ -1,5 +1,7 @@
 process ASSEMBLE_METASPADES {
     label "genomeAssembly"
+    errorStrategy 'retry'
+    maxRetries 3
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
@@ -47,8 +49,6 @@ process ASSEMBLE_MEGAHIT {
     key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}
-
-    set +e
     qiime assembly assemble-megahit \
       --verbose \
       --i-seqs ${q2cacheDir}:${reads_file} \
@@ -58,41 +58,8 @@ process ASSEMBLE_MEGAHIT {
       --p-num-cpu-threads ${task.cpus} \
       --no-recycle \
       --o-contigs "${q2cacheDir}:${key}" \
-      ${params.genome_assembly.megahit.additionalFlags} > output.txt 2> error.txt
-    
-    qiime_exit_code=\$?
-    echo "QIIME exit code: \$qiime_exit_code"
-    set -e
-
-    cat output.txt >> .command.out
-    cat error.txt >> .command.err
-
-    if [ \$qiime_exit_code -eq 0 ]; then
-      count=\$(ls ${q2cacheDir}/keys/ | grep ${key} | wc -l)
-      if [ "\$count" -eq 1 ]; then
-        touch ${key}
-      else
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-    fi
-
-    if grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
-      echo "Already unlocked error - please investigate the full log."
-
-      count=\$(ls ${q2cacheDir}/keys/ | grep ${key} | wc -l)
-      if [ "\$count" -eq 1 ]; then
-        touch ${key}
-      else
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-
-      echo "This error will be ignored since all the required keys are present in the cache."
-      qiime_exit_code=0
-    fi
-
-    exit \$qiime_exit_code
+      ${params.genome_assembly.megahit.additionalFlags} \
+    && touch ${key}
     """
 }
 

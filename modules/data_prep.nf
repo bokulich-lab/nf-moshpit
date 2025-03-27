@@ -1,8 +1,6 @@
 process FETCH_GENOMES {
     label "needsInternet"
-
-    input:
-    path q2_cache
+    publishDir params.publishDir
 
     output:
     path params.read_simulation.sampleGenomes
@@ -22,33 +20,45 @@ process FETCH_GENOMES {
 
 process SIMULATE_READS {
     label "readSimulation"
+    scratch true
+    tag "${sample_id}"
+    errorStrategy 'retry'
+    maxRetries 3
 
     input:
-    path genomes
-    path q2_cache
+    tuple val(sample_id), path(genomes)
 
     output:
-    path "${params.runId}_reads", emit: reads
-    path "${params.runId}_output_genomes", emit: genomes
-    path "${params.runId}_output_abundances", emit: abundances
+    tuple val(sample_id), path(reads), emit: reads
+    tuple val(sample_id), path(output_genomes), emit: genomes
+    tuple val(sample_id), path(abundances), emit: abundances
 
+    script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
+    reads = "${params.runId}_reads_${sample_id}"
+    output_genomes = "${params.runId}_output_genomes_${sample_id}"
+    abundances = "${params.runId}_output_abundances_${sample_id}"
     """
+    if [ ! -d "${q2cacheDir}" ]; then
+      qiime tools cache-create --cache ${q2cacheDir}
+    fi
+
     qiime assembly generate-reads \
       --verbose \
       --i-genomes ${genomes} \
-      --p-sample-names ${params.read_simulation.sampleNames} \
+      --p-sample-names ${sample_id} \
       --p-cpus ${task.cpus} \
       --p-n-genomes ${params.read_simulation.nGenomes} \
       --p-n-reads ${params.read_simulation.readCount} \
       --p-seed ${params.read_simulation.seed} \
       --p-abundance ${params.read_simulation.abundance} \
       --p-gc-bias ${params.read_simulation.gc_bias} \
-      --o-reads ${params.q2cacheDir}:${params.runId}_reads \
-      --o-template-genomes ${params.q2cacheDir}:${params.runId}_output_genomes \
-      --o-abundances ${params.q2cacheDir}:${params.runId}_output_abundances \
-    && touch ${params.runId}_reads \
-    && touch ${params.runId}_output_genomes \
-    && touch ${params.runId}_output_abundances
+      --o-reads ${q2cacheDir}:${reads} \
+      --o-template-genomes ${q2cacheDir}:${output_genomes} \
+      --o-abundances ${q2cacheDir}:${abundances} \
+    && touch ${reads} \
+    && touch ${output_genomes} \
+    && touch ${abundances}
     """
 }
 
@@ -75,7 +85,9 @@ process FETCH_SEQS {
     reads_single = "${params.runId}_reads_single_${_id}"
     failed_runs = "${params.runId}_failed_runs_${_id}"
     """
-    qiime tools cache-create --cache ${q2cacheDir}
+    if [ ! -d "${q2cacheDir}" ]; then
+      qiime tools cache-create --cache ${q2cacheDir}
+    fi
 
     if [ -f ${q2cacheDir}/keys/${reads_paired} ] && [ -f ${q2cacheDir}/keys/${reads_single} ] && [ -f ${q2cacheDir}/keys/${failed_runs} ]; then
       echo "All cache keys exist for sample ${_id}"
@@ -128,15 +140,6 @@ process FETCH_SEQS {
     qiime_exit_code=\$?
     echo "QIIME exit code: \$qiime_exit_code"
     set -e
-
-    if [ \$qiime_exit_code -eq 0 ]; then
-      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${reads_paired}|${reads_single}|${failed_runs}' | wc -l)
-      echo "File count is: \$count."
-      if [ "\$count" -ne 3 ]; then
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-    fi
     
     cat output.txt >> .command.out
     cat error.txt >> .command.err
@@ -144,10 +147,6 @@ process FETCH_SEQS {
     if grep -q "Neither single- nor paired-end sequences could be downloaded" output.txt || grep -q "Neither single- nor paired-end sequences could be downloaded" error.txt; then
       echo "Neither single- nor paired-end sequences could be downloaded."
       exit 125
-    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
-      echo "Already unlocked error - please investigate the full log."
-      echo "This error will be ignored since all the required keys are present in the cache."
-      qiime_exit_code=0
     fi
 
     if [[ ${params.fondue.paired} == 'true' ]]; then
@@ -173,36 +172,6 @@ process FETCH_SEQS {
     """
 }
 
-
-// process FILTER_EMPTY_SEQS {
-//     scratch true
-//     tag "${_id}"
-//     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'terminate' }
-
-//     input:
-//     tuple val(_id), path(key)
-//     path q2_cache
-
-//     output:
-//     tuple val(_id), path(key)
-
-//     script:
-//     """
-//     uuid=\$(cat ${params.q2cacheDir}/keys/${key} | grep 'data' | awk '{print \$2}')
-//     paths=\$(ls ${params.q2cacheDir}/data/\$uuid/data | grep 'fastq')
-//     echo "Samples found: \$paths"
-    
-//     if [[ \$paths == *"xxx_"* ]]; then
-//       echo "Empty sample found for key ${key}"
-//       exit 125
-//     else
-//       echo "No empty samples found for key ${key}"
-//       touch ${key}
-//       exit 0
-//     fi
-//     """
-// }
-
 process SUBSAMPLE_READS {
     label "readSubsampling"
     storeDir params.storeDir
@@ -212,21 +181,21 @@ process SUBSAMPLE_READS {
 
     input:
     tuple val(sample_id), path(reads)
-    path q2_cache
 
     output:
     tuple val(sample_id), path(reads_subsampled)
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     reads_subsampled = "${params.runId}_reads_subsampled_${params.read_subsampling.fraction.toString().replace(".", "_")}_${sample_id}"
     if (params.read_subsampling.paired) {
       """
       echo Processing sample ${sample_id}
       qiime demux subsample-paired \
         --verbose \
-        --i-sequences ${params.q2cacheDir}:${reads} \
+        --i-sequences ${q2cacheDir}:${reads} \
         --p-fraction ${params.read_subsampling.fraction} \
-        --o-subsampled-sequences ${params.q2cacheDir}:${reads_subsampled} \
+        --o-subsampled-sequences ${q2cacheDir}:${reads_subsampled} \
       && touch ${reads_subsampled}
       """
     } else {
@@ -234,9 +203,9 @@ process SUBSAMPLE_READS {
       echo Processing sample ${sample_id}
       qiime demux subsample-single \
         --verbose \
-        --i-sequences ${params.q2cacheDir}:${reads} \
+        --i-sequences ${q2cacheDir}:${reads} \
         --p-fraction ${params.read_subsampling.fraction} \
-        --o-subsampled-sequences ${params.q2cacheDir}:${reads_subsampled} \
+        --o-subsampled-sequences ${q2cacheDir}:${reads_subsampled} \
       && touch ${reads_subsampled}
       """
   }
@@ -252,7 +221,6 @@ process PROCESS_READS_FASTP {
 
     input:
     tuple val(sample_id), path(reads)
-    // path q2_cache
 
     output:
     tuple val(sample_id), path(key_reads), path(key_reports)
@@ -288,38 +256,15 @@ process PROCESS_READS_FASTP {
     cat output.txt >> .command.out
     cat error.txt >> .command.err
 
-    if [ \$qiime_exit_code -eq 0 ]; then
-      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${key_reads}|${key_reports}' | wc -l)
-      echo "File count is: \$count."
-      if [ "\$count" -eq 2 ]; then
-        touch ${key_reads} && touch ${key_reports}
-      else
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-    fi
-
     if grep -q "All samples are empty after processing with fastp" output.txt || grep -q "All samples are empty after processing with fastp" error.txt; then
       echo "All reads were removed from this sample - the output was empty."
       exit 125
     elif grep -q "xxx_00" output.txt || grep -q "xxx_00" error.txt; then
       echo "Empty XXX samples found in the data."
       exit 126
-    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
-      echo "Already unlocked error - please investigate the full log."
-
-      count=\$(ls ${q2cacheDir}/keys/ | grep -E '${key_reads}|${key_reports}' | wc -l)
-      echo "File count is: \$count."
-      if [ "\$count" -eq 2 ]; then
-        touch ${key_reads} && touch ${key_reports}
-      else
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-
-      echo "This error will be ignored since all the required keys are present in the cache."
-      qiime_exit_code=0
     fi
+
+    touch ${key_reads} && touch ${key_reports}
 
     exit \$qiime_exit_code
     """
@@ -361,13 +306,13 @@ process REMOVE_HOST {
     
     input:
     tuple val(sample_id), path(reads)
-    path q2_cache
 
     output:
     tuple val(sample_id), path(key), emit: reads
     path "human_reference_index", emit: reference, optional: true
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
     key = "${params.runId}_reads_no_host_partitioned_${sample_id}"
     """
@@ -377,25 +322,25 @@ process REMOVE_HOST {
       echo Database ${params.host_removal.database.key} already exists in the cache ${params.host_removal.database.cache} and will be used for filtering
       qiime quality-control filter-reads \
         --verbose \
-        --i-demultiplexed-sequences ${params.q2cacheDir}:${reads} \
+        --i-demultiplexed-sequences ${q2cacheDir}:${reads} \
         --i-database ${params.host_removal.database.cache}:${params.host_removal.database.key} \
         --p-n-threads ${task.cpus} \
         --p-mode ${params.host_removal.mode} \
         --p-sensitivity ${params.host_removal.sensitivity} \
         --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
         --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
-        --o-filtered-sequences ${params.q2cacheDir}:${key}
+        --o-filtered-sequences ${q2cacheDir}:${key}
     elif [[ "${params.host_removal.human}" == "true" ]]; then
       echo Database ${params.host_removal.database.key} does not exist in the cache ${params.host_removal.database.cache} and will be constructed by the "filter-reads-pangenome" action
       qiime annotate filter-reads-pangenome \
         --verbose \
-        --i-reads ${params.q2cacheDir}:${reads} \
+        --i-reads ${q2cacheDir}:${reads} \
         --p-n-threads ${task.cpus} \
         --p-mode ${params.host_removal.mode} \
         --p-sensitivity ${params.host_removal.sensitivity} \
         --p-ref-gap-open-penalty ${params.host_removal.ref_gap_open_penalty} \
         --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
-        --o-filtered-reads ${params.q2cacheDir}:${key} \
+        --o-filtered-reads ${q2cacheDir}:${key} \
         ${index_flag} \
         --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
       && touch human_reference_index
@@ -453,45 +398,94 @@ process FETCH_ARTIFACT {
     """
 }
 
-process PARTITION_ARTIFACT {
+process IMPORT_READS {
+    tag "${_id}"
+    scratch true
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+    tuple val(_id), path(reads_fwd), path(reads_rev)
+
+    output:
+    tuple val(_id), path(key)
+
+    script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+    key = "${params.runId}_reads_${_id}"
+    """
+    echo "Creating cache for ${_id}..."
+    if [ ! -d "${q2cacheDir}" ]; then
+      qiime tools cache-create --cache ${q2cacheDir}
+    fi
+
+    echo "Creating manifest file..."
+    if [ -n "${reads_rev}" ]; then
+        echo -e "sample-id\tforward-absolute-filepath\treverse-absolute-filepath" > manifest.tsv
+        echo -e "${_id}\t\$(readlink -f ${reads_fwd})\t\$(readlink -f ${reads_rev})" >> manifest.tsv
+        semanticType="PairedEndSequencesWithQuality"
+        dataFormat="PairedEndFastqManifestPhred33V2"
+    else
+        echo -e "sample-id\tforward-absolute-filepath" > manifest.tsv
+        echo -e "${_id}\t\$(readlink -f ${reads_fwd})" >> manifest.tsv
+        semanticType="SequencesWithQuality"
+        dataFormat="SingleEndFastqManifestPhred33V2"
+    fi
+    
+    echo "Importing reads..."
+    qiime tools cache-import \
+      --cache ${q2cacheDir} \
+      --key ${key} \
+      --type "SampleData[\$semanticType]" \
+      --input-path manifest.tsv \
+      --input-format \$dataFormat
+    
+    touch ${key}
+    """
+}
+
+process PARTITION_DEREP_MAGS {
     cpus 1
     storeDir params.storeDir
-    scratch true
     time { 2.h * task.attempt }
     maxRetries 3
 
     input:
-    path cache_key
-    val prefix
-    val qiime_action
-    val qiime_input_flag
-    val qiime_output_flag
-    val isInputReads
+    path mags_derep
+    path q2_cache
 
     output:
-    path "${prefix}*"
+    path "${params.runId}_mags_derep_partitioned_*"
 
     script:
-    if (isInputReads) {
-      inputCachePath = params.inputReadsCache
-    } else {
-      inputCachePath = params.q2cacheDir
-    }
     """
-    if [ ! -f "${params.q2cacheDir}/keys/${prefix}collection" ]; then
-      qiime ${qiime_action} \
-      ${qiime_input_flag} ${inputCachePath}:${cache_key} \
-      ${qiime_output_flag} ${params.q2cacheDir}:${prefix}collection
-    else
-      echo "The ${prefix}collection result collection already exists and will not be recreated."
-    fi
+    uuid=\$(cat ${params.q2cacheDir}/keys/${mags_derep} | grep 'data' | awk '{print \$2}')
+    mags=\$(ls ${params.q2cacheDir}/data/\$uuid/data/*.{fa,fasta} 2>/dev/null | xargs -n 1 basename | sed -E 's/\\.(fa|fasta)\$//')
+    mkdir -p "${params.q2TemporaryCachesDir}/mags"
 
-    bash ${projectDir}/../scripts/partition.sh \
-      -i ${params.q2cacheDir}/keys/${prefix}collection \
-      -d ${params.q2cacheDir}/keys \
-      -p ${prefix} \
-      -s
-    """
+    for mag in \${mags}; do
+      q2cacheDir="${params.q2TemporaryCachesDir}/mags/\$mag"
+      key="${params.runId}_mags_derep_partitioned_\$mag"
+      if [ ! -d \$q2cacheDir ]; then
+        echo "Creating cache \$q2cacheDir..."
+        qiime tools cache-create --cache \$q2cacheDir
+      fi
+
+      echo "id" > metadata.tsv
+      echo "\$mag" >> metadata.tsv
+
+      echo "Filtering \$mag..."
+      cat metadata.tsv
+
+      qiime annotate filter-derep-mags \
+        --verbose \
+        --i-mags ${params.q2cacheDir}:${mags_derep} \
+        --m-metadata-file metadata.tsv \
+        --o-filtered-mags \$q2cacheDir:\$key
+      
+      touch \$key
+    done
+    """  
 }
 
 process COLLATE_PARTITIONS {
@@ -545,19 +539,19 @@ process TABULATE_READ_COUNTS {
     
     input:
     tuple val(sample_id), path(reads)
-    path q2_cache
 
     output:
     tuple val(sample_id), path(key)
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_reads_counts_${sample_id}"
     """
     echo Processing sample ${sample_id}
     qiime demux tabulate-read-counts \
       --verbose \
-      --i-sequences ${params.q2cacheDir}:${reads} \
-      --o-counts ${params.q2cacheDir}:${key} \
+      --i-sequences ${q2cacheDir}:${reads} \
+      --o-counts ${q2cacheDir}:${key} \
       && touch ${key}
     """
 }
@@ -573,59 +567,67 @@ process FILTER_SAMPLES {
     input:
     tuple val(sample_id), path(reads), path(metadata)
     val query
-    path q2_cache
+    val should_partition
 
     output:
     tuple val(sample_id), path(key)
 
     script:
-    key = "${params.runId}_reads_filtered_${sample_id}"
-    """
-    echo Processing sample ${sample_id}
+    if (should_partition) {
+      q2cacheDirIn = params.inputReadsCache
+      q2cacheDirOut = "${params.q2TemporaryCachesDir}/${sample_id}"
+      key = "${params.runId}_reads_partitioned_${sample_id}"
+    } else {
+      q2cacheDirIn = "${params.q2TemporaryCachesDir}/${sample_id}"
+      q2cacheDirOut = "${params.q2TemporaryCachesDir}/${sample_id}"
+      key = "${params.runId}_reads_filtered_${sample_id}"
+    }
+    if (should_partition) {
+      """
+      echo Creating partition for sample ${sample_id}
 
-    set +e
-    qiime demux filter-samples \
-      --verbose \
-      --i-demux ${params.q2cacheDir}:${reads} \
-      --m-metadata-file ${params.q2cacheDir}:${metadata} \
-      --p-where ${query} \
-      --o-filtered-demux ${params.q2cacheDir}:${key} > output.txt 2> error.txt
-    
-    qiime_exit_code=\$?
-    echo "QIIME exit code: \$qiime_exit_code"
-    set -e
+      echo "id" > metadata.tsv
+      echo "${sample_id}" >> metadata.tsv
 
-    cat output.txt >> .command.out
-    cat error.txt >> .command.err
-
-    if [ \$qiime_exit_code -eq 0 ]; then
-      count=\$(ls ${params.q2cacheDir}/keys/ | grep ${key} | wc -l)
-      if [ "\$count" -eq 0 ]; then
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      else
-        touch ${key}
-      fi
-    fi
-
-    if grep -q "No filtering requested" output.txt || grep -q "No filtering requested" error.txt; then
-      echo "The generated artifact did not contain any samples."
-      exit 125
-    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
-      echo "Already unlocked error - please investigate the full log."
-
-      count=\$(ls ${params.q2cacheDir}/keys/ | grep ${key} | wc -l)
-      if [ "\$count" -eq 0 ]; then
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      else
-        touch ${key}
+      if [ ! -d "${q2cacheDirOut}" ]; then
+        qiime tools cache-create --cache ${q2cacheDirOut}
       fi
 
-      echo "This error will be ignored since all the required keys are present in the cache."
-      qiime_exit_code=0
-    fi
+      qiime demux filter-samples \
+        --verbose \
+        --i-demux ${q2cacheDirIn}:${reads} \
+        --m-metadata-file metadata.tsv \
+        --o-filtered-demux ${q2cacheDirOut}:${key}
 
-    exit \$qiime_exit_code
-    """
+      touch ${key}
+      """
+    } else {
+      """
+      echo Processing sample ${sample_id}
+
+      set +e
+      qiime demux filter-samples \
+        --verbose \
+        --i-demux ${q2cacheDirIn}:${reads} \
+        --m-metadata-file ${metadata} \
+        --p-where ${query} \
+        --o-filtered-demux ${q2cacheDirOut}:${key} > output.txt 2> error.txt
+      
+      qiime_exit_code=\$?
+      echo "QIIME exit code: \$qiime_exit_code"
+      set -e
+
+      cat output.txt >> .command.out
+      cat error.txt >> .command.err
+
+      if grep -q "No filtering requested" output.txt || grep -q "No filtering requested" error.txt; then
+        echo "The generated artifact did not contain any samples."
+        exit 125
+      fi
+
+      touch ${key}
+
+      exit \$qiime_exit_code
+      """
+    }
 }

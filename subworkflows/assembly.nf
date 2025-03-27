@@ -40,8 +40,8 @@ workflow ASSEMBLE {
             indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
             mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads)
-            mapped_reads = mapped_reads | collect(flat: false)
-            maps_all = COLLATE_MAPS(mapped_reads, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
+            mapped_reads_all = mapped_reads | collect(flat: false)
+            maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
 
             if (params.assembly_qc.enabled) {
                 EVALUATE_CONTIGS(contigs_all, maps_all, q2_cache)

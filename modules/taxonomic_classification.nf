@@ -11,13 +11,13 @@ process CLASSIFY_KRAKEN2 {
     tuple val(_id), path(input_file)
     path kraken2_db
     val input_type
-    path q2_cache
 
     output:
     tuple val(_id), path(reports_key), emit: reports
     tuple val(_id), path(hits_key), emit: hits
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (input_type == "mags") {
         reports_key = "${params.runId}_kraken_reports_mags_partitioned_${_id}"
         hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${_id}"
@@ -34,6 +34,43 @@ process CLASSIFY_KRAKEN2 {
     threads = 4 * task.cpus
     """
     echo Processing sample ${_id}
+    qiime annotate classify-kraken2 \
+      --verbose \
+      --i-seqs ${q2cacheDir}:${input_file} \
+      --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
+      --p-threads ${threads} \
+      --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
+      --o-reports ${q2cacheDir}:${reports_key} \
+      --o-hits ${q2cacheDir}:${hits_key} \
+      ${params.taxonomic_classification.kraken2.additionalFlags} \
+    && touch ${reports_key} \
+    && touch ${hits_key}
+    """
+}
+
+process CLASSIFY_KRAKEN2_DEREP {
+    label "taxonomicClassification"
+    storeDir params.storeDir
+    scratch true
+    tag "mags-derep"
+    errorStrategy "retry"
+    maxRetries 3
+
+    input:
+    path input_file
+    path kraken2_db
+    path q2cacheDir
+
+    output:
+    path(reports_key), emit: reports
+    path(hits_key), emit: hits
+
+    script:
+    reports_key = "${params.runId}_kraken_reports_mags_derep"
+    hits_key = "${params.runId}_kraken_outputs_mags_derep"
+    threads = 4 * task.cpus
+    """
+    echo Processing dereplicated MAGs
     qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
@@ -153,11 +190,8 @@ process FETCH_KRAKEN2_DB {
     memory 1.GB
     time { 1.h * task.attempt }
     maxRetries 3
-    storeDir "${params.taxonomic_classification.kraken2.database.cache}/keys"
+    storeDir params.storeDir
     scratch true
-
-    input:
-    path q2_cache
 
     output:
     path params.taxonomic_classification.kraken2.database.key, emit: kraken2_db

@@ -8,7 +8,6 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     tuple val(_id), path(input_file)
     val diamond_db
     val input_type
-    path q2_cache
 
     output:
     tuple val(_id), path(hits_key), emit: hits
@@ -16,12 +15,15 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
     script:
     if (input_type == "mags") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_contigs_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
     }
@@ -31,10 +33,10 @@ process SEARCH_ORTHOLOGS_EGGNOG {
       --verbose \
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
-      --i-sequences ${params.q2cacheDir}:${input_file} \
+      --i-sequences ${q2cacheDir}:${input_file} \
       --i-diamond-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
-      --o-eggnog-hits ${params.q2cacheDir}:${hits_key} \
-      --o-table ${params.q2cacheDir}:${table_key} \
+      --o-eggnog-hits ${q2cacheDir}:${hits_key} \
+      --o-table ${q2cacheDir}:${table_key} \
       ${params.functional_annotation.ortholog_search.additionalFlags} \
     && touch ${table_key} \
     && touch ${hits_key}
@@ -51,17 +53,19 @@ process ANNOTATE_EGGNOG {
     tuple val(_id), path(input_file)
     val eggnog_db
     val input_type
-    path q2_cache
 
     output:
     tuple val(_id), path(annotations_key), emit: annotations
 
     script:
     if (input_type == "mags") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         annotations_key = "${params.runId}_eggnog_annotations_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
+        q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
         annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
     }
     """
@@ -70,9 +74,9 @@ process ANNOTATE_EGGNOG {
       --verbose \
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
-      --i-eggnog-hits ${params.q2cacheDir}:${input_file} \
+      --i-eggnog-hits ${q2cacheDir}:${input_file} \
       --i-eggnog-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
-      --o-ortholog-annotations ${params.q2cacheDir}:${annotations_key} \
+      --o-ortholog-annotations ${q2cacheDir}:${annotations_key} \
       ${params.functional_annotation.annotation.additionalFlags} \
     && touch ${annotations_key}
     """
@@ -83,11 +87,8 @@ process FETCH_DIAMOND_DB {
     time { 2.h * task.attempt }
     cpus 1
     maxRetries 3
-    storeDir "${params.functional_annotation.ortholog_search.database.cache}/keys"
+    storeDir params.storeDir
     scratch true
-
-    input:
-    path q2_cache
 
     output:
     path params.functional_annotation.ortholog_search.database.key
@@ -112,11 +113,8 @@ process FETCH_EGGNOG_DB {
     memory 1.GB
     time { 2.h * task.attempt }
     maxRetries 3
-    storeDir "${params.functional_annotation.annotation.database.cache}/keys"
+    storeDir params.storeDir
     scratch true
-
-    input:
-    path q2_cache
 
     output:
     path params.functional_annotation.annotation.database.key

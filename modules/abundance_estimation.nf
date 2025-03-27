@@ -39,6 +39,7 @@ process MAP_READS_TO_DEREP_MAGS {
     tuple val(_id), path(key)
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
     """
     echo Processing sample ${_id}
@@ -47,9 +48,8 @@ process MAP_READS_TO_DEREP_MAGS {
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-index ${params.q2cacheDir}:${index_file} \
-      --i-reads ${params.q2cacheDir}:${reads_file} \
-      --o-alignment-map "${params.q2cacheDir}:${key}" \
-      --use-cache ${params.q2cacheDir} \
+      --i-reads ${q2cacheDir}:${reads_file} \
+      --o-alignment-map "${q2cacheDir}:${key}" \
     && touch ${key}
     """
 }

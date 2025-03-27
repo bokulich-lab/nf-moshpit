@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 include { INIT_CACHE } from './modules/data_prep'
+include { IMPORT_READS } from './modules/data_prep'
 include { FETCH_SEQS } from './modules/data_prep'
 include { FETCH_GENOMES } from './modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from './modules/data_prep'
@@ -13,15 +14,14 @@ include { SIMULATE_READS } from './modules/data_prep'
 include { SUBSAMPLE_READS } from './modules/data_prep'
 include { REMOVE_HOST } from './modules/data_prep'
 include { PROCESS_READS_FASTP } from './modules/data_prep'
-// include { FILTER_EMPTY_SEQS } from './modules/data_prep'
 include { VISUALIZE_FASTP } from './modules/data_prep'
-include { PARTITION_ARTIFACT as PARTITION_READS } from './modules/data_prep'
-include { PARTITION_ARTIFACT as PARTITION_MAGS } from './modules/data_prep'
+include { PARTITION_DEREP_MAGS } from './modules/data_prep'
 include { COLLATE_PARTITIONS } from './modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_FASTP_REPORTS } from './modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_READS } from './modules/data_prep'
 include { TABULATE_READ_COUNTS } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
+include { FILTER_SAMPLES as PARTITION_READS } from './modules/data_prep'
 include { ASSEMBLE } from './subworkflows/assembly'
 include { BIN } from './subworkflows/binning'
 include { BIN_NO_BUSCO } from './subworkflows/binning'
@@ -50,8 +50,26 @@ workflow {
     }
 
     // prepare input reads
-    if (params.inputReads) {
+    if (params.inputReadsManifest) {
+        ids = Channel
+            .fromPath(params.inputReadsManifest)
+            .splitCsv(header: true, sep: ',')
+            .map { row -> tuple(row.id, row.forward, row.reverse) }
+
+        reads = IMPORT_READS(ids)
+        reads | count | subscribe { writeLog("Samples imported from manifest: " + it) }
+    } else if (params.inputReads && params.inputReadsCache && params.metadata) {
         reads = Channel.fromPath(params.inputReads)
+        metadata = Channel.fromPath(params.metadata)
+        reads_with_ids = Channel
+            .fromPath(params.metadata)
+            .splitCsv(header: true, sep: '\t')
+            .map { row -> row.id }
+            .combine(reads)
+            .combine(metadata)
+
+        reads = PARTITION_READS(reads_with_ids, "", true)
+        reads | count | subscribe { writeLog("Samples partitioned from an input artifact: " + it) }
     } else if (params.fondueAccessionIds) {
         ids = Channel
             .fromPath(params.fondueAccessionIds)
@@ -60,36 +78,28 @@ workflow {
 
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
-
-        // report the fetched reads
-        all_reads = reads | count | subscribe { writeLog("Samples received from fondue: " + it) }
-
+        reads | count | subscribe { writeLog("Samples returned from fondue: " + it) }
     } else if (params.read_simulation.sampleGenomes) {
         genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
-        simulated_reads = SIMULATE_READS(genomes, cache)
+        ids = Channel.of(params.read_simulation.sampleNames.split(','))
+        ids_with_genomes = ids.combine(genomes)
+        simulated_reads = SIMULATE_READS(ids_with_genomes)
         reads = simulated_reads.reads
+        reads | count | subscribe { writeLog("Samples simulated: " + it) }
     } else {
-        genomes = FETCH_GENOMES(cache)
-        simulated_reads = SIMULATE_READS(genomes, cache)
+        genomes = FETCH_GENOMES()
+        ids = Channel.of(params.read_simulation.sampleNames.split(','))
+        ids_with_genomes = ids.combine(genomes)
+        simulated_reads = SIMULATE_READS(ids_with_genomes)
         reads = simulated_reads.reads
+        reads | count | subscribe { writeLog("Samples simulated: " + it) }
     }
 
-    // split reads into partitions, if necessary
-    if (params.fondueAccessionIds) {
-        reads_partitioned = reads
-    } else {
-        reads_prefix = "${params.runId}_reads_partitioned_"
-        reads_partitioned = PARTITION_READS(reads, reads_prefix, "demux partition-samples-paired", "--i-demux", "--o-partitioned-demux", true) | flatten
-        reads_partitioned = reads_partitioned.map { partition ->
-            def path = java.nio.file.Paths.get(partition.toString())
-            def filename = path.getFileName().toString()
-            tuple(filename.substring(reads_prefix.length()), partition)
-        }
-    }
+    reads_partitioned = reads
 
     // subsample reads
     if (params.read_subsampling.enabled) {
-        reads_partitioned = SUBSAMPLE_READS(reads_partitioned, cache)
+        reads_partitioned = SUBSAMPLE_READS(reads_partitioned)
     }
 
     // perform read QC and trimming
@@ -101,19 +111,19 @@ workflow {
 
     // remove host reads
     if (params.host_removal.enabled) {
-        filtering_results = REMOVE_HOST(reads_partitioned, cache)
+        filtering_results = REMOVE_HOST(reads_partitioned)
         reads_partitioned = filtering_results.reads
     }
 
     if (params.taxonomic_classification.enabledFor != "") {
-        FETCH_KRAKEN2_DB(cache)
+        FETCH_KRAKEN2_DB()
     }
 
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
-        read_counts = TABULATE_READ_COUNTS(reads_partitioned, cache)
+        read_counts = TABULATE_READ_COUNTS(reads_partitioned)
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
-        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.min_reads}'", cache)
+        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.min_reads}'", false)
     }
 
 
@@ -129,8 +139,8 @@ workflow {
         contigs.contigs | count | subscribe { writeLog("Samples after contig filtering: " + it) }
 
         if (params.functional_annotation.enabledFor != "") {
-            diamond_db = FETCH_DIAMOND_DB(cache)
-            eggnog_db = FETCH_EGGNOG_DB(cache)
+            diamond_db = FETCH_DIAMOND_DB()
+            eggnog_db = FETCH_EGGNOG_DB()
         }
 
         // classify contigs
@@ -140,7 +150,7 @@ workflow {
 
         // annotate contigs
         if (params.functional_annotation.enabledFor.contains("contigs")) {
-            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
+            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
         }
 
         // bin contigs into MAGs and evaluate
@@ -158,12 +168,12 @@ workflow {
 
             // annotate MAGs
             if (params.functional_annotation.enabledFor.contains("mags")) {
-                ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db, cache)
+                ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
             }
 
 
             if (params.dereplication.enabled) {
-                DEREPLICATE(binning_results.bins | map { _id, _key -> _key } | collect, cache)
+                DEREPLICATE(binning_results.bins_collated, cache)
                 
                 // estimate abundance
                 if (params.mag_abundance.enabled) {
@@ -178,7 +188,7 @@ workflow {
 
                     // annotate dereplicated MAGs
                     if (params.functional_annotation.enabledFor.contains("derep")) {
-                        mags_derep_partitioned = PARTITION_MAGS(DEREPLICATE.out.bins_derep, "${params.runId}_mags_derep_partitioned_", "types partition-feature-data-mags", "--i-mags", "--o-partitioned-mags", false) | flatten
+                        mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
                         ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
                         if (params.mag_abundance.enabled) {
                             annotation_ft = MULTIPLY_TABLES(ESTIMATE_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
