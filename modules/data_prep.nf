@@ -530,6 +530,48 @@ process COLLATE_PARTITIONS {
     // }
 }
 
+process COLLATE_PARTITIONS_DEREP {
+    label "collation"
+    cpus 1
+    scratch true
+    time { 2.h * task.attempt }
+    maxRetries 3
+
+    input:
+    val id_and_paths
+    val cache_key_out 
+    val qiime_action
+    val qiime_input_flag
+    val qiime_output_flag
+    val clean_up
+
+    output:
+    path "${cache_key_out}"
+
+    script:
+    def inputString = id_and_paths.collect { item ->
+        def sample_id = item[0]
+        def path = item[1]
+        def key = new File(path.toString()).getName()
+        "${params.q2TemporaryCachesDir}/mags/${sample_id}:${key}"
+    }.join(' ')
+  
+    """
+    echo "Combined input: ${inputString}"
+    
+    qiime ${qiime_action} \\
+      ${qiime_input_flag} ${inputString} \\
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \\
+    && touch ${cache_key_out}
+    """
+
+    // if (clean_up === true) {
+    //   """
+    //   qiime tools cache-remove --cache ${params.q2cacheDir} --key ${prefix}_collection
+    //   """
+    // }
+}
+
 process TABULATE_READ_COUNTS {
     storeDir params.storeDir
     scratch true
@@ -609,7 +651,7 @@ process FILTER_SAMPLES {
       qiime demux filter-samples \
         --verbose \
         --i-demux ${q2cacheDirIn}:${reads} \
-        --m-metadata-file ${metadata} \
+        --m-metadata-file ${q2cacheDirIn}:${metadata} \
         --p-where ${query} \
         --o-filtered-demux ${q2cacheDirOut}:${key} > output.txt 2> error.txt
       

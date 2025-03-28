@@ -49,6 +49,21 @@ workflow {
         logFile << value + "\n"
     }
 
+    // Log header with workflow version and timestamp
+    writeLog("======== MOSHPIT WORKFLOW REPORT =========")
+    writeLog("Run ID: ${params.runId}")
+    writeLog("Start time: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
+    writeLog("==========================================")
+    writeLog("\n=== CONFIGURATION ===")
+    writeLog("Output directory: ${params.outputDir}")
+    if (params.condaEnv) {
+        writeLog("Using conda environment: ${params.condaEnv}")
+    }
+    if (params.container) {
+        writeLog("Using container: ${params.container}")
+    }
+    writeLog("==========================================\n")
+    
     // prepare input reads
     if (params.inputReadsManifest) {
         ids = Channel
@@ -56,6 +71,7 @@ workflow {
             .splitCsv(header: true, sep: ',')
             .map { row -> tuple(row.id, row.forward, row.reverse) }
 
+        writeLog("Reading reads from manifest: ${params.inputReadsManifest}")
         reads = IMPORT_READS(ids)
         reads | count | subscribe { writeLog("Samples imported from manifest: " + it) }
     } else if (params.inputReads && params.inputReadsCache && params.metadata) {
@@ -68,6 +84,7 @@ workflow {
             .combine(reads)
             .combine(metadata)
 
+        writeLog("Using existing reads '${params.inputReads}' from ${params.inputReadsCache} cache")
         reads = PARTITION_READS(reads_with_ids, "", true)
         reads | count | subscribe { writeLog("Samples partitioned from an input artifact: " + it) }
     } else if (params.fondueAccessionIds) {
@@ -75,18 +92,31 @@ workflow {
             .fromPath(params.fondueAccessionIds)
             .splitCsv(header: true, sep: '\t')
             .map { row -> row.ID }
-
+        
+        writeLog("Reading SRA accessions from: ${params.fondueAccessionIds}")
+        writeLog("SRA accessions to fetch: " + ids.count().val)
+        
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
         reads | count | subscribe { writeLog("Samples returned from fondue: " + it) }
     } else if (params.read_simulation.sampleGenomes) {
         genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
         ids = Channel.of(params.read_simulation.sampleNames.split(','))
+        
+        writeLog("Simulating reads from provided genomes: ${params.read_simulation.sampleGenomes}")
+        writeLog("Number of samples to simulate: ${params.read_simulation.sampleNames.split(',').size()}")
+        writeLog("Reads per sample: ${params.read_simulation.readCount}")
+        
         ids_with_genomes = ids.combine(genomes)
         simulated_reads = SIMULATE_READS(ids_with_genomes)
         reads = simulated_reads.reads
         reads | count | subscribe { writeLog("Samples simulated: " + it) }
     } else {
+        writeLog("Simulating reads from fetched genomes")
+        writeLog("Number of random genomes to fetch: ${params.read_simulation.nGenomes}")
+        writeLog("Number of samples to simulate: ${params.read_simulation.sampleNames.split(',').size()}")
+        writeLog("Reads per sample: ${params.read_simulation.readCount}")
+        
         genomes = FETCH_GENOMES()
         ids = Channel.of(params.read_simulation.sampleNames.split(','))
         ids_with_genomes = ids.combine(genomes)
@@ -100,11 +130,13 @@ workflow {
     // subsample reads
     if (params.read_subsampling.enabled) {
         reads_partitioned = SUBSAMPLE_READS(reads_partitioned)
+        reads_partitioned | count | subscribe { writeLog("Samples after subsampling: " + it) }
     }
 
     // perform read QC and trimming
     fastp_results = PROCESS_READS_FASTP(reads_partitioned)
     reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
+    reads_partitioned | count | subscribe { writeLog("Samples after fastp processing: " + it) }
     fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
     VISUALIZE_FASTP(fastp_reports_all, cache)
@@ -113,6 +145,7 @@ workflow {
     if (params.host_removal.enabled) {
         filtering_results = REMOVE_HOST(reads_partitioned)
         reads_partitioned = filtering_results.reads
+        reads_partitioned | count | subscribe { writeLog("Samples after host removal: " + it) }
     }
 
     if (params.taxonomic_classification.enabledFor != "") {
@@ -123,7 +156,8 @@ workflow {
     if (params.sample_filtering.enabled) {
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
-        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.min_reads}'", false)
+        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
+        reads_partitioned | count | subscribe { writeLog("Samples after filtering by read count: " + it) }
     }
 
 
@@ -136,7 +170,7 @@ workflow {
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
 
-        contigs.contigs | count | subscribe { writeLog("Samples after contig filtering: " + it) }
+        contigs.contigs | count | subscribe { writeLog("Samples after contig assembly and filtering: " + it) }
 
         if (params.functional_annotation.enabledFor != "") {
             diamond_db = FETCH_DIAMOND_DB()
@@ -160,6 +194,8 @@ workflow {
             } else {
                 binning_results = BIN_NO_BUSCO(contigs.contigs, contigs.mapped_reads, cache)
             }
+            
+            binning_results.bins | count | subscribe { writeLog("Samples after binning: " + it) }
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
@@ -201,5 +237,19 @@ workflow {
                 }
             }
         }
+    }
+    
+    // Add final summary section
+    workflow.onComplete {
+        writeLog("\n==========================================")
+        writeLog("WORKFLOW SUMMARY")
+        writeLog("==========================================")
+        writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
+        writeLog("Duration    : ${workflow.duration}")
+        writeLog("Success     : ${workflow.success}")
+        writeLog("Exit status : ${workflow.exitStatus}")
+        writeLog("Error report: ${workflow.errorReport ?: 'None'}")
+        writeLog("Working dir : ${workflow.workDir}")
+        writeLog("==========================================")
     }
 }
