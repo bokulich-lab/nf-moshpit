@@ -102,13 +102,14 @@ workflow {
         reads = PARTITION_READS(reads_with_ids, "", true)
         reads | count | subscribe { writeLog("Samples partitioned from an input artifact: " + it) }
     } else if (params.fondueAccessionIds) {
+        println("Fetching reads from Fondue")
         ids = Channel
             .fromPath(params.fondueAccessionIds)
             .splitCsv(header: true, sep: '\t')
             .map { row -> row.ID }
         
         writeLog("Reading SRA accessions from: ${params.fondueAccessionIds}")
-        writeLog("SRA accessions to fetch: " + ids.count().val)
+        ids | count | subscribe { writeLog("SRA accessions to fetch: " + it) }
         
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
