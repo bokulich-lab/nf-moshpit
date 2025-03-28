@@ -42,12 +42,26 @@ include { MULTIPLY_TABLES } from './modules/functional_annotation'
 nextflow.enable.dsl = 2
 
 workflow {
-    cache = INIT_CACHE()
-
     def logFile = new File( "${params.sampleReport}" )
     def writeLog = { value ->
         logFile << value + "\n"
     }
+
+    def directoryPaths = [
+        "${params.storeDir}",
+        "${params.publishDir}",
+        "${params.traceDir}",
+        "${params.containerCacheDir}",
+        "${params.q2TemporaryCachesDir}"
+    ]
+    directoryPaths.each { d ->
+        def dir = new File(d)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+    }
+
+    cache = INIT_CACHE()
 
     // Log header with workflow version and timestamp
     writeLog("======== MOSHPIT WORKFLOW REPORT =========")
