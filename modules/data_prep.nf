@@ -86,7 +86,10 @@ process FETCH_SEQS {
     failed_runs = "${params.runId}_failed_runs_${_id}"
     """
     if [ ! -d "${q2cacheDir}" ]; then
+      echo "Creating cache for ${_id}..."
       qiime tools cache-create --cache ${q2cacheDir}
+    else
+      echo "Cache already exists for ${_id}"
     fi
 
     if [ -f ${q2cacheDir}/keys/${reads_paired} ] && [ -f ${q2cacheDir}/keys/${reads_single} ] && [ -f ${q2cacheDir}/keys/${failed_runs} ]; then
@@ -146,6 +149,7 @@ process FETCH_SEQS {
 
     if grep -q "Neither single- nor paired-end sequences could be downloaded" output.txt || grep -q "Neither single- nor paired-end sequences could be downloaded" error.txt; then
       echo "Neither single- nor paired-end sequences could be downloaded."
+      touch ${reads_paired} && touch ${reads_single} && touch ${failed_runs}
       exit 125
     fi
 
@@ -161,6 +165,7 @@ process FETCH_SEQS {
     
     if [[ \$paths == *"xxx_"* ]]; then
       echo "Empty sample found for key \$key"
+      touch ${reads_paired} && touch ${reads_single} && touch ${failed_runs}
       exit 125
     else
       echo "No empty samples found for key \$key"
@@ -258,9 +263,11 @@ process PROCESS_READS_FASTP {
 
     if grep -q "All samples are empty after processing with fastp" output.txt || grep -q "All samples are empty after processing with fastp" error.txt; then
       echo "All reads were removed from this sample - the output was empty."
+      touch ${key_reads} && touch ${key_reports}
       exit 125
     elif grep -q "xxx_00" output.txt || grep -q "xxx_00" error.txt; then
       echo "Empty XXX samples found in the data."
+      touch ${key_reads} && touch ${key_reports}
       exit 126
     fi
 
@@ -493,6 +500,7 @@ process COLLATE_PARTITIONS {
     cpus 1
     scratch true
     time { 2.h * task.attempt }
+    errorStrategy 'retry'
     maxRetries 3
 
     input:

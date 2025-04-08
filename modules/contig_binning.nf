@@ -37,7 +37,7 @@ process BIN_CONTIGS_METABAT {
 process EVALUATE_BINS_BUSCO {
     label "busco"
     storeDir params.storeDir
-    // scratch true
+    scratch true
     tag "${_id}"
 
     input:
@@ -106,7 +106,8 @@ process FETCH_BUSCO_DB {
     label "needsInternet"
     cpus 1
     memory 4.GB
-    time { 6.h * task.attempt }
+    time { 12.h * task.attempt }
+    errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
     scratch true

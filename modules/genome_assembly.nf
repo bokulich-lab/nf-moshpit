@@ -82,34 +82,51 @@ process EVALUATE_CONTIGS {
     path "${params.runId}_quast_reference_genomes"
     
     script:
-    if (params.assembly_qc.useMappedReads) {
-      """
-      qiime assembly evaluate-contigs \
-        --verbose \
-        --p-min-contig 100 \
-        --p-threads ${task.cpus} \
-        --i-contigs ${params.q2cacheDir}:${contigs_file} \
-        --i-mapped-reads ${params.q2cacheDir}:${reads_file} \
-        --o-visualization "${params.runId}-contigs.qzv" \
-        --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
-        --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
-      && touch ${params.runId}_quast_results_table \
-      && touch ${params.runId}_quast_reference_genomes
-      """
-    } else {
-      """
-      qiime assembly evaluate-contigs \
-        --verbose \
-        --p-min-contig 100 \
-        --p-threads ${task.cpus} \
-        --i-contigs ${params.q2cacheDir}:${contigs_file} \
-        --o-visualization "${params.runId}-contigs.qzv" \
-        --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
-        --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
-      && touch ${params.runId}_quast_results_table \
-      && touch ${params.runId}_quast_reference_genomes
-      """
-    }
+    """
+    qiime assembly evaluate-contigs \
+      --verbose \
+      --p-min-contig 100 \
+      --p-threads ${task.cpus} \
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --i-mapped-reads ${params.q2cacheDir}:${reads_file} \
+      --o-visualization "${params.runId}-contigs.qzv" \
+      --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
+      --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
+    && touch ${params.runId}_quast_results_table \
+    && touch ${params.runId}_quast_reference_genomes
+    """
+}
+
+process EVALUATE_CONTIGS_NO_READS {
+    label "contigEvaluation"
+    label "needsInternet"
+    publishDir params.publishDir, mode: 'copy', pattern: '*-contigs.qzv'
+    errorStrategy "retry"
+    maxRetries 3
+    scratch true
+
+    input:
+    path contigs_file
+    path q2Cache
+
+    output:
+    path "${params.runId}-contigs.qzv"
+    path "${params.runId}_quast_results_table"
+    path "${params.runId}_quast_reference_genomes"
+    
+    script:
+    """
+    qiime assembly evaluate-contigs \
+      --verbose \
+      --p-min-contig 100 \
+      --p-threads ${task.cpus} \
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --o-visualization "${params.runId}-contigs.qzv" \
+      --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
+      --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
+    && touch ${params.runId}_quast_results_table \
+    && touch ${params.runId}_quast_reference_genomes
+    """
 }
 
 process INDEX_CONTIGS {

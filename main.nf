@@ -106,7 +106,7 @@ workflow {
         ids = Channel
             .fromPath(params.fondueAccessionIds)
             .splitCsv(header: true, sep: '\t')
-            .map { row -> row.ID }
+            .map { row -> row.id }
         
         writeLog("Reading SRA accessions from: ${params.fondueAccessionIds}")
         ids | count | subscribe { writeLog("SRA accessions to fetch: " + it) }

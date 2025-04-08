@@ -87,6 +87,7 @@ process CLASSIFY_KRAKEN2_DEREP {
 
 process ESTIMATE_BRACKEN {
     time { 12.h * task.attempt }
+    memory { 4.GB * task.attempt }
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
@@ -121,7 +122,8 @@ process ESTIMATE_BRACKEN {
 }
 
 process GET_KRAKEN_FEATURES {
-    time { 12.h * task.attempt }
+    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt }
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
@@ -163,6 +165,9 @@ process GET_KRAKEN_FEATURES {
 }
 
 process DRAW_TAXA_BARPLOT {
+    time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    errorStrategy "retry"
     publishDir params.publishDir, mode: 'copy'
     scratch true
 
