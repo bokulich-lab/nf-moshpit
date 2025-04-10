@@ -102,7 +102,6 @@ workflow {
         reads = PARTITION_READS(reads_with_ids, "", true)
         reads | count | subscribe { writeLog("Samples partitioned from an input artifact: " + it) }
     } else if (params.fondueAccessionIds) {
-        println("Fetching reads from Fondue")
         ids = Channel
             .fromPath(params.fondueAccessionIds)
             .splitCsv(header: true, sep: '\t')
@@ -260,7 +259,7 @@ workflow {
         writeLog("WORKFLOW SUMMARY")
         writeLog("==========================================")
         writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
-        writeLog("Duration    : ${workflow.duration}")
+        writeLog("Duration    : ${workflow.duration ?: 'N/A'}")
         writeLog("Success     : ${workflow.success}")
         writeLog("Exit status : ${workflow.exitStatus}")
         writeLog("Error report: ${workflow.errorReport ?: 'None'}")
