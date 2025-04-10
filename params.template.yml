@@ -1,0 +1,195 @@
+# ========= MANDATORY INPUTS =========
+# A unique identifier for the workflow run - will be prepended to all artifact names
+runId: EXAMPLE
+
+# Path to where all the outputs will be saved
+outputDir: /path/to/output
+
+# Singularity parameters: path to the SIF image, additional volume mounts and other options
+container: /path/to/container.sif
+additionalVolumeMounts: "additional volumes to be mounted in the containers"
+additionalContainerOptions: "additional options to be passed to Singularity"
+
+# Name of the HPC module granting Internet access
+internetModule: module_name
+
+# Path to the conda environment
+condaEnv: /path/to/conda/env
+
+# E-mail address required by q2-fondue
+email: user@example.com
+
+# ============ INPUT DATA ============
+# Option 1: import reads using a manifest file
+inputReadsManifest: /path/to/manifest
+
+# Option 2: provide a key to an existing reads artifact
+inputReads: <reads cache key>
+inputReadsCache: /path/to/reads/cache
+
+# Option 3: provide a file with a list of IDs for fondue to fetch
+fondueAccessionIds: /path/to/tsv
+
+# Option 4: provide a path to genomes from which the reads should be simulated
+# If the path is not specified, a random selection of genomes will be fetched from NCBI
+read_simulation:
+  clusterOptions: ""
+  sampleCount: 2
+  seed: 100
+  nGenomes: 4
+  readCount: 10000000
+  abundance: "uniform"
+  gc_bias: true
+  sampleGenomes: ""
+  sampleNames: "sample1,sample2"
+  taxon: ""
+
+# ======== ANALYSIS PARAMETERS ========
+fondue:
+  paired: true
+  filterEmpty: true
+  clusterOptions: ""
+
+read_subsampling:
+  enabled: false
+  paired: true
+  fraction: 0.8
+
+read_qc:
+  fastp:
+    disableQualityFiltering: false
+    deduplicate: false
+    disableAdapterTrimming: true
+    enableBaseCorrection: true
+    additionalFlags: ""
+
+host_removal:
+  enabled: false
+  human: true
+  clusterOptions: ""
+  mode: "local"
+  sensitivity: "sensitive"
+  ref_gap_open_penalty: 5
+  ref_gap_ext_penalty: 3
+  database:
+    cache: ""
+    key: ""
+
+sample_filtering:
+  enabled: false
+  min_reads: 4200000
+
+genome_assembly:
+  enabled: true
+  clusterOptions: ""
+  assembler: "megahit"
+  fetchArtifact: false
+  megahit:
+    presets: "meta-large"
+    kList: "21 29 39 59 79 99 119 141"
+    minContigLen: 200
+    additionalFlags: ""
+  spades:
+    k: "auto"
+    debug: false
+    covCutoff: "off"
+    additionalFlags: "--p-meta"
+  filtering:
+    enabled: true
+    removeEmpty: true
+    lengthThreshold: 500
+
+assembly_qc:
+  enabled: true
+  useMappedReads: false
+
+binning:
+  enabled: true
+  clusterOptions: ""
+  fetchArtifact: false
+  qc:
+    busco:
+      enabled: false
+      clusterOptions: ""
+      mode: "genome"
+      lineageDatasets: "bacteria_odb12"
+      additionalFlags: ""
+      database:
+        types: "prok"
+        cache: ""
+        key: ""
+    filtering:
+      enabled: false
+      condition: "complete>50 AND dataset='bacteria_odb12'"
+      exclude_ids: false
+      fetchArtifact: false
+
+dereplication:
+  enabled: true
+  clusterOptions: ""
+  threshold: 0.99
+  fetchArtifact: false
+  sourmash:
+    clusterOptions: ""
+    ksizes: 35
+    scaled: 100
+    trackAbundance: true
+
+mag_abundance:
+  enabled: true
+  fetchArtifact: false
+  clusterOptions: ""
+  metric: "tpm"
+  min_mapq: 42
+  min_query_len: 0
+  min_base_quality: 0
+
+taxonomic_classification:
+  enabledFor: "derep" # reads, contigs, mags, derep
+  fetchArtifact: false
+  kraken2:
+    clusterOptions: ""
+    memoryMapping: false
+    additionalFlags: ""
+    database:
+      cache: ""
+      key: ""
+      collection: ""
+  bracken:
+    enabled: true
+    clusterOptions: ""
+    threshold: 0
+    readLength: 100
+    level: "S"
+    database:
+      cache: ""
+      key: ""
+  feature_selection:
+    coverageThreshold: 0.1
+
+functional_annotation:
+  enabledFor: "" # contigs, mags, derep
+  ortholog_search:
+    clusterOptions: ""
+    fetchArtifact: false
+    dbInMemory: true
+    additionalFlags: ""
+    database:
+      cache: ""
+      key: ""
+  annotation:
+    clusterOptions: ""
+    fetchArtifact: false
+    dbInMemory: true
+    additionalFlags: ""
+    extract:
+      types: "caz,cog"
+      max_evalue: 0.00001
+      min_score: 0
+      fetchArtifact: false
+    database:
+      cache: ""
+      key: ""
+
+env:
+  NUMBA_DISABLE_INTEL_SVML: 1 

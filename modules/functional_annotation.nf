@@ -1,110 +1,84 @@
 process SEARCH_ORTHOLOGS_EGGNOG {
-    label "functionalAnnotation"
-    cpus 1
-    memory 1.GB
-    time params.functionalAnnotation.time
+    label "orthologSearch"
     storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
-    path input_file
+    tuple val(_id), path(input_file)
     val diamond_db
     val input_type
-    path q2_cache
 
     output:
-    path hits, emit: hits
-    path table, emit: table
+    tuple val(_id), path(hits_key), emit: hits
+    tuple val(_id), path(table_key), emit: table
 
     script:
     if (input_type == "mags") {
-        hits = "eggnog_orthologs_mags"
-        table = "eggnog_table_mags"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
-        hits = "eggnog_orthologs_contigs"
-        table = "eggnog_table_contigs"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_contigs_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
-        hits = "eggnog_orthologs_mags_derep"
-        table = "eggnog_table_mags_derep"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
     }
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.functionalAnnotation.memory}' \
-      -c ${params.functionalAnnotation.cpus} \
-      -T ${params.functionalAnnotation.time} \
-      -n 1 \
-      -b ${params.functionalAnnotation.blocks} \
-      -w "${params.functionalAnnotation.workerInit}"
-
-    cat parallel.toml
-
-    qiime moshpit eggnog-diamond-search \
+    echo Processing sample ${_id}
+    qiime annotate search-orthologs-diamond \
       --verbose \
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
-      --i-sequences ${params.q2cacheDir}:${input_file} \
+      --i-sequences ${q2cacheDir}:${input_file} \
       --i-diamond-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
-      --o-eggnog-hits ${params.q2cacheDir}:${hits} \
-      --o-table ${params.q2cacheDir}:${table} \
-      --no-recycle \
-      --parallel-config parallel.toml \
-      --use-cache ${params.q2cacheDir} \
+      --o-eggnog-hits ${q2cacheDir}:${hits_key} \
+      --o-table ${q2cacheDir}:${table_key} \
       ${params.functional_annotation.ortholog_search.additionalFlags} \
-    && touch ${table} \
-    && touch ${hits}
+    && touch ${table_key} \
+    && touch ${hits_key}
     """
 }
 
 process ANNOTATE_EGGNOG {
     label "functionalAnnotation"
-    cpus 1
-    memory 1.GB
-    time params.functionalAnnotation.time
     storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
-    path input_file
+    tuple val(_id), path(input_file)
     val eggnog_db
     val input_type
-    path q2_cache
 
     output:
-    path annotations, emit: annotations
+    tuple val(_id), path(annotations_key), emit: annotations
 
     script:
     if (input_type == "mags") {
-        annotations = "eggnog_annotations_mags"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
-        annotations = "eggnog_annotations_contigs"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
-        annotations = "eggnog_annotations_mags_derep"
+        q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
+        annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
     }
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.functionalAnnotation.memory}' \
-      -c ${params.functionalAnnotation.cpus} \
-      -T ${params.functionalAnnotation.time} \
-      -n 1 \
-      -b ${params.functionalAnnotation.blocks} \
-      -w "${params.functionalAnnotation.workerInit}"
-
-    cat parallel.toml
-
-    qiime moshpit eggnog-annotate \
+    echo Processing sample ${_id}
+    qiime annotate map-eggnog \
       --verbose \
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
-      --i-eggnog-hits ${params.q2cacheDir}:${input_file} \
+      --i-eggnog-hits ${q2cacheDir}:${input_file} \
       --i-eggnog-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
-      --o-ortholog-annotations ${params.q2cacheDir}:${annotations} \
-      --no-recycle \
-      --parallel-config parallel.toml \
-      --use-cache ${params.q2cacheDir} \
+      --o-ortholog-annotations ${q2cacheDir}:${annotations_key} \
       ${params.functional_annotation.annotation.additionalFlags} \
-    && touch ${annotations}
+    && touch ${annotations_key}
     """
 }
 
@@ -112,11 +86,9 @@ process FETCH_DIAMOND_DB {
     label "needsInternet"
     time { 2.h * task.attempt }
     cpus 1
-    storeDir params.storeDir
     maxRetries 3
-
-    input:
-    path q2_cache
+    storeDir params.storeDir
+    scratch true
 
     output:
     path params.functional_annotation.ortholog_search.database.key
@@ -128,7 +100,7 @@ process FETCH_DIAMOND_DB {
       touch ${params.functional_annotation.ortholog_search.database.key}
       exit 0
     fi
-    qiime moshpit fetch-diamond-db \
+    qiime annotate fetch-diamond-db \
       --verbose \
       --o-diamond-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
     && touch ${params.functional_annotation.ortholog_search.database.key}
@@ -140,11 +112,9 @@ process FETCH_EGGNOG_DB {
     cpus 1
     memory 1.GB
     time { 2.h * task.attempt }
-    storeDir params.storeDir
     maxRetries 3
-
-    input:
-    path q2_cache
+    storeDir params.storeDir
+    scratch true
 
     output:
     path params.functional_annotation.annotation.database.key
@@ -156,7 +126,7 @@ process FETCH_EGGNOG_DB {
       touch ${params.functional_annotation.annotation.database.key}
       exit 0
     fi
-    qiime moshpit fetch-eggnog-db \
+    qiime annotate fetch-eggnog-db \
       --verbose \
       --o-eggnog-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
     && touch ${params.functional_annotation.annotation.database.key}
@@ -164,11 +134,12 @@ process FETCH_EGGNOG_DB {
 }
 
 process EXTRACT_ANNOTATIONS {
-    storeDir params.storeDir
     cpus 1
     memory 1.GB
     time { 15.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path annotation_file
@@ -177,44 +148,45 @@ process EXTRACT_ANNOTATIONS {
     path q2_cache
 
     output:
-    path "${input_type}_${annotation_type}"
+    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}")
 
     script:
     """
-    qiime moshpit extract-annotations \
+    qiime annotate extract-annotations \
       --verbose \
       --p-annotation ${annotation_type} \
       --p-max-evalue ${params.functional_annotation.annotation.extract.max_evalue} \
       --p-min-score ${params.functional_annotation.annotation.extract.min_score} \
       --i-ortholog-annotations ${params.q2cacheDir}:${annotation_file} \
-      --o-annotation-frequency "${params.q2cacheDir}:${input_type}_${annotation_type}" \
-    && touch ${input_type}_${annotation_type}
+      --o-annotation-frequency "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}" \
+    && touch ${params.runId}_${input_type}_${annotation_type}
     """
 }
 
 process MULTIPLY_TABLES {
-    storeDir params.storeDir
     cpus 1
     memory 1.GB
     time { 15.min * task.attempt }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path table1
-    path table2
-    val annotation_type
+    tuple val(annotation_type), path(table2)
+    val input_type
     path q2_cache
 
     output:
-    path "${annotation_type}_ft"
+    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}_ft")
 
     script:
     """
-    qiime moshpit multiply-tables \
+    qiime annotate multiply-tables \
       --verbose \
       --i-table1 ${params.q2cacheDir}:${table1} \
       --i-table2 ${params.q2cacheDir}:${table2} \
-      --o-result-table "${params.q2cacheDir}:${annotation_type}_ft" \
-    && touch ${annotation_type}_ft
+      --o-result-table "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}_ft" \
+    && touch ${params.runId}_${input_type}_${annotation_type}_ft
     """
 }

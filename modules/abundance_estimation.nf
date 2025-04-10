@@ -1,71 +1,56 @@
 process INDEX_DEREP_MAGS {
     label "indexing"
-    cpus params.indexing.cpus
-    memory params.indexing.memory
-    time params.readMapping.time
     storeDir params.storeDir
+    scratch true
 
     input:
-    path mags_derep_file
+    path(mags_derep_file)
     path q2Cache
 
     output:
-    path "mags_derep_index"
+    path(key)
 
     script:
+    key = "${params.runId}_mags_derep_index"
     """
     qiime assembly index-derep-mags \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-mags ${params.q2cacheDir}:${mags_derep_file} \
-      --o-index ${params.q2cacheDir}:mags_derep_index \
-    && touch mags_derep_index
+      --o-index ${params.q2cacheDir}:${key} \
+    && touch ${key}
     """
 }
 
 process MAP_READS_TO_DEREP_MAGS {
     label "readMapping"
-    storeDir params.storeDir
-    cpus 1
-    memory 1.GB
-    time params.readMapping.time
     errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' }
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
+    tag "${_id}"
 
     input:
-    path index_file
-    path reads_file
+    tuple val(_id), path(reads_file), path(index_file)
     path q2Cache
 
     output:
-    path "reads_to_derep_mags"
+    tuple val(_id), path(key)
 
     script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+    key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
     """
-    python ${projectDir}/../scripts/generate_toml.py \
-      -t ${projectDir}/../conf/parallel.template.toml \
-      -o parallel.toml \
-      -m '${params.readMapping.memory}' \
-      -c ${params.readMapping.cpus} \
-      -T ${params.readMapping.time} \
-      -n 1 \
-      -b ${params.readMapping.blocks} \
-      -w "${params.readMapping.workerInit}"
-
-    cat parallel.toml
-
+    echo Processing sample ${_id}
     qiime assembly map-reads \
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
       --i-index ${params.q2cacheDir}:${index_file} \
-      --i-reads ${params.q2cacheDir}:${reads_file} \
-      --o-alignment-map "${params.q2cacheDir}:reads_to_derep_mags" \
-      --no-recycle \
-      --parallel-config parallel.toml \
-      --use-cache ${params.q2cacheDir} \
-    && touch reads_to_derep_mags
+      --i-reads ${q2cacheDir}:${reads_file} \
+      --o-alignment-map "${q2cacheDir}:${key}" \
+    && touch ${key}
     """
 }
 
@@ -73,29 +58,32 @@ process GET_GENOME_LENGTHS {
     cpus 1
     memory 1.GB
     time { 20.min * task.attempt }
-    storeDir params.storeDir
     maxRetries 3
+    storeDir params.storeDir
+    scratch true
 
     input:
     path mags_derep_file
     path q2Cache
 
     output:
-    path "mags_derep_lengths"
+    path key
 
     script:
+    key = "${params.runId}_mags_derep_lengths"
     """
-    qiime moshpit get-feature-lengths \
+    qiime annotate get-feature-lengths \
       --verbose \
       --i-features ${params.q2cacheDir}:${mags_derep_file} \
-      --o-lengths ${params.q2cacheDir}:mags_derep_lengths \
-    && touch mags_derep_lengths
+      --o-lengths ${params.q2cacheDir}:${key} \
+    && touch ${key}
     """
 }
 
 process ESTIMATE_MAG_ABUNDANCE {
     label "abundanceEstimation"
     storeDir params.storeDir
+    scratch true
 
     input:
     path mags_derep_index_file
@@ -103,11 +91,12 @@ process ESTIMATE_MAG_ABUNDANCE {
     path q2Cache
 
     output:
-    path "mags_derep_ft"
+    path key
 
     script:
+    key = "${params.runId}_mags_derep_ft"
     """
-    qiime moshpit estimate-mag-abundance \
+    qiime annotate estimate-mag-abundance \
       --verbose \
       --p-metric ${params.mag_abundance.metric} \
       --p-min-mapq ${params.mag_abundance.min_mapq} \
@@ -116,7 +105,7 @@ process ESTIMATE_MAG_ABUNDANCE {
       --p-threads ${task.cpus} \
       --i-maps ${params.q2cacheDir}:${mags_derep_index_file} \
       --i-mag-lengths ${params.q2cacheDir}:${mags_derep_lengths_file} \
-      --o-abundances ${params.q2cacheDir}:mags_derep_ft \
-    && touch mags_derep_ft
+      --o-abundances ${params.q2cacheDir}:${key} \
+    && touch ${key}
     """
 }
