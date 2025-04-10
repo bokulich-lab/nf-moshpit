@@ -1,4 +1,4 @@
-# moshpit-nf
+# nf-moshpit
 
 **Currently supported QIIME 2 version:** `2025.4-dev`
 
