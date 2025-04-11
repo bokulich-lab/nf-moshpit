@@ -3,6 +3,7 @@ process BIN_CONTIGS_METABAT {
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
+    errorStrategy 'retry'
 
     input:
     tuple val(sample_id), path(contigs_file), path(maps_file)
@@ -39,6 +40,7 @@ process EVALUATE_BINS_BUSCO {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
+    errorStrategy 'retry'
 
     input:
     tuple val(lineage), val(_id), path(bins_file)
@@ -77,6 +79,7 @@ process VISUALIZE_BUSCO {
     memory 2.GB
     publishDir params.publishDir, mode: 'copy'
     scratch true
+    errorStrategy 'retry'
 
     input:
     path busco_results
@@ -144,6 +147,7 @@ process FILTER_MAGS {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
+    errorStrategy 'retry'
 
     input:
     tuple val(_id), path(bins_file)

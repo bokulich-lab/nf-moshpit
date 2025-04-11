@@ -3,6 +3,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
+    errorStrategy 'retry'
 
     input:
     tuple val(_id), path(input_file)
@@ -48,6 +49,7 @@ process ANNOTATE_EGGNOG {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
+    errorStrategy 'retry'
 
     input:
     tuple val(_id), path(input_file)
@@ -87,6 +89,7 @@ process FETCH_DIAMOND_DB {
     time { 2.h * task.attempt }
     cpus 1
     maxRetries 3
+    errorStrategy 'retry'
     storeDir params.storeDir
     scratch true
 
@@ -115,6 +118,7 @@ process FETCH_EGGNOG_DB {
     maxRetries 3
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     output:
     path params.functional_annotation.annotation.database.key
@@ -140,6 +144,7 @@ process EXTRACT_ANNOTATIONS {
     maxRetries 3
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     input:
     path annotation_file
@@ -170,6 +175,7 @@ process MULTIPLY_TABLES {
     maxRetries 3
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     input:
     path table1

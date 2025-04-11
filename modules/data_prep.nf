@@ -306,7 +306,7 @@ process VISUALIZE_FASTP {
 process REMOVE_HOST {
     label "hostRemoval"
     label "needsInternet"
-    errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' } 
+    errorStrategy 'retry'
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -457,6 +457,7 @@ process PARTITION_DEREP_MAGS {
     storeDir params.storeDir
     time { 2.h * task.attempt }
     maxRetries 3
+    errorStrategy 'retry'
 
     input:
     path mags_derep
@@ -545,6 +546,7 @@ process COLLATE_PARTITIONS_DEREP {
     scratch true
     time { 2.h * task.attempt }
     maxRetries 3
+    errorStrategy 'retry'
 
     input:
     val id_and_paths
@@ -587,6 +589,7 @@ process TABULATE_READ_COUNTS {
     tag "${sample_id}"
     time { 2.h * task.attempt }
     maxRetries 3
+    errorStrategy 'retry'
     
     input:
     tuple val(sample_id), path(reads)

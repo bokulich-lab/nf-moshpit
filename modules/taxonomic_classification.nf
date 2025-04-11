@@ -86,12 +86,8 @@ process CLASSIFY_KRAKEN2_DEREP {
 }
 
 process ESTIMATE_BRACKEN {
-<<<<<<< HEAD
     label "bracken"
     cpus 1
-    storeDir params.storeDir
-=======
->>>>>>> containers
     time { 12.h * task.attempt }
     memory { 4.GB * task.attempt }
     errorStrategy "retry"

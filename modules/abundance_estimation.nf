@@ -2,6 +2,7 @@ process INDEX_DEREP_MAGS {
     label "indexing"
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     input:
     path(mags_derep_file)
@@ -25,7 +26,7 @@ process INDEX_DEREP_MAGS {
 
 process MAP_READS_TO_DEREP_MAGS {
     label "readMapping"
-    errorStrategy { task.exitStatus == 137 ? 'retry' : 'terminate' }
+    errorStrategy 'retry'
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -61,6 +62,7 @@ process GET_GENOME_LENGTHS {
     maxRetries 3
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     input:
     path mags_derep_file
@@ -84,6 +86,7 @@ process ESTIMATE_MAG_ABUNDANCE {
     label "abundanceEstimation"
     storeDir params.storeDir
     scratch true
+    errorStrategy 'retry'
 
     input:
     path mags_derep_index_file
