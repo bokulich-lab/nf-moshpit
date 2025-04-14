@@ -25,7 +25,8 @@ inputReadsManifest: /path/to/manifest
 
 # Option 2: provide a key to an existing reads artifact
 inputReads: <reads cache key>
-inputReadsCache: /path/to/reads/cache
+inputReadsCache: /path/to/reads/
+metadata: /path/to/metadata
 
 # Option 3: provide a file with a list of IDs for fondue to fetch
 fondueAccessionIds: /path/to/tsv

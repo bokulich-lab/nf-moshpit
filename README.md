@@ -325,6 +325,11 @@ If using network drives, make sure you have the correct permissions:
 newgrp <group_name>
 ```
 
+Create a directory for the QIIME 2 home directory inside the Singularity container, if using:
+```bash
+mkdir $HOME/tmp_home
+```
+
 ### Step 4: Run the workflow
 
 For a basic run:
