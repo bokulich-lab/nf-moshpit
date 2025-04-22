@@ -70,7 +70,7 @@ process DEREPLICATE_MAGS {
       --i-mags ${params.q2cacheDir}:${bins_file} \
       --i-distance-matrix ${params.q2cacheDir}:${distance_matrix} \
       --o-dereplicated-mags "${params.q2cacheDir}:${params.runId}_mags_dereplicated" \
-      --o-feature-table "${params.q2cacheDir}:${params.runId}_mags_pa_table" \
+      --o-table "${params.q2cacheDir}:${params.runId}_mags_pa_table" \
     && touch ${params.runId}_mags_dereplicated \
     && touch ${params.runId}_mags_pa_table
     """

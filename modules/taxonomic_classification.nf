@@ -37,11 +37,11 @@ process CLASSIFY_KRAKEN2 {
     qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${q2cacheDir}:${input_file} \
-      --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
+      --i-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
       --o-reports ${q2cacheDir}:${reports_key} \
-      --o-hits ${q2cacheDir}:${hits_key} \
+      --o-outputs ${q2cacheDir}:${hits_key} \
       ${params.taxonomic_classification.kraken2.additionalFlags} \
     && touch ${reports_key} \
     && touch ${hits_key}
@@ -74,11 +74,11 @@ process CLASSIFY_KRAKEN2_DEREP {
     qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
-      --i-kraken2-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
+      --i-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
       --o-reports ${params.q2cacheDir}:${reports_key} \
-      --o-hits ${params.q2cacheDir}:${hits_key} \
+      --o-outputs ${params.q2cacheDir}:${hits_key} \
       ${params.taxonomic_classification.kraken2.additionalFlags} \
     && touch ${reports_key} \
     && touch ${hits_key}
@@ -158,7 +158,7 @@ process GET_KRAKEN_FEATURES {
       qiime annotate kraken2-to-mag-features \
         --verbose \
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
-        --i-hits ${params.q2cacheDir}:${kraken2_hits} \
+        --i-outputs ${params.q2cacheDir}:${kraken2_hits} \
         --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
         --o-taxonomy ${params.q2cacheDir}:${features} \
       && touch ${features}
@@ -215,8 +215,8 @@ process FETCH_KRAKEN2_DB {
     qiime annotate build-kraken-db \
       --verbose \
       --p-collection ${params.taxonomic_classification.kraken2.database.collection} \
-      --o-kraken2-database "${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key}" \
-      --o-bracken-database "${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key}" \
+      --o-kraken2-db "${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key}" \
+      --o-bracken-db "${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key}" \
     && touch ${params.taxonomic_classification.kraken2.database.key} \
     && touch ${params.taxonomic_classification.bracken.database.key}
     """

@@ -19,7 +19,7 @@ process ASSEMBLE_METASPADES {
     echo Processing sample ${sample_id}
     qiime assembly assemble-spades \
       --verbose \
-      --i-seqs ${q2cacheDir}:${reads_file} \
+      --i-reads ${q2cacheDir}:${reads_file} \
       --p-threads ${task.cpus} \
       --p-k ${params.genome_assembly.spades.k} \
       --p-debug ${params.genome_assembly.spades.debug} \
@@ -51,7 +51,7 @@ process ASSEMBLE_MEGAHIT {
     echo Processing sample ${sample_id}
     qiime assembly assemble-megahit \
       --verbose \
-      --i-seqs ${q2cacheDir}:${reads_file} \
+      --i-reads ${q2cacheDir}:${reads_file} \
       --p-presets ${params.genome_assembly.megahit.presets} \
       --p-k-list ${params.genome_assembly.megahit.kList} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
@@ -83,12 +83,13 @@ process EVALUATE_CONTIGS {
     
     script:
     """
-    qiime assembly evaluate-contigs \
+    qiime assembly evaluate-quast \
       --verbose \
       --p-min-contig 100 \
       --p-threads ${task.cpus} \
+      ${params.assembly_qc.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
-      --i-mapped-reads ${params.q2cacheDir}:${reads_file} \
+      --i-alignment-maps ${params.q2cacheDir}:${reads_file} \
       --o-visualization "${params.runId}-contigs.qzv" \
       --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
       --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
@@ -116,10 +117,11 @@ process EVALUATE_CONTIGS_NO_READS {
     
     script:
     """
-    qiime assembly evaluate-contigs \
+    qiime assembly evaluate-quast \
       --verbose \
-      --p-min-contig 100 \
+      --p-min-contig 500 \
       --p-threads ${task.cpus} \
+      ${params.assembly_qc.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --o-visualization "${params.runId}-contigs.qzv" \
       --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
@@ -152,7 +154,6 @@ process INDEX_CONTIGS {
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
-      --no-recycle \
       --i-contigs ${q2cacheDir}:${contigs_file} \
       --o-index ${q2cacheDir}:${key} \
     && touch ${key}
@@ -183,10 +184,9 @@ process MAP_READS_TO_CONTIGS {
       --verbose \
       --p-seed 42 \
       --p-threads ${task.cpus} \
-      --no-recycle \
       --i-index ${q2cacheDir}:${index_file} \
       --i-reads ${q2cacheDir}:${reads_file} \
-      --o-alignment-map "${q2cacheDir}:${key}" \
+      --o-alignment-maps "${q2cacheDir}:${key}" \
     && touch ${key}
     """
 }
@@ -242,19 +242,6 @@ process FILTER_CONTIGS {
     if grep -q "No samples remain after filtering" output.txt || grep -q "No samples remain after filtering" error.txt; then
       echo "All contigs were removed from this sample - the output was empty."
       exit 125
-    elif grep -q "Already unlocked" output.txt || grep -q "Already unlocked" error.txt; then
-      echo "Already unlocked error - please investigate the full log."
-
-      count=\$(ls ${q2cacheDir}/keys/ | grep ${key} | wc -l)
-      if [ "\$count" -eq 1 ]; then
-        touch ${key}
-      else
-        echo "Some of the required keys are missing in the cache."
-        exit 1
-      fi
-
-      echo "This error will be ignored since all the required keys are present in the cache."
-      qiime_exit_code=0
     fi
 
     exit \$qiime_exit_code

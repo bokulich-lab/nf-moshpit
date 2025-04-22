@@ -50,7 +50,7 @@ process MAP_READS_TO_DEREP_MAGS {
       --p-threads ${task.cpus} \
       --i-index ${params.q2cacheDir}:${index_file} \
       --i-reads ${q2cacheDir}:${reads_file} \
-      --o-alignment-map "${q2cacheDir}:${key}" \
+      --o-alignment-maps "${q2cacheDir}:${key}" \
     && touch ${key}
     """
 }
@@ -99,15 +99,15 @@ process ESTIMATE_MAG_ABUNDANCE {
     script:
     key = "${params.runId}_mags_derep_ft"
     """
-    qiime annotate estimate-mag-abundance \
+    qiime annotate estimate-abundance \
       --verbose \
       --p-metric ${params.mag_abundance.metric} \
       --p-min-mapq ${params.mag_abundance.min_mapq} \
       --p-min-query-len ${params.mag_abundance.min_query_len} \
       --p-min-base-quality ${params.mag_abundance.min_base_quality} \
       --p-threads ${task.cpus} \
-      --i-maps ${params.q2cacheDir}:${mags_derep_index_file} \
-      --i-mag-lengths ${params.q2cacheDir}:${mags_derep_lengths_file} \
+      --i-alignment-maps ${params.q2cacheDir}:${mags_derep_index_file} \
+      --i-feature-lengths ${params.q2cacheDir}:${mags_derep_lengths_file} \
       --o-abundances ${params.q2cacheDir}:${key} \
     && touch ${key}
     """

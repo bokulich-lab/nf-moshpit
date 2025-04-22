@@ -136,7 +136,7 @@ process FETCH_SEQS {
       --verbose \
       --i-accession-ids ids.qza \
       --p-email ${params.email} \
-      --p-n-jobs ${task.cpus} \
+      --p-threads ${task.cpus} \
       --o-single-reads ${q2cacheDir}:${reads_single} \
       --o-paired-reads ${q2cacheDir}:${reads_paired} \
       --o-failed-runs ${q2cacheDir}:${failed_runs} > output.txt 2> error.txt

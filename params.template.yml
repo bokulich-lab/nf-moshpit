@@ -103,6 +103,7 @@ genome_assembly:
 assembly_qc:
   enabled: true
   useMappedReads: false
+  additionalFlags: ""
 
 binning:
   enabled: true

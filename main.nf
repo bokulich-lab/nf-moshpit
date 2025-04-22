@@ -68,7 +68,7 @@ workflow {
     writeLog("Run ID: ${params.runId}")
     writeLog("Start time: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
     writeLog("==========================================")
-    writeLog("\n=== CONFIGURATION ===")
+    writeLog("\n============ CONFIGURATION ==============")
     writeLog("Output directory: ${params.outputDir}")
     if (params.condaEnv) {
         writeLog("Using conda environment: ${params.condaEnv}")

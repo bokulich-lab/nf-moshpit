@@ -65,10 +65,10 @@ process EVALUATE_BINS_BUSCO {
       --p-cpu ${task.cpus} \
       --p-mode ${params.binning.qc.busco.mode} \
       ${lineage_dataset} \
-      --i-bins ${q2cacheDir}:${bins_file} \
-      --i-busco-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
+      --i-mags ${q2cacheDir}:${bins_file} \
+      --i-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
       --o-visualization "${params.runId}-mags-busco-${key}.qzv" \
-      --o-results-table ${q2cacheDir}:${key} \
+      --o-results ${q2cacheDir}:${key} \
       ${params.binning.qc.busco.additionalFlags} \
     && touch ${key}
     """
@@ -134,7 +134,7 @@ process FETCH_BUSCO_DB {
       ${virus_flag} \
       ${prok_flag} \
       ${euk_flag} \
-      --o-busco-db "${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key}" \
+      --o-db "${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key}" \
     && touch ${params.binning.qc.busco.database.key}
     """
 }

@@ -13,34 +13,38 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     output:
     tuple val(_id), path(hits_key), emit: hits
     tuple val(_id), path(table_key), emit: table
-
+    tuple val(_id), path(loci_key), emit: loci
     script:
     if (input_type == "mags") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_partitioned_${_id}"
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_contigs_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_contigs_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
-    }
+        loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${_id}"
     """
     echo Processing sample ${_id}
     qiime annotate search-orthologs-diamond \
       --verbose \
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
-      --i-sequences ${q2cacheDir}:${input_file} \
-      --i-diamond-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
+      --i-seqs ${q2cacheDir}:${input_file} \
+      --i-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
       --o-eggnog-hits ${q2cacheDir}:${hits_key} \
       --o-table ${q2cacheDir}:${table_key} \
+      --o-loci ${q2cacheDir}:${loci_key} \
       ${params.functional_annotation.ortholog_search.additionalFlags} \
     && touch ${table_key} \
-    && touch ${hits_key}
+    && touch ${hits_key} \
+    && touch ${loci_key}
     """
 }
 
@@ -77,7 +81,7 @@ process ANNOTATE_EGGNOG {
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
       --i-eggnog-hits ${q2cacheDir}:${input_file} \
-      --i-eggnog-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
+      --i-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
       --o-ortholog-annotations ${q2cacheDir}:${annotations_key} \
       ${params.functional_annotation.annotation.additionalFlags} \
     && touch ${annotations_key}
@@ -105,7 +109,7 @@ process FETCH_DIAMOND_DB {
     fi
     qiime annotate fetch-diamond-db \
       --verbose \
-      --o-diamond-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
+      --o-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
     && touch ${params.functional_annotation.ortholog_search.database.key}
     """
 }
@@ -132,7 +136,7 @@ process FETCH_EGGNOG_DB {
     fi
     qiime annotate fetch-eggnog-db \
       --verbose \
-      --o-eggnog-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
+      --o-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
     && touch ${params.functional_annotation.annotation.database.key}
     """
 }
