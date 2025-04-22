@@ -12,8 +12,6 @@ RUN mamba env update -n ${ENV_NAME} -f qiime2-moshpit-ubuntu-latest-conda.yml
 
 RUN mamba install -n ${ENV_NAME} -c bioconda -c conda-forge -c defaults fastp multiqc
 
-RUN mamba run -n ${ENV_NAME} pip install \
-    git+https://github.com/bokulich-lab/q2-annotate.git \
-    git+https://github.com/bokulich-lab/q2-fastp.git@collate-reports
+RUN mamba run -n ${ENV_NAME} pip install git+https://github.com/bokulich-lab/q2-fastp.git
 
 RUN mamba run -n ${ENV_NAME} qiime dev refresh-cache
