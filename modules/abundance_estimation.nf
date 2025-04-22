@@ -82,7 +82,7 @@ process GET_GENOME_LENGTHS {
     """
 }
 
-process ESTIMATE_MAG_ABUNDANCE {
+process ESTIMATE_ABUNDANCE {
     label "abundanceEstimation"
     storeDir params.storeDir
     scratch true
@@ -91,13 +91,14 @@ process ESTIMATE_MAG_ABUNDANCE {
     input:
     path mags_derep_index_file
     path mags_derep_lengths_file
+    val input_type
     path q2Cache
 
     output:
     path key
 
     script:
-    key = "${params.runId}_mags_derep_ft"
+    key = "${params.runId}_${input_type}_ft"
     """
     qiime annotate estimate-abundance \
       --verbose \

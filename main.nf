@@ -33,7 +33,7 @@ include { CLASSIFY_MAGS_DEREP } from './subworkflows/classification'
 include { ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_MAGS } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_CONTIGS } from './subworkflows/functional_annotation'
-include { ESTIMATE_ABUNDANCE } from './subworkflows/abundance_estimation'
+include { MAG_ABUNDANCE } from './subworkflows/abundance_estimation'
 include { FETCH_DIAMOND_DB } from './modules/functional_annotation'
 include { FETCH_EGGNOG_DB } from './modules/functional_annotation'
 include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
@@ -227,7 +227,7 @@ workflow {
                 
                 // estimate abundance
                 if (params.mag_abundance.enabled) {
-                    ESTIMATE_ABUNDANCE(DEREPLICATE.out.bins_derep, reads_partitioned, cache)
+                    MAG_ABUNDANCE(DEREPLICATE.out.bins_derep, reads_partitioned, cache)
                 }
 
                 if (params.taxonomic_classification.enabledFor.contains("derep") || params.functional_annotation.enabledFor.contains("derep")) {

@@ -9,7 +9,7 @@ include { COLLATE_PARTITIONS as COLLATE_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_CONTIGS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_MAPS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from '../modules/data_prep'
-
+include { CONTIG_ABUNDANCE } from '../subworkflows/abundance_estimation'
 
 workflow ASSEMBLE {
     take:
@@ -36,8 +36,8 @@ workflow ASSEMBLE {
             FETCH_ARTIFACT_CONTIGS(contigs_all)
         }
 
-        if (params.assembly_qc.enabled || params.binning.enabled) {
-            if (params.assembly_qc.useMappedReads || params.binning.enabled) {
+        if (params.assembly_qc.enabled || params.binning.enabled || params.genome_assembly.estimateContigAbundance.enabled) {
+            if (params.assembly_qc.useMappedReads || params.binning.enabled || params.genome_assembly.estimateContigAbundance.enabled) {
                 indexed_contigs = INDEX_CONTIGS(contigs)
                 indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
@@ -46,6 +46,9 @@ workflow ASSEMBLE {
                 maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
                 if (params.assembly_qc.enabled) {
                     EVALUATE_CONTIGS(contigs_all, maps_all, q2_cache)
+                }
+                if (params.genome_assembly.estimateContigAbundance.enabled) {
+                    CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
                 }
             } else {
                 mapped_reads = ""

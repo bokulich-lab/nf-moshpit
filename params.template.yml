@@ -99,6 +99,14 @@ genome_assembly:
     enabled: true
     removeEmpty: true
     lengthThreshold: 500
+  estimateContigAbundance:
+    enabled: true
+    fetchArtifact: false
+    clusterOptions: ""
+    metric: "tpm"
+    min_mapq: 42
+    min_query_len: 0
+    min_base_quality: 0
 
 assembly_qc:
   enabled: true
