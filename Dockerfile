@@ -8,7 +8,9 @@ ENV NEW_ENV_NAME=moshpit-${NEXT_VERSION}
 
 RUN conda install -n base -c conda-forge mamba
 
-RUN conda rename -n ${PREV_ENV_NAME} ${NEW_ENV_NAME}
+RUN conda deactivate && \
+    conda rename -n ${PREV_ENV_NAME} ${NEW_ENV_NAME} && \
+    conda activate ${NEW_ENV_NAME}
 
 # Install dependencies using mamba and pip
 RUN wget https://raw.githubusercontent.com/qiime2/distributions/dev/latest/passed/qiime2-moshpit-ubuntu-latest-conda.yml
