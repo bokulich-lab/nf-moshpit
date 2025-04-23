@@ -7,14 +7,20 @@ on:
         description: 'Tags for the Docker image being built.'
         required: true
         type: string
-      qiimeVersion:
-        description: 'QIIME release version.'
+      epoch:
+        description: 'Current QIIME 2 epoch.'
         required: true
         type: string
-      baseImageTag:
-        description: 'Base image tag.'
+      distro:
+        description: 'Distribution to be used in the image.'
         required: true
         type: string
+      environment:
+        description: 'Environment: passed (for weekly builds), released (for production).'
+        required: true
+        type: string
+  release:
+    types: [published]
 
 jobs:
   build-and-push:
@@ -43,5 +49,6 @@ jobs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ inputs.imageTags }}
         build-args: |
-          BASE_IMAGE_TAG=${{ inputs.baseImageTag }}
-          VERSION=${{ inputs.qiimeVersion }}
+          EPOCH=${{ inputs.epoch }}
+          DISTRO=${{ inputs.distro }}
+          ENVIRONMENT=${{ inputs.environment }}
