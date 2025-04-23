@@ -7,8 +7,12 @@ on:
         description: 'Tags for the Docker image being built.'
         required: true
         type: string
-      qiimeVersion:
-        description: 'QIIME release version.'
+      prevQiimeVersion:
+        description: 'Previous QIIME release version.'
+        required: true
+        type: string
+      nextQiimeVersion:
+        description: 'QIIME release version to be included in the image.'
         required: true
         type: string
       baseImageTag:
@@ -44,4 +48,5 @@ jobs:
         tags: ${{ inputs.imageTags }}
         build-args: |
           BASE_IMAGE_TAG=${{ inputs.baseImageTag }}
-          VERSION=${{ inputs.qiimeVersion }}
+          PREV_VERSION=${{ inputs.prevQiimeVersion }}
+          NEXT_VERSION=${{ inputs.nextQiimeVersion }}
