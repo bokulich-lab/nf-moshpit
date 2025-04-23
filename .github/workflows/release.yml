@@ -15,6 +15,7 @@ jobs:
       run: |
         REF=${GITHUB_REF#refs/*/}
         echo "epoch=$(echo $REF | cut -d'.' -f1,2)" >> $GITHUB_OUTPUT
+        echo "docker-tag=${{ secrets.DOCKER_REPO }}:$REF" >> $GITHUB_OUTPUT
         if [[ $REF == *.dev* ]]; then
           echo "environment=passed" >> $GITHUB_OUTPUT
         else
@@ -40,7 +41,7 @@ jobs:
         context: .
         file: ./Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.vars.outputs.epoch }}
+        tags: ${{ steps.vars.outputs.docker-tag }}
         build-args: |
           EPOCH=${{ steps.vars.outputs.epoch }}
           DISTRO=moshpit
