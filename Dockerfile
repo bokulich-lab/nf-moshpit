@@ -4,13 +4,13 @@ ARG EPOCH
 ARG DISTRO
 ARG ENVIRONMENT
 
-ENV PATH /opt/conda/envs/${DISTRO}-${EPOCH}/bin:$PATH
-ENV LC_ALL C.UTF-8
-ENV LANG C.UTF-8
-ENV MPLBACKEND agg
-ENV UNIFRAC_USE_GPU N
-ENV HOME /home/qiime2
-ENV XDG_CONFIG_HOME /home/qiime2
+ENV PATH=/opt/conda/envs/${DISTRO}-${EPOCH}/bin:$PATH
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV MPLBACKEND=agg
+ENV UNIFRAC_USE_GPU=N
+ENV HOME=/home/qiime2
+ENV XDG_CONFIG_HOME=/home/qiime2
 
 RUN mkdir /home/qiime2
 WORKDIR /home/qiime2
@@ -31,7 +31,7 @@ RUN mamba env create -n ${DISTRO}-${EPOCH} --file ${ENVIRONMENT}-env.yml \
     && rm ${ENVIRONMENT}-env.yml
 
 RUN /bin/bash -c "source activate ${DISTRO}-${EPOCH}"
-ENV CONDA_PREFIX /opt/conda/envs/${DISTRO}-${EPOCH}/
+ENV CONDA_PREFIX=/opt/conda/envs/${DISTRO}-${EPOCH}/
 RUN qiime dev refresh-cache
 RUN echo "source activate ${DISTRO}-${EPOCH}" >> $HOME/.bashrc
 RUN echo "source tab-qiime" >> $HOME/.bashrc
