@@ -36,18 +36,20 @@ workflow ASSEMBLE {
             FETCH_ARTIFACT_CONTIGS(contigs_all)
         }
 
-        if (params.assembly_qc.enabled || params.binning.enabled || params.genome_assembly.estimateContigAbundance.enabled) {
-            if (params.assembly_qc.useMappedReads || params.binning.enabled || params.genome_assembly.estimateContigAbundance.enabled) {
+        if (params.assembly_qc.enabled || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
+            if (params.assembly_qc.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
                 indexed_contigs = INDEX_CONTIGS(contigs)
                 indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
                 mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads)
                 mapped_reads_all = mapped_reads | collect(flat: false)
-                maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
-                if (params.assembly_qc.enabled) {
+                maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
+                if (params.assembly_qc.enabled && params.assembly_qc.useMappedReads) {
                     EVALUATE_CONTIGS(contigs_all, maps_all, q2_cache)
+                } else if (params.assembly_qc.enabled) {
+                    EVALUATE_CONTIGS_NO_READS(contigs_all, q2_cache)
                 }
-                if (params.genome_assembly.estimateContigAbundance.enabled) {
+                if (params.abundance_estimation.enabledFor.contains("contigs")) {
                     CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
                 }
             } else {

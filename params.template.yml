@@ -99,14 +99,6 @@ genome_assembly:
     enabled: true
     removeEmpty: true
     lengthThreshold: 500
-  estimateContigAbundance:
-    enabled: true
-    fetchArtifact: false
-    clusterOptions: ""
-    metric: "tpm"
-    min_mapq: 42
-    min_query_len: 0
-    min_base_quality: 0
 
 assembly_qc:
   enabled: true
@@ -145,10 +137,9 @@ dereplication:
     scaled: 100
     trackAbundance: true
 
-mag_abundance:
-  enabled: true
+abundance_estimation:
+  enabledFor: "derep" # contigs, derep
   fetchArtifact: false
-  clusterOptions: ""
   metric: "tpm"
   min_mapq: 42
   min_query_len: 0

@@ -16,10 +16,10 @@ workflow MAG_ABUNDANCE {
         mags_derep_index = INDEX_DEREP_MAGS(mags_derep, q2_cache)
         combined = reads.combine(mags_derep_index)
         reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache) | collect(flat: false)
-        maps_all = COLLATE_PARTITIONS(reads_to_mags, "${params.runId}_reads_to_derep_mags", "assembly collate-alignments", "--i-alignments", "--o-collated-alignments", true)
+        maps_all = COLLATE_PARTITIONS(reads_to_mags, "${params.runId}_reads_to_derep_mags", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
         lengths = GET_GENOME_LENGTHS(mags_derep, q2_cache)
         abundance = ESTIMATE_MAG_ABUNDANCE(maps_all, lengths, "mags_derep",q2_cache)
-        if (params.mag_abundance.fetchArtifact) {
+        if (params.abundance_estimation.fetchArtifact) {
             FETCH_ARTIFACT_MAG_ABUNDANCE(abundance)
         }
     emit:
@@ -34,7 +34,7 @@ workflow CONTIG_ABUNDANCE {
     main:
         lengths = GET_GENOME_LENGTHS(contigs, q2_cache)
         abundance = ESTIMATE_CONTIG_ABUNDANCE(maps, lengths, "contigs", q2_cache)
-        if (params.genome_assembly.estimateContigAbundance.fetchArtifact) {
+        if (params.abundance_estimation.fetchArtifact) {
             FETCH_ARTIFACT_CONTIG_ABUNDANCE(abundance)
         }
     emit:

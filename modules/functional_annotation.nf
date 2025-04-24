@@ -14,6 +14,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     tuple val(_id), path(hits_key), emit: hits
     tuple val(_id), path(table_key), emit: table
     tuple val(_id), path(loci_key), emit: loci
+
     script:
     if (input_type == "mags") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -30,6 +31,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
         hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
         loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${_id}"
+    }
     """
     echo Processing sample ${_id}
     qiime annotate search-orthologs-diamond \

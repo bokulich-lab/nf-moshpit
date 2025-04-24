@@ -41,12 +41,12 @@ include { MULTIPLY_TABLES } from './modules/functional_annotation'
 
 nextflow.enable.dsl = 2
 
-workflow {
-    def logFile = new File( "${params.sampleReport}" )
-    def writeLog = { value ->
-        logFile << value + "\n"
-    }
+def logFile = new File( "${params.sampleReport}" )
+def writeLog = { value ->
+    logFile << value + "\n"
+}
 
+workflow {
     def directoryPaths = [
         "${params.storeDir}",
         "${params.publishDir}",
@@ -226,7 +226,7 @@ workflow {
                 DEREPLICATE(binning_results.bins_collated, cache)
                 
                 // estimate abundance
-                if (params.mag_abundance.enabled) {
+                if (params.abundance_estimation.enabledFor.contains("derep")) {
                     MAG_ABUNDANCE(DEREPLICATE.out.bins_derep, reads_partitioned, cache)
                 }
 
@@ -240,8 +240,8 @@ workflow {
                     if (params.functional_annotation.enabledFor.contains("derep")) {
                         mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
                         ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
-                        if (params.mag_abundance.enabled) {
-                            annotation_ft = MULTIPLY_TABLES(ESTIMATE_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
+                        if (params.abundance_estimation.enabledFor.contains("derep")) {
+                            annotation_ft = MULTIPLY_TABLES(MAG_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
                             if (params.functional_annotation.annotation.extract.fetchArtifact) {
                                 annotation_key = annotation_ft | map { _type, key -> key }
                                 FETCH_MULTIPLIED_TABLE(annotation_key)
@@ -252,18 +252,18 @@ workflow {
             }
         }
     }
-    
-    // Add final summary section
-    workflow.onComplete {
-        writeLog("\n==========================================")
-        writeLog("WORKFLOW SUMMARY")
-        writeLog("==========================================")
-        writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
-        writeLog("Duration    : ${workflow.duration ?: 'N/A'}")
-        writeLog("Success     : ${workflow.success}")
-        writeLog("Exit status : ${workflow.exitStatus}")
-        writeLog("Error report: ${workflow.errorReport ?: 'None'}")
-        writeLog("Working dir : ${workflow.workDir}")
-        writeLog("==========================================")
-    }
+}
+
+// Add final summary section
+workflow.onComplete {
+    writeLog("\n==========================================")
+    writeLog("WORKFLOW SUMMARY")
+    writeLog("==========================================")
+    writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
+    writeLog("Duration    : ${workflow.duration}")
+    writeLog("Success     : ${workflow.success}")
+    writeLog("Exit status : ${workflow.exitStatus}")
+    writeLog("Error report: ${workflow.errorReport ?: 'None'}")
+    writeLog("Working dir : ${workflow.workDir}")
+    writeLog("==========================================")
 }

@@ -31,7 +31,7 @@ workflow BIN {
 
         busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db)
         busco_results_partitioned = busco_results_partitioned | collect(flat: false)
-        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned, "${params.runId}_busco_results", "annotate collate-busco-results", "--i-busco-results", "--o-collated-busco-results", true)
+        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned, "${params.runId}_busco_results", "annotate collate-busco-results", "--i-results", "--o-collated-results", true)
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
         if (params.binning.qc.filtering.enabled) {

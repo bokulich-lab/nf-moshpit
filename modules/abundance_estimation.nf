@@ -102,10 +102,10 @@ process ESTIMATE_ABUNDANCE {
     """
     qiime annotate estimate-abundance \
       --verbose \
-      --p-metric ${params.mag_abundance.metric} \
-      --p-min-mapq ${params.mag_abundance.min_mapq} \
-      --p-min-query-len ${params.mag_abundance.min_query_len} \
-      --p-min-base-quality ${params.mag_abundance.min_base_quality} \
+      --p-metric ${params.abundance_estimation.metric} \
+      --p-min-mapq ${params.abundance_estimation.min_mapq} \
+      --p-min-query-len ${params.abundance_estimation.min_query_len} \
+      --p-min-base-quality ${params.abundance_estimation.min_base_quality} \
       --p-threads ${task.cpus} \
       --i-alignment-maps ${params.q2cacheDir}:${mags_derep_index_file} \
       --i-feature-lengths ${params.q2cacheDir}:${mags_derep_lengths_file} \

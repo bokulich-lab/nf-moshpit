@@ -173,6 +173,7 @@ Some of the most useful configuration parameters are explained below.
 | params.email | Your e-mail address - only needed when using q2-fondue | [params.template.yml](params.template.yml) |
 | params.inputReadsCache | QIIME 2 cache where the input reads are stored. | [params.template.yml](params.template.yml) |
 | params.inputReads | Cache key under which the input reads are stored. | [params.template.yml](params.template.yml) |
+| params.metadata | Metadata file with sample IDs corresponding to the samples from the input cache which should be analyzed. | [params.template.yml](params.template.yml) |
 | params.runId | A unique ID which will be prepended to all the result names for the given pipeline run. Should not contain underscores. | [params.template.yml](params.template.yml) |
 | params.fondueAccessionIds | Path to a TSV file containing SRA accession IDs for data download | [params.template.yml](params.template.yml) |
 | params.condaEnv | Path to the conda environment to use. | [params.template.yml](params.template.yml) |
@@ -213,7 +214,7 @@ The workflow is divided into several modules, each with its own parameters defin
    - `assembly_qc`: Parameters for assembly quality control
    - `binning`: Parameters for genome binning
    - `dereplication`: Parameters for MAG dereplication
-   - `mag_abundance`: Parameters for MAG abundance estimation
+   - `abundance_estimation`: Parameters for contig/MAG abundance estimation
 
 4. **Annotation**:
    - `taxonomic_classification`: Parameters for taxonomic classification
@@ -240,7 +241,7 @@ Currently, the workflow is optimized to be executed using the `slurm` executor u
 It is possible to provide input data from QIIME 2 cache existing on a network drive. In this case, make sure:
 
 1. you are running the pipeline with the correct permission set allowing you to access the network drive (usually, this can be adjusted by the `newgrp <group name>` command)
-2. if using singularity, you add the `--security='gid:<group id>'` flag to the `singularity.runOptions` options in the [Profiles config](conf/profiles.config) (you can find the required ID by running `getent group <group name>`)
+2. if using singularity, you add the `--security='gid:<group id>'` flag to the `additionalContainerOptions` parameter in the [params.template.yml](params.template.yml) (you can find the required ID by running `getent group <group name>`)
 
 ## Usage
 To use the workflow adjust all the required parameters in respective config files (particularly all the directories, as described above) and execute the following command from the main directory:
@@ -275,10 +276,10 @@ This guide will help you get started with the moshpit-nf workflow if you're not 
 
 ```bash
 # Clone the repository
-git clone https://github.com/bokulich-lab/moshpit-nf.git
+git clone https://github.com/bokulich-lab/nf-moshpit.git
 
 # Navigate to the workflow directory
-cd moshpit-nf
+cd nf-moshpit
 ```
 
 ### Step 2: Prepare your configuration
@@ -299,7 +300,7 @@ cd moshpit-nf
    - `container` or `condaEnv`: Path to your Singularity image or conda environment
 
 3. **Specify your input data**:
-   - To use existing reads: Set `inputReads` and `inputReadsCache`
+   - To use existing reads: Set `inputReads`, `inputReadsCache` and `metadata`
    - To download from SRA: Set `fondueAccessionIds` to path of a TSV file with accession IDs
    - To simulate reads: Configure `read_simulation` parameters
 
@@ -361,6 +362,7 @@ nextflow run main.nf \
    - `*_trace.txt`: Detailed information about each process execution
    - `*_timeline.html`: Timeline of processes execution
    - `*_report.html`: Summary report of the workflow execution
+   - `*_sample_report.txt`: Summary report of sample counts kept across the workflow.
 
 3. **For Slurm jobs**, you can use standard commands to check status:
    ```bash

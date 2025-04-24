@@ -109,8 +109,8 @@ process ESTIMATE_BRACKEN {
     """
     qiime annotate estimate-bracken \
       --verbose \
-      --i-kraken-reports ${params.q2cacheDir}:${kraken2_reports} \
-      --i-bracken-db ${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key} \
+      --i-kraken2-reports ${params.q2cacheDir}:${kraken2_reports} \
+      --i-db ${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key} \
       --p-threshold ${params.taxonomic_classification.bracken.threshold} \
       --p-read-len ${params.taxonomic_classification.bracken.readLength} \
       --p-level ${params.taxonomic_classification.bracken.level} \
