@@ -39,7 +39,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
       --p-num-cpus ${task.cpus} \
       --p-db-in-memory ${params.functional_annotation.ortholog_search.dbInMemory} \
       --i-seqs ${q2cacheDir}:${input_file} \
-      --i-db ${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key} \
+      --i-db ${params.databases.eggnogOrthologs.cache}:${params.databases.eggnogOrthologs.key} \
       --o-eggnog-hits ${q2cacheDir}:${hits_key} \
       --o-table ${q2cacheDir}:${table_key} \
       --o-loci ${q2cacheDir}:${loci_key} \
@@ -83,7 +83,7 @@ process ANNOTATE_EGGNOG {
       --p-db-in-memory ${params.functional_annotation.annotation.dbInMemory} \
       --p-num-cpus ${task.cpus} \
       --i-eggnog-hits ${q2cacheDir}:${input_file} \
-      --i-db ${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key} \
+      --i-db ${params.databases.eggnogAnnotations.cache}:${params.databases.eggnogAnnotations.key} \
       --o-ortholog-annotations ${q2cacheDir}:${annotations_key} \
       ${params.functional_annotation.annotation.additionalFlags} \
     && touch ${annotations_key}
@@ -100,19 +100,19 @@ process FETCH_DIAMOND_DB {
     scratch true
 
     output:
-    path params.functional_annotation.ortholog_search.database.key
+    path params.databases.eggnogOrthologs.key
 
     script:
     """
-    if [ -f ${params.functional_annotation.ortholog_search.database.cache}/keys/${params.functional_annotation.ortholog_search.database.key} ]; then
+    if [ -f ${params.databases.eggnogOrthologs.cache}/keys/${params.databases.eggnogOrthologs.key} ]; then
       echo 'Found an existing EggNOG Diamond database - fetching will be skipped.'
-      touch ${params.functional_annotation.ortholog_search.database.key}
+      touch ${params.databases.eggnogOrthologs.key}
       exit 0
     fi
     qiime annotate fetch-diamond-db \
       --verbose \
-      --o-db "${params.functional_annotation.ortholog_search.database.cache}:${params.functional_annotation.ortholog_search.database.key}" \
-    && touch ${params.functional_annotation.ortholog_search.database.key}
+      --o-db "${params.databases.eggnogOrthologs.cache}:${params.databases.eggnogOrthologs.key}" \
+    && touch ${params.databases.eggnogOrthologs.key}
     """
 }
 
@@ -127,19 +127,19 @@ process FETCH_EGGNOG_DB {
     errorStrategy 'retry'
 
     output:
-    path params.functional_annotation.annotation.database.key
+    path params.databases.eggnogAnnotations.key
 
     script:
     """
-    if [ -f ${params.functional_annotation.annotation.database.cache}/keys/${params.functional_annotation.annotation.database.key} ]; then
+    if [ -f ${params.databases.eggnogAnnotations.cache}/keys/${params.databases.eggnogAnnotations.key} ]; then
       echo 'Found an existing EggNOG annotation database - fetching will be skipped.'
-      touch ${params.functional_annotation.annotation.database.key}
+      touch ${params.databases.eggnogAnnotations.key}
       exit 0
     fi
     qiime annotate fetch-eggnog-db \
       --verbose \
-      --o-db "${params.functional_annotation.annotation.database.cache}:${params.functional_annotation.annotation.database.key}" \
-    && touch ${params.functional_annotation.annotation.database.key}
+      --o-db "${params.databases.eggnogAnnotations.cache}:${params.databases.eggnogAnnotations.key}" \
+    && touch ${params.databases.eggnogAnnotations.key}
     """
 }
 

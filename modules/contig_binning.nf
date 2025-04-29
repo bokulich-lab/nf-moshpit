@@ -64,9 +64,10 @@ process EVALUATE_BINS_BUSCO {
       --verbose \
       --p-cpu ${task.cpus} \
       --p-mode ${params.binning.qc.busco.mode} \
+      --p-additional-metrics \
       ${lineage_dataset} \
       --i-mags ${q2cacheDir}:${bins_file} \
-      --i-db ${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key} \
+      --i-db ${params.databases.busco.cache}:${params.databases.busco.key} \
       --o-visualization "${params.runId}-mags-busco-${key}.qzv" \
       --o-results ${q2cacheDir}:${key} \
       ${params.binning.qc.busco.additionalFlags} \
@@ -117,25 +118,20 @@ process FETCH_BUSCO_DB {
     clusterOptions = "--tmp=200G"
 
     output:
-    path params.binning.qc.busco.database.key
+    path params.databases.busco.key
 
     script:
-    virus_flag = params.binning.qc.busco.database.types.contains("virus") ? "--p-virus True" : "--p-virus False"
-    prok_flag = params.binning.qc.busco.database.types.contains("prok") ? "--p-prok True" : "--p-prok False"
-    euk_flag = params.binning.qc.busco.database.types.contains("euk") ? "--p-euk True" : "--p-euk False"
     """
-    if [ -f ${params.binning.qc.busco.database.cache}/keys/${params.binning.qc.busco.database.key} ]; then
+    if [ -f ${params.databases.busco.cache}/keys/${params.databases.busco.key} ]; then
       echo 'Found an existing BUSCO database - fetching will be skipped.'
-      touch ${params.binning.qc.busco.database.key}
+      touch ${params.databases.busco.key}
       exit 0
     fi
     qiime annotate fetch-busco-db \
       --verbose \
-      ${virus_flag} \
-      ${prok_flag} \
-      ${euk_flag} \
-      --o-db "${params.binning.qc.busco.database.cache}:${params.binning.qc.busco.database.key}" \
-    && touch ${params.binning.qc.busco.database.key}
+      --p-lineages ${params.databases.busco.fetchLineages.replaceAll(',', ' ')} \
+      --o-db "${params.databases.busco.cache}:${params.databases.busco.key}" \
+    && touch ${params.databases.busco.key}
     """
 }
 

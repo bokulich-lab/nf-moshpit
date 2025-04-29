@@ -45,6 +45,29 @@ read_simulation:
   sampleNames: "sample1,sample2"
   taxon: ""
 
+# ============= DATABASES =============
+databases:
+  hostRemoval:
+    cache:  ""
+    key:    ""
+  kraken2:
+    cache:  ""
+    key:    ""
+    fetchCollection: ""
+  bracken:
+    cache:  ""
+    key:    ""
+  busco:
+    cache:  ""
+    key:    ""
+    fetchLineages: ""
+  eggnogOrthologs:
+    cache:  ""
+    key:    ""
+  eggnogAnnotations:
+    cache:  ""
+    key:    ""
+
 # ======== ANALYSIS PARAMETERS ========
 fondue:
   paired: true
@@ -72,9 +95,6 @@ host_removal:
   sensitivity: "sensitive"
   ref_gap_open_penalty: 5
   ref_gap_ext_penalty: 3
-  database:
-    cache: ""
-    key: ""
 
 sample_filtering:
   enabled: false
@@ -116,10 +136,6 @@ binning:
       mode: "genome"
       lineageDatasets: "bacteria_odb12"
       additionalFlags: ""
-      database:
-        types: "prok"
-        cache: ""
-        key: ""
     filtering:
       enabled: false
       condition: "complete>50 AND dataset='bacteria_odb12'"
@@ -152,19 +168,12 @@ taxonomic_classification:
     clusterOptions: ""
     memoryMapping: false
     additionalFlags: ""
-    database:
-      cache: ""
-      key: ""
-      collection: ""
   bracken:
     enabled: true
     clusterOptions: ""
     threshold: 0
     readLength: 100
     level: "S"
-    database:
-      cache: ""
-      key: ""
   feature_selection:
     coverageThreshold: 0.1
 
@@ -175,9 +184,6 @@ functional_annotation:
     fetchArtifact: false
     dbInMemory: true
     additionalFlags: ""
-    database:
-      cache: ""
-      key: ""
   annotation:
     clusterOptions: ""
     fetchArtifact: false
@@ -188,9 +194,6 @@ functional_annotation:
       max_evalue: 0.00001
       min_score: 0
       fetchArtifact: false
-    database:
-      cache: ""
-      key: ""
 
 env:
   NUMBA_DISABLE_INTEL_SVML: 1 

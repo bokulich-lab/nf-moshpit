@@ -95,6 +95,11 @@ graph TD
     annotateContigs -->|Yes| ANNOTATE_EGGNOG_CONTIGS
     annotateContigs -->|No| skipContigAnnotate[Skip contig annotation]
     
+    %% Contig abundance estimation
+    ASSEMBLE --> contigAbundance{Contig abundance?}
+    contigAbundance -->|Yes| ESTIMATE_CONTIG_ABUNDANCE
+    contigAbundance -->|No| skipContigAbundance[Skip contig abundance]
+    
     %% Binning
     ASSEMBLE --> binningCheck{Binning enabled?}
     binningCheck -->|No| skipBinning[Skip binning]
@@ -139,8 +144,8 @@ graph TD
     
     %% Apply classes
     class INIT_CACHE,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,PARTITION_READS,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_MAGS,MULTIPLY_TABLES moduleClass
-    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_CONTIGS,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ESTIMATE_ABUNDANCE subworkflowClass
-    class inputChoice,needPartition,subsample,hostRemoval,sampleFiltering,needTaxonomy,classifyReads,assemblyCheck,functionalCheck,classifyContigs,annotateContigs,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck conditionClass
+    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_CONTIGS,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ESTIMATE_ABUNDANCE,ESTIMATE_CONTIG_ABUNDANCE subworkflowClass
+    class inputChoice,needPartition,subsample,hostRemoval,sampleFiltering,needTaxonomy,classifyReads,assemblyCheck,functionalCheck,classifyContigs,annotateContigs,contigAbundance,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck conditionClass
     class reads,reads_partitioned,filtered_reads,final_reads,bins,derep_bins dataClass
 ```
 
@@ -194,6 +199,21 @@ The workflow uses several directories to store various outputs and intermediate 
 | params.containerCacheDir | Directory for caching container images. | `${params.outputDir}/container_cache` |
 | params.q2cacheDir | QIIME 2 cache location - will be created if it does not exist. | `${params.outputDir}/caches/main` |
 | params.q2TemporaryCachesDir | Directory for temporary QIIME 2 caches. | `${params.outputDir}/caches` |
+
+### Database Configuration
+
+Database configurations are centralized in their own section in the configuration files. Most of the time, you only need to provide 
+the location of the cache where the DB is stored and the corresponding key. In some cases (Kraken 2, BUSCO), an additional 
+parameter is provided allowing specification of which database version should be fetched, if not existing. The following databases are supported:
+
+| Database | Description |
+| -------- | ----------- |
+| Host removal | Bowtie 2 index used to filter out contaminating reads. |
+| Kraken 2 | Taxonomic classification database used for read, contig, and MAG classification. |
+| Bracken | Database used for re-estimation of Kraken 2 abundances obtained from reads. |
+| BUSCO | Database used for quality control of MAGs. |
+| EggNOG orthologs | DIAMOND protein alignment database used for ortholog search. |
+| EggNOG annotations | Functional annotation database used for gene annotation of contigs and MAGs |
 
 ### Workflow Module Parameters
 
@@ -409,13 +429,26 @@ Here's a minimal configuration to get started with simulated data:
 # params.yml
 runId: FirstRun
 outputDir: /path/to/output
-container: /path/to/qiime2-metagenome.sif
+container: /path/to/moshpit.sif
 
 # Read simulation settings
 read_simulation:
   sampleCount: 2
   nGenomes: 4
   readCount: 1000000
+
+# Database configuration
+databases:
+  kraken2:
+    cache: /path/to/db/cache
+    key: kraken2_standard
+    fetchCollection: standard
+  eggnogOrthologs:
+    cache: /path/to/db/cache
+    key: eggnog_diamond_db
+  eggnogAnnotations:
+    cache: /path/to/db/cache
+    key: eggnog_annotations
 
 # Analysis modules to enable
 genome_assembly:

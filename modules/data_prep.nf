@@ -321,17 +321,17 @@ process REMOVE_HOST {
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
-    index_flag = params.host_removal.database.key ? "--i-index ${params.host_removal.database.cache}:${params.host_removal.database.key}" : ""
+    index_flag = params.databases.hostRemoval.key ? "--i-index ${params.databases.hostRemoval.cache}:${params.databases.hostRemoval.key}" : ""
     key = "${params.runId}_reads_no_host_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}
 
-    if [ -f ${params.host_removal.database.cache}/keys/${params.host_removal.database.key} ]; then
-      echo Database ${params.host_removal.database.key} already exists in the cache ${params.host_removal.database.cache} and will be used for filtering
+    if [ -f ${params.databases.hostRemoval.cache}/keys/${params.databases.hostRemoval.key} ]; then
+      echo Database ${params.databases.hostRemoval.key} already exists in the cache ${params.databases.hostRemoval.cache} and will be used for filtering
       qiime quality-control filter-reads \
         --verbose \
         --i-demultiplexed-sequences ${q2cacheDir}:${reads} \
-        --i-database ${params.host_removal.database.cache}:${params.host_removal.database.key} \
+        --i-database ${params.databases.hostRemoval.cache}:${params.databases.hostRemoval.key} \
         --p-n-threads ${task.cpus} \
         --p-mode ${params.host_removal.mode} \
         --p-sensitivity ${params.host_removal.sensitivity} \
@@ -339,7 +339,7 @@ process REMOVE_HOST {
         --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
         --o-filtered-sequences ${q2cacheDir}:${key}
     elif [[ "${params.host_removal.human}" == "true" ]]; then
-      echo Database ${params.host_removal.database.key} does not exist in the cache ${params.host_removal.database.cache} and will be constructed by the "filter-reads-pangenome" action
+      echo Database ${params.databases.hostRemoval.key} does not exist in the cache ${params.databases.hostRemoval.cache} and will be constructed by the "filter-reads-pangenome" action
       qiime annotate filter-reads-pangenome \
         --verbose \
         --i-reads ${q2cacheDir}:${reads} \
@@ -350,10 +350,10 @@ process REMOVE_HOST {
         --p-ref-gap-ext-penalty ${params.host_removal.ref_gap_ext_penalty} \
         --o-filtered-reads ${q2cacheDir}:${key} \
         ${index_flag} \
-        --o-reference-index ${params.host_removal.database.cache}:human_reference_index > output.log 2>&1 \
+        --o-reference-index ${params.databases.hostRemoval.cache}:human_reference_index > output.log 2>&1 \
       && touch human_reference_index
     else
-      echo Database ${params.host_removal.database.key} does not exist in the cache ${params.host_removal.database.cache} - please provide a key to an exisitng database or toggle the "human" option to "true"
+      echo Database ${params.databases.hostRemoval.key} does not exist in the cache ${params.databases.hostRemoval.cache} - please provide a key to an exisitng database or toggle the "human" option to "true"
       exit 1
     fi
     

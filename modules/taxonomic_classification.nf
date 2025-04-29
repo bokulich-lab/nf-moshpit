@@ -37,7 +37,7 @@ process CLASSIFY_KRAKEN2 {
     qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${q2cacheDir}:${input_file} \
-      --i-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
+      --i-db ${params.databases.kraken2.cache}:${params.databases.kraken2.key} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
       --o-reports ${q2cacheDir}:${reports_key} \
@@ -74,7 +74,7 @@ process CLASSIFY_KRAKEN2_DEREP {
     qiime annotate classify-kraken2 \
       --verbose \
       --i-seqs ${params.q2cacheDir}:${input_file} \
-      --i-db ${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key} \
+      --i-db ${params.databases.kraken2.cache}:${params.databases.kraken2.key} \
       --p-threads ${threads} \
       --p-memory-mapping ${params.taxonomic_classification.kraken2.memoryMapping} \
       --o-reports ${params.q2cacheDir}:${reports_key} \
@@ -110,7 +110,7 @@ process ESTIMATE_BRACKEN {
     qiime annotate estimate-bracken \
       --verbose \
       --i-kraken2-reports ${params.q2cacheDir}:${kraken2_reports} \
-      --i-db ${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key} \
+      --i-db ${params.databases.bracken.cache}:${params.databases.bracken.key} \
       --p-threshold ${params.taxonomic_classification.bracken.threshold} \
       --p-read-len ${params.taxonomic_classification.bracken.readLength} \
       --p-level ${params.taxonomic_classification.bracken.level} \
@@ -201,23 +201,23 @@ process FETCH_KRAKEN2_DB {
     scratch true
 
     output:
-    path params.taxonomic_classification.kraken2.database.key, emit: kraken2_db
-    path params.taxonomic_classification.bracken.database.key, emit: bracken_db
+    path params.databases.kraken2.key, emit: kraken2_db
+    path params.databases.bracken.key, emit: bracken_db
 
     script:
     """
-    if [ -f ${params.taxonomic_classification.kraken2.database.cache}/keys/${params.taxonomic_classification.kraken2.database.key} ]; then
+    if [ -f ${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key} ]; then
       echo 'Found an existing Kraken 2 database - fetching will be skipped.'
-      touch ${params.taxonomic_classification.kraken2.database.key}
-      touch ${params.taxonomic_classification.bracken.database.key}
+      touch ${params.databases.kraken2.key}
+      touch ${params.databases.bracken.key}
       exit 0
     fi
     qiime annotate build-kraken-db \
       --verbose \
-      --p-collection ${params.taxonomic_classification.kraken2.database.collection} \
-      --o-kraken2-db "${params.taxonomic_classification.kraken2.database.cache}:${params.taxonomic_classification.kraken2.database.key}" \
-      --o-bracken-db "${params.taxonomic_classification.bracken.database.cache}:${params.taxonomic_classification.bracken.database.key}" \
-    && touch ${params.taxonomic_classification.kraken2.database.key} \
-    && touch ${params.taxonomic_classification.bracken.database.key}
+      --p-collection ${params.databases.kraken2.fetchCollection} \
+      --o-kraken2-db "${params.databases.kraken2.cache}:${params.databases.kraken2.key}" \
+      --o-bracken-db "${params.databases.bracken.cache}:${params.databases.bracken.key}" \
+    && touch ${params.databases.kraken2.key} \
+    && touch ${params.databases.bracken.key}
     """
 }
