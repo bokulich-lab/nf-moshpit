@@ -19,8 +19,6 @@ on:
         description: 'Environment: passed (for weekly builds), released (for production).'
         required: true
         type: string
-  release:
-    types: [published]
 
 jobs:
   build-and-push:
