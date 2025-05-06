@@ -39,7 +39,7 @@ workflow BIN {
             bins_all = bins | collect(flat: false)
             bins_all = COLLATE_FILTERED_BINS(bins_all, "${params.runId}_mags_filtered", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
             if (params.binning.qc.filtering.fetchArtifact) {
-                FETCH_ARTIFACT_MAGS_FILTERED(bins)   
+                FETCH_ARTIFACT_MAGS_FILTERED(bins_all)   
             }
         } else {
             bins = BIN_CONTIGS_METABAT.out.bins

@@ -194,7 +194,7 @@ process DRAW_TAXA_BARPLOT {
 process FETCH_KRAKEN2_DB {
     label "needsInternet"
     cpus 1
-    memory 1.GB
+    memory 2.GB
     time { 1.h * task.attempt }
     maxRetries 3
     storeDir params.storeDir

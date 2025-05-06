@@ -58,6 +58,8 @@ workflow ASSEMBLE {
                     EVALUATE_CONTIGS_NO_READS(contigs_all, q2_cache)
                 }
             }
+        } else {
+            mapped_reads = ""
         }
 
     emit:

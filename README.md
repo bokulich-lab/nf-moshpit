@@ -1,6 +1,6 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2025.4-dev`
+**Currently supported QIIME 2 version:** `2025.4`
 
 **Currently supported runtimes:** `conda`, `singularity`
 
@@ -468,3 +468,62 @@ functional_annotation:
 This configuration will simulate reads from 4 random genomes, assemble them, perform binning, and run taxonomic and functional annotation on the resulting MAGs.
 
 For more detailed information about all available parameters, refer to the [params.template.yml](params.template.yml) file.
+
+## Parameter Validation
+
+The workflow now includes a comprehensive parameter validation system to ensure all required parameters are provided and that they are consistent with the enabled modules. This helps prevent runtime errors by catching configuration issues early.
+
+### Parameter Requirements
+
+The validation checks for:
+
+1. **Mandatory Core Parameters**:
+   - `runId`: A unique identifier for the workflow run
+   - `outputDir`: Path where all outputs will be saved
+   - Either `container` (path to Singularity image) or `condaEnv` (path to conda environment)
+   - `internetModule`: HPC module name for internet access
+   - `email`: Required for q2-fondue operations
+
+2. **Input Data** (at least one of these methods must be specified):
+   - Manifest file: `inputReadsManifest`
+   - Existing reads: `inputReads`, `inputReadsCache`, and `metadata`
+   - Accession IDs: `fondueAccessionIds`
+   - Read simulation: appropriate `read_simulation` parameters
+
+3. **Database Parameters** for enabled modules:
+   - Host removal requires hostRemoval database settings
+   - Taxonomic classification requires Kraken2 and optionally Bracken database settings
+   - BUSCO quality control requires BUSCO database settings
+   - Functional annotation requires eggNOG database settings
+
+4. **Module Parameter Consistency**:
+   - Ensures assembly is enabled if binning is enabled
+   - Ensures binning is enabled if dereplication is enabled
+   - Validates that taxonomic classification, functional annotation, and abundance estimation are properly configured based on enabled modules
+
+### Validation Messages
+
+The validation system produces two types of messages:
+
+- **Warnings**: Configuration issues that won't prevent the workflow from running but might lead to unexpected behavior
+- **Errors**: Critical issues that would cause runtime errors if not fixed
+
+When a validation error is detected, the workflow will terminate with a detailed error message explaining what needs to be fixed.
+
+### Example Validation Errors
+
+```
+=== PARAMETER VALIDATION ERRORS ===
+ERROR: runId parameter is required
+ERROR: No input method specified. Please provide one of: inputReadsManifest, (inputReads + inputReadsCache + metadata), fondueAccessionIds, or read_simulation parameters
+ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled
+```
+
+### Recommended Configuration Process
+
+1. Start with the template parameters file: `cp params.template.yml params.yml`
+2. Set the mandatory parameters (runId, outputDir, container/condaEnv, internetModule, email)
+3. Configure your input data method
+4. Enable the workflow modules you want to use
+5. For each enabled module, set the required database paths
+6. Run the workflow - validation will automatically check your parameters

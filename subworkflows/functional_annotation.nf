@@ -58,7 +58,7 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
             FETCH_ARTIFACT_ORTHOLOGS(collated_orthologs)
         }
         if (params.functional_annotation.annotation.fetchArtifact) {
-            FETCH_ARTIFACT_ANNOTATIONS(annotations)
+            FETCH_ARTIFACT_ANNOTATIONS(collated_annotations)
         }
     emit:
         extracted_annotations

@@ -640,8 +640,8 @@ process FILTER_SAMPLES {
       """
       echo Creating partition for sample ${sample_id}
 
-      echo "id" > metadata.tsv
-      echo "${sample_id}" >> metadata.tsv
+      echo "id" > _metadata.tsv
+      echo "${sample_id}" >> _metadata.tsv
 
       if [ ! -d "${q2cacheDirOut}" ]; then
         qiime tools cache-create --cache ${q2cacheDirOut}
@@ -650,7 +650,7 @@ process FILTER_SAMPLES {
       qiime demux filter-samples \
         --verbose \
         --i-demux ${q2cacheDirIn}:${reads} \
-        --m-metadata-file metadata.tsv \
+        --m-metadata-file _metadata.tsv \
         --o-filtered-demux ${q2cacheDirOut}:${key}
 
       touch ${key}

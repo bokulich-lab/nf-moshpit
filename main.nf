@@ -39,7 +39,11 @@ include { FETCH_EGGNOG_DB } from './modules/functional_annotation'
 include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
 include { MULTIPLY_TABLES } from './modules/functional_annotation'
 
+include { validateParameters } from './modules/validation.nf'
+
 nextflow.enable.dsl = 2
+
+validateParameters()
 
 def logFile = new File( "${params.sampleReport}" )
 def writeLog = { value ->

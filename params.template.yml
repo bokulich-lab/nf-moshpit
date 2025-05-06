@@ -42,7 +42,6 @@ read_simulation:
   abundance: "uniform"
   gc_bias: true
   sampleGenomes: ""
-  sampleNames: "sample1,sample2"
   taxon: ""
 
 # ============= DATABASES =============
