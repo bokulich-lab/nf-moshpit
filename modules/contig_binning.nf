@@ -137,7 +137,7 @@ process FETCH_BUSCO_DB {
 
 process FILTER_MAGS {
     cpus 1
-    memory 1.GB
+    memory { 1.GB * task.attempt }
     time { 20.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir

@@ -65,7 +65,7 @@ workflow BIN_NO_BUSCO {
         bins_all = bins.bins | collect(flat: false)
         bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
         if (params.binning.fetchArtifact) {
-            FETCH_ARTIFACT_MAGS(bins)
+            FETCH_ARTIFACT_MAGS(bins_all)
         }
     emit:
         bins = BIN_CONTIGS_METABAT.out.bins
