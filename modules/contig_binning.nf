@@ -3,7 +3,7 @@ process BIN_CONTIGS_METABAT {
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
-    errorStrategy 'retry'
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
 
     input:
     tuple val(sample_id), path(contigs_file), path(maps_file)
@@ -20,6 +20,8 @@ process BIN_CONTIGS_METABAT {
     key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}
+
+    set +e
     qiime annotate bin-contigs-metabat \
       --verbose \
       --p-seed 42 \
@@ -28,10 +30,25 @@ process BIN_CONTIGS_METABAT {
       --i-alignment-maps ${q2cacheDir}:${maps_file} \
       --o-mags "${q2cacheDir}:${key_mags}" \
       --o-contig-map "${q2cacheDir}:${key_contig_map}" \
-      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" \
-    && touch ${key_mags} \
-    && touch ${key_contig_map} \
-    && touch ${key_unbinned_contigs}
+      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" > output.txt 2> error.txt
+
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
+
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    if grep -q "No MAGs were formed during binning" output.txt; then
+      echo "No MAGs were formed during binning."
+      exit 125
+    fi
+
+    touch ${key_mags}
+    touch ${key_contig_map}
+    touch ${key_unbinned_contigs}
+
+    exit \$qiime_exit_code
     """
 }
 
