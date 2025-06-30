@@ -195,7 +195,7 @@ process FILTER_CONTIGS {
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
     cpus 1
     memory { 2.GB * task.attempt }
-    time { 1.h * task.attempt }
+    time { 2.h * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true

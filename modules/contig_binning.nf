@@ -94,7 +94,8 @@ process EVALUATE_BINS_BUSCO {
 
 process VISUALIZE_BUSCO {
     cpus 1
-    memory 2.GB
+    memory { 2.GB * task.attempt }
+    time { 1.h * task.attempt }
     publishDir params.publishDir, mode: 'copy'
     scratch true
     errorStrategy 'retry'
@@ -155,7 +156,7 @@ process FETCH_BUSCO_DB {
 process FILTER_MAGS {
     cpus 1
     memory { 1.GB * task.attempt }
-    time { 20.min * task.attempt }
+    time { 30.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true

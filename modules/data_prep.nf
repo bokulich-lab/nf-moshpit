@@ -413,6 +413,8 @@ process IMPORT_READS {
     scratch true
     errorStrategy 'retry'
     maxRetries 3
+    memory { 2.GB * task.attempt }
+    time { 2.h * task.attempt }
 
     input:
     tuple val(_id), path(reads_fwd), path(reads_rev)
