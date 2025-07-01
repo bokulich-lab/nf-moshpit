@@ -187,3 +187,32 @@ process FILTER_MAGS {
     && touch ${key_mags_filtered}
     """
 }
+
+process EVALUATE_BINS_CHECKM {
+    label "checkm"
+    storeDir params.storeDir
+    scratch true
+    errorStrategy 'retry'
+    container params.containerCheckM
+
+    input:
+    path bins_file
+
+    output:
+    path "${params.runId}-mags-checkm.qzv"
+
+    script:
+    reducedTree = params.binning.qc.checkm.reducedTree ? "--p-reduced-tree" :  "--p-no-reduced-tree"
+    """
+    qiime checkm evaluate-bins \
+      --verbose \
+      --p-threads ${task.cpus} \
+      --p-pplacer-threads ${task.cpus} \
+      --p-db-path ${params.databases.checkm.path} \
+      ${reducedTree} \
+      ${params.binning.qc.checkm.additionalFlags} \
+      --i-bins ${params.q2cacheDir}:${bins_file} \
+      --o-visualization "${params.runId}-mags-checkm.qzv" \
+    && touch "${params.runId}-mags-checkm.qzv"
+    """
+}

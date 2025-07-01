@@ -132,6 +132,17 @@ def validateDatabaseParams() {
         }
     }
     
+    // CheckM database validation
+    if (params.binning.enabled && params.binning.qc.checkm.enabled) {
+        if (!params.databases.checkm.path || params.databases.checkm.path.toString().trim() == '' || params.databases.checkm.path.toString().toLowerCase() == 'null') {
+            errors.add("ERROR: CheckM is enabled but no database path is specified")
+        }
+        
+        if (!params.containerCheckM || params.containerCheckM.toString().trim() == '' || params.containerCheckM.toString().toLowerCase() == 'null') {
+            errors.add("ERROR: CheckM is enabled but no CheckM container is specified")
+        }
+    }
+    
     // Functional annotation database validation
     if (params.functional_annotation.enabledFor) {
         if (!params.databases.eggnogOrthologs.cache && !params.databases.eggnogOrthologs.key) {

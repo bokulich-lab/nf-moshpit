@@ -1,5 +1,6 @@
 include { BIN_CONTIGS_METABAT } from '../modules/contig_binning'
 include { EVALUATE_BINS_BUSCO } from '../modules/contig_binning'
+include { EVALUATE_BINS_CHECKM } from '../modules/contig_binning'
 include { VISUALIZE_BUSCO } from '../modules/contig_binning'
 include { FETCH_BUSCO_DB } from '../modules/contig_binning'
 include { FILTER_MAGS } from '../modules/contig_binning'
@@ -23,7 +24,11 @@ workflow BIN {
 
         if (params.binning.fetchArtifact) {
             FETCH_ARTIFACT_MAGS(bins_all)
-        }    
+        }
+
+        if (params.binning.qc.checkm.enabled) {
+            EVALUATE_BINS_CHECKM(bins_all)
+        }
 
         busco_db = FETCH_BUSCO_DB()
         lineages = Channel.of(params.binning.qc.busco.lineageDatasets.split(","))
@@ -66,6 +71,9 @@ workflow BIN_NO_BUSCO {
         bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
         if (params.binning.fetchArtifact) {
             FETCH_ARTIFACT_MAGS(bins_all)
+        }
+        if (params.binning.qc.checkm.enabled) {
+            EVALUATE_BINS_CHECKM(bins_all)
         }
     emit:
         bins = BIN_CONTIGS_METABAT.out.bins
