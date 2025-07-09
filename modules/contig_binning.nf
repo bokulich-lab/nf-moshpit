@@ -3,7 +3,7 @@ process BIN_CONTIGS_METABAT {
     storeDir params.storeDir
     scratch true
     tag "${sample_id}"
-    errorStrategy 'retry'
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
 
     input:
     tuple val(sample_id), path(contigs_file), path(maps_file)
@@ -20,6 +20,8 @@ process BIN_CONTIGS_METABAT {
     key_unbinned_contigs = "${params.runId}_unbinned_contigs_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}
+
+    set +e
     qiime annotate bin-contigs-metabat \
       --verbose \
       --p-seed 42 \
@@ -28,10 +30,25 @@ process BIN_CONTIGS_METABAT {
       --i-alignment-maps ${q2cacheDir}:${maps_file} \
       --o-mags "${q2cacheDir}:${key_mags}" \
       --o-contig-map "${q2cacheDir}:${key_contig_map}" \
-      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" \
-    && touch ${key_mags} \
-    && touch ${key_contig_map} \
-    && touch ${key_unbinned_contigs}
+      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" > output.txt 2> error.txt
+
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
+
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    if grep -q "No MAGs were formed during binning" output.txt; then
+      echo "No MAGs were formed during binning."
+      exit 125
+    fi
+
+    touch ${key_mags}
+    touch ${key_contig_map}
+    touch ${key_unbinned_contigs}
+
+    exit \$qiime_exit_code
     """
 }
 
@@ -77,7 +94,8 @@ process EVALUATE_BINS_BUSCO {
 
 process VISUALIZE_BUSCO {
     cpus 1
-    memory 2.GB
+    memory { 2.GB * task.attempt }
+    time { 1.h * task.attempt }
     publishDir params.publishDir, mode: 'copy'
     scratch true
     errorStrategy 'retry'
@@ -137,8 +155,8 @@ process FETCH_BUSCO_DB {
 
 process FILTER_MAGS {
     cpus 1
-    memory 1.GB
-    time { 20.min * task.attempt }
+    memory { 1.GB * task.attempt }
+    time { 30.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -167,5 +185,34 @@ process FILTER_MAGS {
       --i-mags ${q2cacheDir}:${bins_file} \
       --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" \
     && touch ${key_mags_filtered}
+    """
+}
+
+process EVALUATE_BINS_CHECKM {
+    label "checkm"
+    storeDir params.storeDir
+    scratch true
+    errorStrategy 'retry'
+    container params.containerCheckM
+
+    input:
+    path bins_file
+
+    output:
+    path "${params.runId}-mags-checkm.qzv"
+
+    script:
+    reducedTree = params.binning.qc.checkm.reducedTree ? "--p-reduced-tree" :  "--p-no-reduced-tree"
+    """
+    qiime checkm evaluate-bins \
+      --verbose \
+      --p-threads ${task.cpus} \
+      --p-pplacer-threads ${task.cpus} \
+      --p-db-path ${params.databases.checkm.path} \
+      ${reducedTree} \
+      ${params.binning.qc.checkm.additionalFlags} \
+      --i-bins ${params.q2cacheDir}:${bins_file} \
+      --o-visualization "${params.runId}-mags-checkm.qzv" \
+    && touch "${params.runId}-mags-checkm.qzv"
     """
 }

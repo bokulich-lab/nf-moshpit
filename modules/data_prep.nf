@@ -388,6 +388,8 @@ process INIT_CACHE {
 
 process FETCH_ARTIFACT {
     publishDir params.publishDir, mode: 'copy'
+    memory { 2.GB * task.attempt }
+    time { 2.h * task.attempt }
 
     input:
     val cache_key
@@ -411,6 +413,8 @@ process IMPORT_READS {
     scratch true
     errorStrategy 'retry'
     maxRetries 3
+    memory { 2.GB * task.attempt }
+    time { 2.h * task.attempt }
 
     input:
     tuple val(_id), path(reads_fwd), path(reads_rev)
@@ -456,6 +460,7 @@ process PARTITION_DEREP_MAGS {
     cpus 1
     storeDir params.storeDir
     time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
     maxRetries 3
     errorStrategy 'retry'
 
@@ -502,6 +507,7 @@ process COLLATE_PARTITIONS {
     cpus 1
     scratch true
     time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
     errorStrategy 'retry'
     maxRetries 3
 
@@ -545,6 +551,7 @@ process COLLATE_PARTITIONS_DEREP {
     cpus 1
     scratch true
     time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
     maxRetries 3
     errorStrategy 'retry'
 
@@ -588,6 +595,7 @@ process TABULATE_READ_COUNTS {
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
     maxRetries 3
     errorStrategy 'retry'
     
@@ -616,6 +624,7 @@ process FILTER_SAMPLES {
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
     maxRetries 3
     
     input:

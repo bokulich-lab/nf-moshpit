@@ -194,8 +194,8 @@ process MAP_READS_TO_CONTIGS {
 process FILTER_CONTIGS {
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
     cpus 1
-    memory 1.GB
-    time { 1.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    time { 2.h * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true

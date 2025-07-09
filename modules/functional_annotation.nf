@@ -145,8 +145,8 @@ process FETCH_EGGNOG_DB {
 
 process EXTRACT_ANNOTATIONS {
     cpus 1
-    memory 1.GB
-    time { 15.min * task.attempt }
+    memory { 2.GB * task.attempt }
+    time { 2.h * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -176,8 +176,8 @@ process EXTRACT_ANNOTATIONS {
 
 process MULTIPLY_TABLES {
     cpus 1
-    memory 1.GB
-    time { 15.min * task.attempt }
+    memory { 2.GB * task.attempt }
+    time { 30.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true

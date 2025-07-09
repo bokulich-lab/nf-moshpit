@@ -57,7 +57,7 @@ process MAP_READS_TO_DEREP_MAGS {
 
 process GET_GENOME_LENGTHS {
     cpus 1
-    memory 1.GB
+    memory { 1.GB * task.attempt }
     time { 20.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir
@@ -67,12 +67,13 @@ process GET_GENOME_LENGTHS {
     input:
     path mags_derep_file
     path q2Cache
+    val input_type
 
     output:
     path key
 
     script:
-    key = "${params.runId}_mags_derep_lengths"
+    key = "${params.runId}_${input_type}_lengths"
     """
     qiime annotate get-feature-lengths \
       --verbose \
