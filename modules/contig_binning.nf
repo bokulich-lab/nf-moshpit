@@ -39,14 +39,14 @@ process BIN_CONTIGS_METABAT {
     cat output.txt >> .command.out
     cat error.txt >> .command.err
 
-    if grep -q "No MAGs were formed during binning" output.txt; then
-      echo "No MAGs were formed during binning."
-      exit 125
-    fi
-
     touch ${key_mags}
     touch ${key_contig_map}
     touch ${key_unbinned_contigs}
+
+    if grep -q "No MAGs were formed during binning" output.txt || grep -q "No MAGs were formed during binning" error.txt; then
+      echo "No MAGs were formed during binning."
+      exit 125
+    fi
 
     exit \$qiime_exit_code
     """
