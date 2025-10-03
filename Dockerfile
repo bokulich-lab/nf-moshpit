@@ -24,8 +24,7 @@ RUN conda update -q -y conda \
 RUN wget -O ${ENVIRONMENT}-env.yml https://raw.githubusercontent.com/qiime2/distributions/dev/${EPOCH}/${DISTRO}/${ENVIRONMENT}/qiime2-${DISTRO}-ubuntu-latest-conda.yml
 
 RUN mamba env create -n ${DISTRO}-${EPOCH} --file ${ENVIRONMENT}-env.yml \
-    && mamba install -n ${DISTRO}-${EPOCH} -c bioconda -c conda-forge -c defaults fastp multiqc \
-    && mamba run -n ${DISTRO}-${EPOCH} pip install git+https://github.com/bokulich-lab/q2-fastp.git git+https://github.com/bokulich-lab/q2-annotate.git git+https://github.com/bokulich-lab/q2-assembly.git \
+    && mamba run -n ${DISTRO}-${EPOCH} pip install git+https://github.com/bokulich-lab/q2-annotate.git git+https://github.com/bokulich-lab/q2-assembly.git \
     && mamba clean -a -y \
     && chmod -R a+rwx /opt/conda \
     && rm ${ENVIRONMENT}-env.yml
