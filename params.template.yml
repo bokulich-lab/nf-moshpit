@@ -202,5 +202,10 @@ functional_annotation:
       min_score: 0
       fetchArtifact: false
 
+weblog:
+  enabled: false
+  url: ""
+  basicToken: ""
+
 env:
   NUMBA_DISABLE_INTEL_SVML: 1 
