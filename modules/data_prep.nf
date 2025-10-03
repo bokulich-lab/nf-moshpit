@@ -505,7 +505,6 @@ process PARTITION_DEREP_MAGS {
 process COLLATE_PARTITIONS {
     label "collation"
     cpus 1
-    scratch true
     time { 2.h * task.attempt }
     memory { 2.GB * task.attempt }
     errorStrategy 'retry'
@@ -533,9 +532,10 @@ process COLLATE_PARTITIONS {
     """
     echo "Combined input: ${inputString}"
     
-    qiime ${qiime_action} \\
-      ${qiime_input_flag} ${inputString} \\
-      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \\
+    qiime ${qiime_action} \
+      ${qiime_input_flag} ${inputString} \
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
+      --use-cache ${params.q2cacheDir} \
     && touch ${cache_key_out}
     """
 
@@ -549,7 +549,6 @@ process COLLATE_PARTITIONS {
 process COLLATE_PARTITIONS_DEREP {
     label "collation"
     cpus 1
-    scratch true
     time { 2.h * task.attempt }
     memory { 2.GB * task.attempt }
     maxRetries 3
@@ -577,9 +576,10 @@ process COLLATE_PARTITIONS_DEREP {
     """
     echo "Combined input: ${inputString}"
     
-    qiime ${qiime_action} \\
-      ${qiime_input_flag} ${inputString} \\
-      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \\
+    qiime ${qiime_action} \
+      ${qiime_input_flag} ${inputString} \
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
+      --use-cache ${params.q2cacheDir} \
     && touch ${cache_key_out}
     """
 
