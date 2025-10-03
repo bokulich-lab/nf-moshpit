@@ -48,6 +48,11 @@ process BIN_CONTIGS_METABAT {
       exit 125
     fi
 
+    if grep -q "There were no large target contigs" output.txt || grep -q "There were no large target contigs" error.txt; then
+      echo "There were no large target contigs."
+      exit 125
+    fi
+
     exit \$qiime_exit_code
     """
 }
