@@ -1,9 +1,9 @@
 process CLASSIFY_KRAKEN2 {
-    label "taxonomicClassification"
+    label "taxonomicClassificationKraken2"
     storeDir params.storeDir
     scratch true
     tag "${_id}"
-
+    memory "${params.taxonomic_classification.kraken2.memory ?: 48}.GB"
     errorStrategy "retry"
     maxRetries 3
 
@@ -49,7 +49,7 @@ process CLASSIFY_KRAKEN2 {
 }
 
 process CLASSIFY_KRAKEN2_DEREP {
-    label "taxonomicClassification"
+    label "taxonomicClassificationKraken2"
     storeDir params.storeDir
     scratch true
     tag "mags-derep"

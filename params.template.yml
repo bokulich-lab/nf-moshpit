@@ -8,6 +8,7 @@ outputDir: /path/to/output
 # Singularity parameters: path to the SIF image, additional volume mounts and other options
 container: /path/to/container.sif
 containerCheckM: /path/to/checkm.sif
+containerSkani: /path/to/skani.sif
 additionalVolumeMounts: "additional volumes to be mounted in the containers"
 additionalContainerOptions: "additional options to be passed to Singularity"
 
@@ -151,6 +152,7 @@ binning:
 
 dereplication:
   enabled: true
+  method: "sourmash" # sourmash, skani
   clusterOptions: ""
   threshold: 0.99
   fetchArtifact: false
@@ -159,6 +161,14 @@ dereplication:
     ksizes: 35
     scaled: 100
     trackAbundance: true
+  skani:
+    clusterOptions: ""
+    preset: "slow"
+    markerC: 1000
+    robust: true
+    median: false
+    fasterSmall: false
+    additionalFlags: ""
 
 abundance_estimation:
   enabledFor: "derep" # contigs, derep
