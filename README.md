@@ -1,6 +1,6 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2025.7`
+**Currently supported QIIME 2 version:** `2025.10`
 
 **Currently supported runtimes:** `conda`, `singularity`
 
