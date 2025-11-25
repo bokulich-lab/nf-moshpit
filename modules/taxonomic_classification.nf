@@ -19,11 +19,21 @@ process CLASSIFY_KRAKEN2 {
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (input_type == "mags") {
+      if (params.binning.qc.busco.enabled) {
+        reports_key = "${params.runId}_kraken_reports_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+      } else {
         reports_key = "${params.runId}_kraken_reports_mags_partitioned_${_id}"
         hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${_id}"
+      }
     } else if (input_type == "mags-derep") {
+      if (params.binning.qc.busco.enabled) {
+        reports_key = "${params.runId}_kraken_reports_mags_derep_${params.binning.qc.busco.selectLineage}"
+        hits_key = "${params.runId}_kraken_outputs_mags_derep_${params.binning.qc.busco.selectLineage}"
+      } else {
         reports_key = "${params.runId}_kraken_reports_mags_derep"
         hits_key = "${params.runId}_kraken_outputs_mags_derep"
+      }
     } else if (input_type == "reads") {
         reports_key = "${params.runId}_kraken_reports_reads_partitioned_${_id}"
         hits_key = "${params.runId}_kraken_outputs_reads_partitioned_${_id}"
@@ -66,8 +76,13 @@ process CLASSIFY_KRAKEN2_DEREP {
     path(hits_key), emit: hits
 
     script:
-    reports_key = "${params.runId}_kraken_reports_mags_derep"
-    hits_key = "${params.runId}_kraken_outputs_mags_derep"
+    if (params.binning.qc.busco.enabled) {
+      reports_key = "${params.runId}_kraken_reports_mags_derep_${params.binning.qc.busco.selectLineage}"
+      hits_key = "${params.runId}_kraken_outputs_mags_derep_${params.binning.qc.busco.selectLineage}"
+    } else {
+      reports_key = "${params.runId}_kraken_reports_mags_derep"
+      hits_key = "${params.runId}_kraken_outputs_mags_derep"
+    }
     threads = 4 * task.cpus
     """
     echo Processing dereplicated MAGs
@@ -154,6 +169,9 @@ process GET_KRAKEN_FEATURES {
       && touch ${params.runId}_kraken_presence_absence
       """
     } else {
+      if (params.binning.qc.busco.enabled) {
+        features = "${features}_${params.binning.qc.busco.selectLineage}"
+      }
       """
       qiime annotate kraken2-to-mag-features \
         --verbose \

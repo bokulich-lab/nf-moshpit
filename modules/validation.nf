@@ -50,13 +50,7 @@ def validateMandatoryParams() {
                             params.fondueAccessionIds.toString().trim() != '' && 
                             params.fondueAccessionIds.toString().toLowerCase() != 'null'
     
-    boolean hasSimulationInput = (params.read_simulation.sampleCount != null && 
-                                 params.read_simulation.sampleCount > 0) || 
-                                (params.read_simulation.taxon != null && 
-                                 params.read_simulation.taxon.toString().trim() != '' && 
-                                 params.read_simulation.taxon.toString().toLowerCase() != 'null') || 
-                                (params.read_simulation.nGenomes != null && 
-                                 params.read_simulation.nGenomes > 0)
+    boolean hasSimulationInput = (params.read_simulation.samples != null)
     
     // Log the validation results
     log.info "DEBUG: Input validation results:"
@@ -91,13 +85,12 @@ def validateMandatoryParams() {
         errors.add("ERROR: fondueAccessionIds file does not exist: ${params.fondueAccessionIds}")
     }
     
-    if (params.read_simulation.sampleGenomes != null && 
-        params.read_simulation.sampleGenomes.toString().trim() != '' && 
-        params.read_simulation.sampleGenomes.toString().toLowerCase() != 'null' && 
-        !file(params.read_simulation.sampleGenomes).exists()) {
-        errors.add("ERROR: sampleGenomes file does not exist: ${params.read_simulation.sampleGenomes}")
+    if (params.read_simulation.samples != null && 
+        params.read_simulation.samples.toString().toLowerCase() != 'null' && 
+        !file(params.read_simulation.samples).exists()) {
+        errors.add("ERROR: samples file does not exist: ${params.read_simulation.samples}")
     }
-    
+    0
     return errors
 }
 

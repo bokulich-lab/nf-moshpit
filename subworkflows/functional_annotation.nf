@@ -6,6 +6,7 @@ include { EXTRACT_ANNOTATIONS } from '../modules/functional_annotation'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_ORTHOLOGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_ANNOTATIONS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS } from '../modules/data_prep'
+include { CLEAN_UP_CACHES } from '../modules/data_prep'
 
 workflow ANNOTATE_EGGNOG_MAGS {
     take:
@@ -16,8 +17,16 @@ workflow ANNOTATE_EGGNOG_MAGS {
         SEARCH_ORTHOLOGS_MAGS(mags, diamond_db, "mags")
         ANNOTATE_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits, eggnog_db, "mags")
 
-        collated_orthologs = COLLATE_HITS_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits | collect(flat: false), "${params.runId}_eggnog_orthologs_mags", "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
-        collated_annotations = COLLATE_ANNOTATIONS_MAGS(ANNOTATE_MAGS.out.annotations | collect(flat: false), "${params.runId}_eggnog_annotations_mags", "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+        if (params.binning.qc.busco.enabled) {
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.qc.busco.selectLineage}"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.qc.busco.selectLineage}"
+        } else {
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags"
+            annotations_key = "${params.runId}_eggnog_annotations_mags"
+        }
+
+        collated_orthologs = COLLATE_HITS_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
+        collated_annotations = COLLATE_ANNOTATIONS_MAGS(ANNOTATE_MAGS.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
 
         if (params.functional_annotation.ortholog_search.fetchArtifact) {
             FETCH_ARTIFACT_ORTHOLOGS(collated_orthologs)
@@ -38,13 +47,26 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
         mags_derep = mags_derep.map { partition ->
             def path = java.nio.file.Paths.get(partition.toString())
             def filename = path.getFileName().toString()
-            tuple(filename.substring("${params.runId}_mags_derep_partitioned_".length()), partition)
+            def batchId = filename.substring("${params.runId}_mags_derep_partitioned_".length())
+            tuple("batch_${batchId}", partition)
         }
         SEARCH_ORTHOLOGS_MAGS_DEREP(mags_derep, diamond_db, "mags_derep")
         ANNOTATE_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits, eggnog_db, "mags_derep")
 
-        collated_orthologs = COLLATE_HITS_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits | collect(flat: false), "${params.runId}_eggnog_orthologs_mags_derep", "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
-        collated_annotations = COLLATE_ANNOTATIONS_MAGS_DEREP(ANNOTATE_MAGS_DEREP.out.annotations | collect(flat: false), "${params.runId}_eggnog_annotations_mags_derep", "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+        if (params.binning.qc.busco.enabled) {
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_derep_${params.binning.qc.busco.selectLineage}"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_derep_${params.binning.qc.busco.selectLineage}"
+        } else {
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_derep"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_derep"
+        }
+        collated_orthologs = COLLATE_HITS_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
+        collated_annotations = COLLATE_ANNOTATIONS_MAGS_DEREP(ANNOTATE_MAGS_DEREP.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+
+
+        if (params.functional_annotation.cleanUp) {
+            CLEAN_UP_CACHES(collated_annotations, "${params.q2TemporaryCachesDir}/mags")
+        }
 
         if (params.functional_annotation.annotation.extract != "") {
             annotation_type = Channel.of(params.functional_annotation.annotation.extract.types.split(","))

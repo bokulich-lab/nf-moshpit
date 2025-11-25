@@ -12,7 +12,11 @@ process INDEX_DEREP_MAGS {
     path(key)
 
     script:
-    key = "${params.runId}_mags_derep_index"
+    if (params.binning.qc.busco.enabled) {
+      key = "${params.runId}_mags_derep_index_${params.binning.qc.busco.selectLineage}"
+    } else {
+      key = "${params.runId}_mags_derep_index"
+    }
     """
     qiime assembly index-derep-mags \
       --verbose \
@@ -41,7 +45,11 @@ process MAP_READS_TO_DEREP_MAGS {
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
-    key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
+    if (params.binning.qc.busco.enabled) {
+      key = "${params.runId}_reads_to_derep_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+    } else {
+      key = "${params.runId}_reads_to_derep_mags_partitioned_${_id}"
+    }
     """
     echo Processing sample ${_id}
     qiime assembly map-reads \
@@ -73,7 +81,11 @@ process GET_GENOME_LENGTHS {
     path key
 
     script:
-    key = "${params.runId}_${input_type}_lengths"
+    if (params.binning.qc.busco.enabled) {
+      key = "${params.runId}_${input_type}_lengths_${params.binning.qc.busco.selectLineage}"
+    } else {
+      key = "${params.runId}_${input_type}_lengths"
+    }
     """
     qiime annotate get-feature-lengths \
       --verbose \
@@ -99,7 +111,15 @@ process ESTIMATE_ABUNDANCE {
     path key
 
     script:
-    key = "${params.runId}_${input_type}_ft"
+    if (input_type == "mags_derep") {
+      if (params.binning.qc.busco.enabled) {
+        key = "${params.runId}_mags_derep_ft_${params.binning.qc.busco.selectLineage}"
+      } else {
+        key = "${params.runId}_mags_derep_ft"
+      }
+    } else {
+      key = "${params.runId}_${input_type}_ft"
+    }
     """
     qiime annotate estimate-abundance \
       --verbose \

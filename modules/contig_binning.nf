@@ -69,7 +69,7 @@ process EVALUATE_BINS_BUSCO {
     path busco_db
 
     output:
-    tuple val(_id), path(key), emit: busco_results
+    tuple val(lineage), val(_id), path(key), emit: busco_results
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -104,13 +104,14 @@ process VISUALIZE_BUSCO {
     publishDir params.publishDir, mode: 'copy'
     scratch true
     errorStrategy 'retry'
+    tag "${lineage}"
 
     input:
-    path busco_results
+    tuple val(lineage), path(busco_results)
     path q2_cache
 
     output:
-    path "${params.runId}-mags-busco.qzv"
+    path "${params.runId}-mags-busco-${lineage}.qzv"
 
     script:
     """
@@ -124,8 +125,8 @@ process VISUALIZE_BUSCO {
 
     print('Generating the final BUSCO visualization...')
     viz, = annotate.visualizers._visualize_busco(results)
-    viz.save('${params.runId}-mags-busco.qzv')
-    print('Visualization saved to "${params.runId}-mags-busco.qzv"')
+    viz.save('${params.runId}-mags-busco-${lineage}.qzv')
+    print('Visualization saved to "${params.runId}-mags-busco-${lineage}.qzv"')
     """
 }
 
@@ -160,26 +161,26 @@ process FETCH_BUSCO_DB {
 
 process FILTER_MAGS {
     cpus 1
-    memory { 1.GB * task.attempt }
+    memory { 2.GB * task.attempt }
     time { 30.min * task.attempt }
     maxRetries 3
     storeDir params.storeDir
-    scratch true
+    // scratch true
     tag "${_id}"
     errorStrategy 'retry'
 
     input:
-    tuple val(_id), path(bins_file)
+    tuple val(_id), path(bins_file), val(lineage)
     path metadata_file
     val filtering_axis
     path q2_cache
 
     output:
-    tuple val(_id), path(key_mags_filtered), emit: mags_filtered
+    tuple val(_id), path(key_mags_filtered), val(lineage), emit: mags_filtered
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
-    key_mags_filtered = "${params.runId}_mags_filtered_${_id}"
+    key_mags_filtered = "${params.runId}_mags_filtered_${lineage}_${_id}"
     """
     qiime annotate filter-mags \
       --verbose \
@@ -219,5 +220,59 @@ process EVALUATE_BINS_CHECKM {
       --i-bins ${params.q2cacheDir}:${bins_file} \
       --o-visualization "${params.runId}-mags-checkm.qzv" \
     && touch "${params.runId}-mags-checkm.qzv"
+    """
+}
+
+process COLLATE_BUSCO_RESULTS {
+    label "collationBusco"
+    storeDir params.storeDir
+    cpus 1
+    time { 2.h * task.attempt }
+    memory { 4.GB * task.attempt }
+    errorStrategy 'retry'
+    maxRetries 3
+    tag "${lineage}"
+
+    input:
+    val lineage
+    val ids_and_paths
+    val cache_key_out 
+    val qiime_action
+    val qiime_input_flag
+    val qiime_output_flag
+    val clean_up
+
+    output:
+    tuple val(lineage), path("${cache_key_out}_${lineage}"), emit: collated_results
+
+    script:
+    // def lineage = ids_and_paths[0]
+    def sample_ids = ids_and_paths[0]
+    def sample_paths = ids_and_paths[1]
+    
+    def inputString = [sample_ids, sample_paths].transpose().collect { sample_id, path ->
+        def key = new File(path.toString()).getName()
+        "${params.q2TemporaryCachesDir}/${sample_id}:${key}"
+    }.join(' ')
+  
+    """
+    echo "Combined input: ${inputString}"
+    echo "Sample IDs: ${sample_ids}"
+    echo "Lineage: ${lineage}"
+    
+    qiime ${qiime_action} \
+      ${qiime_input_flag} ${inputString} \
+      ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out}_${lineage} \
+    && touch ${cache_key_out}_${lineage}
+
+    if [ ${params.binning.qc.busco.cleanUp} == true ]; then
+      echo "Cleaning up BUSCO results..."
+      for cache_entry in ${inputString}; do
+        cache_dir=\$(echo \$cache_entry | cut -d: -f1)
+        cache_key=\$(echo \$cache_entry | cut -d: -f2)
+        echo "Removing cache key: \$cache_dir:\$cache_key"
+        qiime tools cache-remove --cache \$cache_dir --key \$cache_key
+      done
+    fi
     """
 }

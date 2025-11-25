@@ -17,7 +17,12 @@ workflow MAG_ABUNDANCE {
         mags_derep_index = INDEX_DEREP_MAGS(mags_derep, q2_cache)
         combined = reads.combine(mags_derep_index)
         reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache) | collect(flat: false)
-        maps_all = COLLATE_PARTITIONS(reads_to_mags, "${params.runId}_reads_to_derep_mags", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
+        if (params.binning.qc.busco.enabled) {
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.qc.busco.selectLineage}"
+        } else {
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags"
+        }
+        maps_all = COLLATE_PARTITIONS(reads_to_mags, reads_to_mags_key, "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
         lengths = GET_MAG_LENGTHS(mags_derep, q2_cache, "mags_derep")
         abundance = ESTIMATE_MAG_ABUNDANCE(maps_all, lengths, "mags_derep",q2_cache)
         if (params.abundance_estimation.fetchArtifact) {

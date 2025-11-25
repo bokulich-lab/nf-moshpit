@@ -36,15 +36,9 @@ fondueAccessionIds: /path/to/tsv
 # Option 4: provide a path to genomes from which the reads should be simulated
 # If the path is not specified, a random selection of genomes will be fetched from NCBI
 read_simulation:
-  clusterOptions: ""
-  sampleCount: 2
+  samples: /path/to/samples.tsv
   seed: 100
-  nGenomes: 4
-  readCount: 10000000
-  abundance: "uniform"
-  gc_bias: true
-  sampleGenomes: ""
-  taxon: ""
+  clusterOptions: ""
 
 # ============= DATABASES =============
 databases:
@@ -138,7 +132,9 @@ binning:
       clusterOptions: ""
       mode: "genome"
       lineageDatasets: "bacteria_odb12"
+      selectLineage: "bacteria_odb12"
       additionalFlags: ""
+      cleanUp: false
     checkm:
       enabled: false
       reducedTree: false
@@ -211,6 +207,8 @@ functional_annotation:
       max_evalue: 0.00001
       min_score: 0
       fetchArtifact: false
+  cleanUp: false
+  partitionBatchCount: 10
 
 weblog:
   enabled: false

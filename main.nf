@@ -11,6 +11,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP_FT } from './modules/data_
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_FILTERED } from './modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from './modules/data_prep'
 include { SIMULATE_READS } from './modules/data_prep'
+include { SIMULATE_READS_MASON } from './modules/data_prep'
 include { SUBSAMPLE_READS } from './modules/data_prep'
 include { REMOVE_HOST } from './modules/data_prep'
 include { PROCESS_READS_FASTP } from './modules/data_prep'
@@ -117,16 +118,14 @@ workflow {
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
         reads | count | subscribe { writeLog("Samples returned from fondue: " + it) }
-    } else if (params.read_simulation.sampleGenomes) {
-        genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
-        ids = Channel.of(params.read_simulation.sampleNames.split(','))
-        
-        writeLog("Simulating reads from provided genomes: ${params.read_simulation.sampleGenomes}")
-        writeLog("Number of samples to simulate: ${params.read_simulation.sampleNames.split(',').size()}")
-        writeLog("Reads per sample: ${params.read_simulation.readCount}")
-        
-        ids_with_genomes = ids.combine(genomes)
-        simulated_reads = SIMULATE_READS(ids_with_genomes)
+    } else if (params.read_simulation.samples) {
+        writeLog("Simulating samples from: ${params.read_simulation.samples}")
+        simulation_data = Channel
+            .fromPath(params.read_simulation.samples)
+            .splitCsv(header: true, sep: ',')
+            .map { row -> tuple(row.id, row.profile, row.readCount, row.readLength, row.genomesPath) }
+
+        simulated_reads = SIMULATE_READS_MASON(simulation_data)
         reads = simulated_reads.reads
         reads | count | subscribe { writeLog("Samples simulated: " + it) }
     } else {

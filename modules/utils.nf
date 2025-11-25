@@ -34,10 +34,6 @@ def getDirectorySizeInGB(inputPath, basePath) {
     def sizeInGB = sizeInBytes / (1024.0 * 1024.0 * 1024.0)
     def sizeInGBRoundedUp = Math.ceil(1.1 * sizeInGB) as int
     
-    println "Extracted UUID: ${uuid}"
-    println "Constructed path: ${concatenatedPath}"
-    println "Directory size: ${sizeInGB.round(1)} GB (rounded up: ${sizeInGBRoundedUp} GB)"
-    
     return [
         uuid: uuid,
         concatenatedPath: concatenatedPath,

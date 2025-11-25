@@ -17,20 +17,32 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
     script:
     if (input_type == "mags") {
-        q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+      q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
+      if (params.binning.qc.busco.enabled) {
+        hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+      } else {        
         hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
         loci_key = "${params.runId}_eggnog_loci_mags_partitioned_${_id}"
+      }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         hits_key = "${params.runId}_eggnog_orthologs_contigs_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_contigs_partitioned_${_id}"
         loci_key = "${params.runId}_eggnog_loci_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
-        q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
+      q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
+      if (params.binning.qc.busco.enabled) {
+        hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+      } else {
         hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
         table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
         loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${_id}"
+      }
     }
     """
     echo Processing sample ${_id}
@@ -68,13 +80,21 @@ process ANNOTATE_EGGNOG {
     script:
     if (input_type == "mags") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
-        annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
+        if (params.binning.qc.busco.enabled) {
+          annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        } else {
+          annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
+        }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         annotations_key = "${params.runId}_eggnog_annotations_contigs_partitioned_${_id}"
     } else if (input_type == "mags_derep") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
-        annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
+        if (params.binning.qc.busco.enabled) {
+          annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        } else {
+          annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
+        }
     }
     """
     echo Processing sample ${_id}
@@ -159,9 +179,14 @@ process EXTRACT_ANNOTATIONS {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}")
+    tuple val(annotation_type), path(feature_table)
 
     script:
+    if (params.binning.qc.busco.enabled) {
+      feature_table = "${params.runId}_${input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}"
+    } else {
+      feature_table = "${params.runId}_${input_type}_${annotation_type}"
+    }
     """
     qiime annotate extract-annotations \
       --verbose \
@@ -169,8 +194,8 @@ process EXTRACT_ANNOTATIONS {
       --p-max-evalue ${params.functional_annotation.annotation.extract.max_evalue} \
       --p-min-score ${params.functional_annotation.annotation.extract.min_score} \
       --i-ortholog-annotations ${params.q2cacheDir}:${annotation_file} \
-      --o-annotation-frequency "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}" \
-    && touch ${params.runId}_${input_type}_${annotation_type}
+      --o-annotation-frequency "${params.q2cacheDir}:${feature_table}" \
+    && touch ${feature_table}
     """
 }
 
@@ -190,15 +215,20 @@ process MULTIPLY_TABLES {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path("${params.runId}_${input_type}_${annotation_type}_ft")
+    tuple val(annotation_type), path(feature_table)
 
     script:
+    if (params.binning.qc.busco.enabled) {
+      feature_table = "${params.runId}_${input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}_ft"
+    } else {
+      feature_table = "${params.runId}_${input_type}_${annotation_type}_ft"
+    }
     """
     qiime annotate multiply-tables \
       --verbose \
       --i-table1 ${params.q2cacheDir}:${table1} \
       --i-table2 ${params.q2cacheDir}:${table2} \
-      --o-result-table "${params.q2cacheDir}:${params.runId}_${input_type}_${annotation_type}_ft" \
-    && touch ${params.runId}_${input_type}_${annotation_type}_ft
+      --o-result-table "${params.q2cacheDir}:${feature_table}" \
+    && touch ${feature_table}
     """
 }

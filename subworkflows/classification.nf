@@ -32,8 +32,8 @@ workflow CLASSIFY_MAGS {
         // collate reports and hits
         reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
-        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
-        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
+        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(collated_reports)
             FETCH_ARTIFACT_HITS(collated_hits)
