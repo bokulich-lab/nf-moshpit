@@ -176,17 +176,19 @@ abundance_estimation:
 
 taxonomic_classification:
   enabledFor: "derep" # reads, contigs, mags, derep
-  fetchArtifact: false
+  fetchArtifact: false # this will fetch the taxonomies and feature tables at either of the classification steps, if available
   kraken2:
     clusterOptions: ""
     memoryMapping: false
     additionalFlags: ""
+    fetchArtifact: false # this will fetch the Kraken2 reports and hits
   bracken:
     enabled: true
     clusterOptions: ""
     threshold: 0
     readLength: 100
     level: "S"
+    fetchArtifact: false # this will fetch the Bracken-corrected reports
   feature_selection:
     coverageThreshold: 0.1
 
