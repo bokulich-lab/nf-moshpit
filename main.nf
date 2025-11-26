@@ -41,6 +41,7 @@ include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
 include { MULTIPLY_TABLES } from './modules/functional_annotation'
 
 include { validateParameters } from './modules/validation.nf'
+include { getDirectorySizeInGB } from './modules/utils.nf'
 
 nextflow.enable.dsl = 2
 
@@ -167,6 +168,12 @@ workflow {
 
     if (params.taxonomic_classification.enabledFor != "") {
         FETCH_KRAKEN2_DB()
+
+        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
+        params.taxonomic_classification = params.taxonomic_classification ?: [:]
+        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
+        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
+        println "params.taxonomic_classification.kraken2.memory: ${params.taxonomic_classification.kraken2.memory}"
     }
 
     // remove samples with low read counts
@@ -176,7 +183,6 @@ workflow {
         reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
         reads_partitioned | count | subscribe { writeLog("Samples after filtering by read count: " + it) }
     }
-
 
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {

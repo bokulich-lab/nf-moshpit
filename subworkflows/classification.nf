@@ -13,7 +13,10 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_REPORTS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_HITS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_TAXONOMY } from '../modules/data_prep'
+<<<<<<< HEAD
 include { getDirectorySizeInGB } from '../modules/utils.nf'
+=======
+>>>>>>> 1c2dcc2 (FIX: move the Kraken2 memory estimation to the main workflow)
 
 workflow CLASSIFY_MAGS {
     take:
@@ -21,12 +24,6 @@ workflow CLASSIFY_MAGS {
         kraken2_db
         q2_cache
     main:
-        // set dynamic memory parameter
-        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
-        params.taxonomic_classification = params.taxonomic_classification ?: [:]
-        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
-        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
-    
         classification = CLASSIFY_MAGS_KRAKEN2(bins, kraken2_db, "mags")
 
         // collate reports and hits
@@ -46,12 +43,6 @@ workflow CLASSIFY_MAGS_DEREP {
         kraken2_db
         q2_cache
     main:
-        // set dynamic memory parameter
-        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
-        params.taxonomic_classification = params.taxonomic_classification ?: [:]
-        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
-        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
-
         CLASSIFY_MAGS_DEREP_KRAKEN2(bins, kraken2_db, q2_cache)
 
         if (params.taxonomic_classification.fetchArtifact) {
@@ -69,12 +60,6 @@ workflow CLASSIFY_READS {
         bracken_db
         q2_cache
     main:
-        // set dynamic memory parameter
-        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
-        params.taxonomic_classification = params.taxonomic_classification ?: [:]
-        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
-        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
-        
         classification = CLASSIFY_READS_KRAKEN2(reads, kraken2_db, "reads")
 
         reports_all = CLASSIFY_READS_KRAKEN2.out.reports | collect(flat: false)

@@ -65,6 +65,7 @@ process CLASSIFY_KRAKEN2_DEREP {
     tag "mags-derep"
     errorStrategy "retry"
     maxRetries 3
+    memory "${params.taxonomic_classification.kraken2.memory}.GB"
 
     input:
     path input_file
