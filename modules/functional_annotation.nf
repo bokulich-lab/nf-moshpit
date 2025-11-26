@@ -4,6 +4,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
+    memory "${params.functional_annotation.ortholog_search.memory ?: 10}.GB"
 
     input:
     tuple val(_id), path(input_file)
@@ -68,6 +69,7 @@ process ANNOTATE_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
+    memory "${params.functional_annotation.annotation.memory ?: 48}.GB"
 
     input:
     tuple val(_id), path(input_file)

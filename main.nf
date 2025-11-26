@@ -173,9 +173,28 @@ workflow {
         params.taxonomic_classification = params.taxonomic_classification ?: [:]
         params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
         params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
-        println "params.taxonomic_classification.kraken2.memory: ${params.taxonomic_classification.kraken2.memory}"
     }
 
+    if (params.functional_annotation.enabledFor != "") {
+        params.functional_annotation = params.functional_annotation ?: [:]
+        params.functional_annotation.ortholog_search = params.functional_annotation.ortholog_search ?: [:]
+        params.functional_annotation.annotation = params.functional_annotation.annotation ?: [:]
+
+        if (params.functional_annotation.ortholog_search.dbInMemory) {
+            def orthologDBInfo = getDirectorySizeInGB("${params.databases.eggnogOrthologs.cache}/keys/${params.databases.eggnogOrthologs.key}", "${params.databases.eggnogOrthologs.cache}/data")
+            params.functional_annotation.ortholog_search.memory = orthologDBInfo.sizeInGBRoundedUp
+        } else {
+            params.functional_annotation.ortholog_search.memory = 2
+        }
+
+        if (params.functional_annotation.annotation.dbInMemory) {
+            def annotationDBInfo = getDirectorySizeInGB("${params.databases.eggnogAnnotations.cache}/keys/${params.databases.eggnogAnnotations.key}", "${params.databases.eggnogAnnotations.cache}/data")
+            params.functional_annotation.annotation.memory = annotationDBInfo.sizeInGBRoundedUp
+        } else {
+            params.functional_annotation.annotation.memory = 2
+        }
+        
+    }
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)

@@ -38,7 +38,7 @@ workflow BIN {
         busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
         
         busco_results = COLLATE_BUSCO_RESULTS(
-            busco_results_by_lineage.map { it[0] },           // lineage
+            busco_results_by_lineage.map { it[0] },          // lineage
             busco_results_by_lineage.map { it[1..-1] },      // ids_and_paths
             "${params.runId}_busco_results", 
             "annotate collate-busco-results", 
@@ -49,14 +49,6 @@ workflow BIN {
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
         if (params.binning.qc.filtering.enabled) {
-            // Debug: Check what we're working with
-            busco_results.view { "DEBUG - busco_results: ${it}" }
-            
-            
-            // filtered_busco_results = busco_results
-            //     .filter { it[0].contains("${params.binning.qc.busco.selectLineage}") }
-            //     .map( it -> it[1] )
-
             filtered_busco_results = busco_results
                 .filter { lineage -> 
                     def lineage_element = lineage[0]
@@ -69,7 +61,6 @@ workflow BIN {
                 }
 
             combined = BIN_CONTIGS_METABAT.out.bins.combine(filtered_busco_results)
-            combined.view()
 
             bins = FILTER_MAGS(combined.map { _id, _bins, lineage, busco_results -> [_id, _bins, lineage] }, combined.map { _id, _bins, lineage, busco_results -> busco_results }, "mag", q2_cache)
             bins_all = bins | collect(flat: false)
