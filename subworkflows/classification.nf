@@ -12,7 +12,7 @@ include { COLLATE_PARTITIONS as COLLATE_HITS_MAGS_DEREP } from '../modules/data_
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_REPORTS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_HITS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT } from '../modules/data_prep'
-
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_TAXONOMY } from '../modules/data_prep'
 include { getDirectorySizeInGB } from '../modules/utils.nf'
 
 workflow CLASSIFY_MAGS {
@@ -87,6 +87,7 @@ workflow CLASSIFY_READS {
             DRAW_TAXA_BARPLOT(ESTIMATE_BRACKEN.out.feature_table, ESTIMATE_BRACKEN.out.taxonomy, "bracken")
             if (params.taxonomic_classification.fetchArtifact) {
                 FETCH_ARTIFACT_FT(ESTIMATE_BRACKEN.out.feature_table)
+                FETCH_ARTIFACT_TAXONOMY(ESTIMATE_BRACKEN.out.taxonomy)
             }
         } else {
             GET_KRAKEN_FEATURES(reports_all, hits_all, "reads")
