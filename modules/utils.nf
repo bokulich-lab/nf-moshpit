@@ -32,7 +32,7 @@ def getDirectorySizeInGB(inputPath, basePath) {
         }
     }
     def sizeInGB = sizeInBytes / (1024.0 * 1024.0 * 1024.0)
-    def sizeInGBRoundedUp = Math.ceil(1.1 * sizeInGB) as int
+    def sizeInGBRoundedUp = Math.ceil(1.2 * sizeInGB) as int
     
     return [
         uuid: uuid,
