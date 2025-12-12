@@ -32,9 +32,12 @@ workflow BIN {
 
         busco_db = FETCH_BUSCO_DB()
         lineages = Channel.of(params.binning.qc.busco.lineageDatasets.split(","))
-        bins_with_lineage = lineages.combine(BIN_CONTIGS_METABAT.out.bins)
+        bins_with_lineage = BIN_CONTIGS_METABAT.out.bins.combine(BIN_CONTIGS_METABAT.out.unbinned_contigs, by: 0)
+        bins_with_lineage_unbinned = lineages.combine(bins_with_lineage)
 
-        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db)
+        bins_with_lineage_unbinned.view()
+
+        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage_unbinned, busco_db)
         busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
         
         busco_results = COLLATE_BUSCO_RESULTS(

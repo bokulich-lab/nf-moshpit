@@ -65,7 +65,7 @@ process EVALUATE_BINS_BUSCO {
     errorStrategy 'retry'
 
     input:
-    tuple val(lineage), val(_id), path(bins_file)
+    tuple val(lineage), val(_id), path(bins_file), path(unbinned_contigs)
     path busco_db
 
     output:
@@ -90,6 +90,7 @@ process EVALUATE_BINS_BUSCO {
       ${lineage_dataset} \
       --i-mags ${q2cacheDir}:${bins_file} \
       --i-db ${params.databases.busco.cache}:${params.databases.busco.key} \
+      --i-unbinned-contigs ${q2cacheDir}:${unbinned_contigs} \
       --o-visualization "${params.runId}-mags-busco-${key}.qzv" \
       --o-results ${q2cacheDir}:${key} \
       ${params.binning.qc.busco.additionalFlags} \
