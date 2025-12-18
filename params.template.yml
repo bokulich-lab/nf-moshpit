@@ -52,6 +52,10 @@ databases:
   bracken:
     cache:  ""
     key:    ""
+  kaiju:
+    cache:  ""
+    key:    ""
+    databaseType: ""
   busco:
     cache:  ""
     key:    ""
@@ -135,6 +139,7 @@ binning:
       selectLineage: "bacteria_odb12"
       additionalFlags: ""
       cleanUp: false
+      fetchArtifact: false
     checkm:
       enabled: false
       reducedTree: false
@@ -191,6 +196,16 @@ taxonomic_classification:
     fetchArtifact: false # this will fetch the Bracken-corrected reports
   feature_selection:
     coverageThreshold: 0.1
+  kaiju:
+    enabledFor: "reads" # reads, contigs
+    a:  "greedy"
+    evalue: 1e-05
+    m:  11
+    r: "species"
+    c: 0.0
+    u: true
+    clusterOptions: ""
+    additionalFlags: ""
 
 functional_annotation:
   enabledFor: "" # contigs, mags, derep

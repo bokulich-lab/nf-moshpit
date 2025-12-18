@@ -1,5 +1,7 @@
 include { CLASSIFY_KRAKEN2 as CLASSIFY_READS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_CONTIGS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_MAGS_KRAKEN2 } from '../modules/taxonomic_classification'
 include { CLASSIFY_KRAKEN2_DEREP as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modules/taxonomic_classification'
+include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_READS } from '../modules/taxonomic_classification'
+include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_CONTIGS } from '../modules/taxonomic_classification'
 include { ESTIMATE_BRACKEN } from '../modules/taxonomic_classification'
 include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES } from '../modules/taxonomic_classification'
 include { DRAW_TAXA_BARPLOT } from '../modules/taxonomic_classification'
@@ -9,9 +11,15 @@ include { COLLATE_PARTITIONS as COLLATE_REPORTS_MAGS } from '../modules/data_pre
 include { COLLATE_PARTITIONS as COLLATE_HITS_MAGS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_REPORTS_MAGS_DEREP } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_HITS_MAGS_DEREP } from '../modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_FT } from '../modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_FT_CONTIGS } from '../modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_TAXONOMY_CONTIGS } from '../modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_TAXONOMY } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_REPORTS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_HITS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT; FETCH_ARTIFACT as FETCH_ARTIFACT_PA } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_READS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_READS } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_CONTIGS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
 
 workflow CLASSIFY_MAGS {
@@ -106,5 +114,43 @@ workflow CLASSIFY_CONTIGS {
         if (params.taxonomic_classification.kraken2.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(reports_all)
             FETCH_ARTIFACT_HITS(hits_all)
+        }
+}
+
+workflow CLASSIFY_READS_KAIJU {
+    take:
+        reads
+        kaiju_db
+        q2_cache
+    main:
+        classification = CLASSIFY_KAIJU_READS(reads, kaiju_db, "reads")
+
+        ft_all = CLASSIFY_KAIJU_READS.out.feature_table | collect(flat: false)
+        taxonomy_all = CLASSIFY_KAIJU_READS.out.taxonomy | collect(flat: false)
+        ft_all = COLLATE_FT(ft_all, "${params.runId}_kaiju_feature_table_reads", "feature-table merge", "--i-tables", "--o-merged-table", true)
+        taxonomy_all = COLLATE_TAXONOMY(taxonomy_all, "${params.runId}_kaiju_taxonomy_reads", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
+
+        if (params.taxonomic_classification.fetchArtifact) {
+            FETCH_ARTIFACT_KAIJU_FT_READS(ft_all)
+            FETCH_ARTIFACT_KAIJU_TAXONOMY_READS(taxonomy_all)
+        }
+}
+
+workflow CLASSIFY_CONTIGS_KAIJU {
+    take:
+        contigs
+        kaiju_db
+        q2_cache
+    main:
+        classification = CLASSIFY_KAIJU_CONTIGS(contigs, kaiju_db, "contigs")
+
+        ft_all = CLASSIFY_KAIJU_CONTIGS.out.feature_table | collect(flat: false)
+        taxonomy_all = CLASSIFY_KAIJU_CONTIGS.out.taxonomy | collect(flat: false)
+        ft_all = COLLATE_FT_CONTIGS(ft_all, "${params.runId}_kaiju_feature_table_contigs", "feature-table merge", "--i-tables", "--o-merged-table", true)
+        taxonomy_all = COLLATE_TAXONOMY_CONTIGS(taxonomy_all, "${params.runId}_kaiju_taxonomy_contigs", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
+
+        if (params.taxonomic_classification.fetchArtifact) {
+            FETCH_ARTIFACT_KAIJU_FT_CONTIGS(ft_all)
+            FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS(taxonomy_all)
         }
 }

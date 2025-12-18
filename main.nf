@@ -39,6 +39,9 @@ include { FETCH_DIAMOND_DB } from './modules/functional_annotation'
 include { FETCH_EGGNOG_DB } from './modules/functional_annotation'
 include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
 include { MULTIPLY_TABLES } from './modules/functional_annotation'
+include { FETCH_KAIJU_DB } from './modules/taxonomic_classification'
+include { CLASSIFY_READS_KAIJU } from './subworkflows/classification'
+include { CLASSIFY_CONTIGS_KAIJU } from './subworkflows/classification'
 
 include { validateParameters } from './modules/validation.nf'
 include { getDirectorySizeInGB } from './modules/utils.nf'
@@ -175,6 +178,18 @@ workflow {
         params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
     }
 
+    if (params.taxonomic_classification.kaiju.enabledFor != "") {
+        FETCH_KAIJU_DB()
+        
+        FETCH_KAIJU_DB.out.kaiju_db
+            .subscribe {
+                def dirInfo = getDirectorySizeInGB("${params.databases.kaiju.cache}/keys/${params.databases.kaiju.key}", "${params.databases.kaiju.cache}/data")
+                params.taxonomic_classification = params.taxonomic_classification ?: [:]
+                params.taxonomic_classification.kaiju = params.taxonomic_classification.kaiju ?: [:]
+                params.taxonomic_classification.kaiju.memory = dirInfo.sizeInGBRoundedUp
+            }
+    }
+
     if (params.functional_annotation.enabledFor != "") {
         params.functional_annotation = params.functional_annotation ?: [:]
         params.functional_annotation.ortholog_search = params.functional_annotation.ortholog_search ?: [:]
@@ -208,6 +223,10 @@ workflow {
         CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
     }
 
+    if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
+        CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
+    }
+
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
@@ -223,9 +242,12 @@ workflow {
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
             CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
         }
+        if (params.taxonomic_classification.kaiju.enabledFor.contains("contigs")) {
+            CLASSIFY_CONTIGS_KAIJU(contigs.contigs, FETCH_KAIJU_DB.out.kaiju_db, cache)
+        }
 
         // annotate contigs
-        if (params.functional_annotation.enabledFor.contains("contigs")) {
+        if (params.functional_annotation.enabledFor.contains("contigs")) {groupTuple
             ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
         }
 

@@ -600,7 +600,6 @@ process COLLATE_PARTITIONS {
     qiime ${qiime_action} \
       ${qiime_input_flag} ${inputString} \
       ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
-      --use-cache ${params.q2cacheDir} \
     && touch ${cache_key_out}
     """
 
