@@ -219,8 +219,7 @@ process EVALUATE_BINS_CHECKM {
       ${reducedTree} \
       ${params.binning.qc.checkm.additionalFlags} \
       --i-bins ${params.q2cacheDir}:${bins_file} \
-      --o-visualization "${params.runId}-mags-checkm.qzv" \
-    && touch "${params.runId}-mags-checkm.qzv"
+      --o-visualization "${params.runId}-mags-checkm.qzv"
     """
 }
 
