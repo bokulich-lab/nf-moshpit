@@ -8,6 +8,7 @@ outputDir: /path/to/output
 # Singularity parameters: path to the SIF image, additional volume mounts and other options
 container: /path/to/container.sif
 containerCheckM: /path/to/checkm.sif
+containerSkani: /path/to/skani.sif
 additionalVolumeMounts: "additional volumes to be mounted in the containers"
 additionalContainerOptions: "additional options to be passed to Singularity"
 
@@ -35,15 +36,9 @@ fondueAccessionIds: /path/to/tsv
 # Option 4: provide a path to genomes from which the reads should be simulated
 # If the path is not specified, a random selection of genomes will be fetched from NCBI
 read_simulation:
-  clusterOptions: ""
-  sampleCount: 2
+  samples: /path/to/samples.tsv
   seed: 100
-  nGenomes: 4
-  readCount: 10000000
-  abundance: "uniform"
-  gc_bias: true
-  sampleGenomes: ""
-  taxon: ""
+  clusterOptions: ""
 
 # ============= DATABASES =============
 databases:
@@ -57,6 +52,10 @@ databases:
   bracken:
     cache:  ""
     key:    ""
+  kaiju:
+    cache:  ""
+    key:    ""
+    databaseType: ""
   busco:
     cache:  ""
     key:    ""
@@ -137,7 +136,10 @@ binning:
       clusterOptions: ""
       mode: "genome"
       lineageDatasets: "bacteria_odb12"
+      selectLineage: "bacteria_odb12"
       additionalFlags: ""
+      cleanUp: false
+      fetchArtifact: false
     checkm:
       enabled: false
       reducedTree: false
@@ -151,6 +153,7 @@ binning:
 
 dereplication:
   enabled: true
+  method: "sourmash" # sourmash, skani
   clusterOptions: ""
   threshold: 0.99
   fetchArtifact: false
@@ -159,6 +162,14 @@ dereplication:
     ksizes: 35
     scaled: 100
     trackAbundance: true
+  skani:
+    clusterOptions: ""
+    preset: "slow"
+    markerC: 1000
+    robust: true
+    median: false
+    fasterSmall: false
+    additionalFlags: ""
 
 abundance_estimation:
   enabledFor: "derep" # contigs, derep
@@ -170,19 +181,31 @@ abundance_estimation:
 
 taxonomic_classification:
   enabledFor: "derep" # reads, contigs, mags, derep
-  fetchArtifact: false
+  fetchArtifact: false # this will fetch the taxonomies and feature tables at either of the classification steps, if available
   kraken2:
     clusterOptions: ""
     memoryMapping: false
     additionalFlags: ""
+    fetchArtifact: false # this will fetch the Kraken2 reports and hits
   bracken:
     enabled: true
     clusterOptions: ""
     threshold: 0
     readLength: 100
     level: "S"
+    fetchArtifact: false # this will fetch the Bracken-corrected reports
   feature_selection:
     coverageThreshold: 0.1
+  kaiju:
+    enabledFor: "reads" # reads, contigs
+    a:  "greedy"
+    evalue: 1e-05
+    m:  11
+    r: "species"
+    c: 0.0
+    u: true
+    clusterOptions: ""
+    additionalFlags: ""
 
 functional_annotation:
   enabledFor: "" # contigs, mags, derep
@@ -201,6 +224,8 @@ functional_annotation:
       max_evalue: 0.00001
       min_score: 0
       fetchArtifact: false
+  cleanUp: false
+  partitionBatchCount: 10
 
 weblog:
   enabled: false

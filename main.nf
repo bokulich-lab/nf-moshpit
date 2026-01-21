@@ -11,6 +11,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_DEREP_FT } from './modules/data_
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BINS_FILTERED } from './modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from './modules/data_prep'
 include { SIMULATE_READS } from './modules/data_prep'
+include { SIMULATE_READS_MASON } from './modules/data_prep'
 include { SUBSAMPLE_READS } from './modules/data_prep'
 include { REMOVE_HOST } from './modules/data_prep'
 include { PROCESS_READS_FASTP } from './modules/data_prep'
@@ -38,8 +39,12 @@ include { FETCH_DIAMOND_DB } from './modules/functional_annotation'
 include { FETCH_EGGNOG_DB } from './modules/functional_annotation'
 include { FETCH_KRAKEN2_DB } from './modules/taxonomic_classification'
 include { MULTIPLY_TABLES } from './modules/functional_annotation'
+include { FETCH_KAIJU_DB } from './modules/taxonomic_classification'
+include { CLASSIFY_READS_KAIJU } from './subworkflows/classification'
+include { CLASSIFY_CONTIGS_KAIJU } from './subworkflows/classification'
 
 include { validateParameters } from './modules/validation.nf'
+include { getDirectorySizeInGB } from './modules/utils.nf'
 
 nextflow.enable.dsl = 2
 
@@ -117,16 +122,14 @@ workflow {
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
         reads | count | subscribe { writeLog("Samples returned from fondue: " + it) }
-    } else if (params.read_simulation.sampleGenomes) {
-        genomes = Channel.fromPath(params.read_simulation.sampleGenomes)
-        ids = Channel.of(params.read_simulation.sampleNames.split(','))
-        
-        writeLog("Simulating reads from provided genomes: ${params.read_simulation.sampleGenomes}")
-        writeLog("Number of samples to simulate: ${params.read_simulation.sampleNames.split(',').size()}")
-        writeLog("Reads per sample: ${params.read_simulation.readCount}")
-        
-        ids_with_genomes = ids.combine(genomes)
-        simulated_reads = SIMULATE_READS(ids_with_genomes)
+    } else if (params.read_simulation.samples) {
+        writeLog("Simulating samples from: ${params.read_simulation.samples}")
+        simulation_data = Channel
+            .fromPath(params.read_simulation.samples)
+            .splitCsv(header: true, sep: ',')
+            .map { row -> tuple(row.id, row.profile, row.readCount, row.readLength, row.genomesPath) }
+
+        simulated_reads = SIMULATE_READS_MASON(simulation_data)
         reads = simulated_reads.reads
         reads | count | subscribe { writeLog("Samples simulated: " + it) }
     } else {
@@ -168,8 +171,45 @@ workflow {
 
     if (params.taxonomic_classification.enabledFor != "") {
         FETCH_KRAKEN2_DB()
+
+        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
+        params.taxonomic_classification = params.taxonomic_classification ?: [:]
+        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
+        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
     }
 
+    if (params.taxonomic_classification.kaiju.enabledFor != "") {
+        FETCH_KAIJU_DB()
+        
+        FETCH_KAIJU_DB.out.kaiju_db
+            .subscribe {
+                def dirInfo = getDirectorySizeInGB("${params.databases.kaiju.cache}/keys/${params.databases.kaiju.key}", "${params.databases.kaiju.cache}/data")
+                params.taxonomic_classification = params.taxonomic_classification ?: [:]
+                params.taxonomic_classification.kaiju = params.taxonomic_classification.kaiju ?: [:]
+                params.taxonomic_classification.kaiju.memory = dirInfo.sizeInGBRoundedUp
+            }
+    }
+
+    if (params.functional_annotation.enabledFor != "") {
+        params.functional_annotation = params.functional_annotation ?: [:]
+        params.functional_annotation.ortholog_search = params.functional_annotation.ortholog_search ?: [:]
+        params.functional_annotation.annotation = params.functional_annotation.annotation ?: [:]
+
+        if (params.functional_annotation.ortholog_search.dbInMemory) {
+            def orthologDBInfo = getDirectorySizeInGB("${params.databases.eggnogOrthologs.cache}/keys/${params.databases.eggnogOrthologs.key}", "${params.databases.eggnogOrthologs.cache}/data")
+            params.functional_annotation.ortholog_search.memory = orthologDBInfo.sizeInGBRoundedUp
+        } else {
+            params.functional_annotation.ortholog_search.memory = 2
+        }
+
+        if (params.functional_annotation.annotation.dbInMemory) {
+            def annotationDBInfo = getDirectorySizeInGB("${params.databases.eggnogAnnotations.cache}/keys/${params.databases.eggnogAnnotations.key}", "${params.databases.eggnogAnnotations.cache}/data")
+            params.functional_annotation.annotation.memory = annotationDBInfo.sizeInGBRoundedUp
+        } else {
+            params.functional_annotation.annotation.memory = 2
+        }
+        
+    }
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)
@@ -178,10 +218,13 @@ workflow {
         reads_partitioned | count | subscribe { writeLog("Samples after filtering by read count: " + it) }
     }
 
-
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
         CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+    }
+
+    if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
+        CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
     }
 
     // assemble and evaluate
@@ -199,9 +242,12 @@ workflow {
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
             CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
         }
+        if (params.taxonomic_classification.kaiju.enabledFor.contains("contigs")) {
+            CLASSIFY_CONTIGS_KAIJU(contigs.contigs, FETCH_KAIJU_DB.out.kaiju_db, cache)
+        }
 
         // annotate contigs
-        if (params.functional_annotation.enabledFor.contains("contigs")) {
+        if (params.functional_annotation.enabledFor.contains("contigs")) {groupTuple
             ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
         }
 

@@ -50,13 +50,7 @@ def validateMandatoryParams() {
                             params.fondueAccessionIds.toString().trim() != '' && 
                             params.fondueAccessionIds.toString().toLowerCase() != 'null'
     
-    boolean hasSimulationInput = (params.read_simulation.sampleCount != null && 
-                                 params.read_simulation.sampleCount > 0) || 
-                                (params.read_simulation.taxon != null && 
-                                 params.read_simulation.taxon.toString().trim() != '' && 
-                                 params.read_simulation.taxon.toString().toLowerCase() != 'null') || 
-                                (params.read_simulation.nGenomes != null && 
-                                 params.read_simulation.nGenomes > 0)
+    boolean hasSimulationInput = (params.read_simulation.samples != null)
     
     // Log the validation results
     log.info "DEBUG: Input validation results:"
@@ -91,13 +85,12 @@ def validateMandatoryParams() {
         errors.add("ERROR: fondueAccessionIds file does not exist: ${params.fondueAccessionIds}")
     }
     
-    if (params.read_simulation.sampleGenomes != null && 
-        params.read_simulation.sampleGenomes.toString().trim() != '' && 
-        params.read_simulation.sampleGenomes.toString().toLowerCase() != 'null' && 
-        !file(params.read_simulation.sampleGenomes).exists()) {
-        errors.add("ERROR: sampleGenomes file does not exist: ${params.read_simulation.sampleGenomes}")
+    if (params.read_simulation.samples != null && 
+        params.read_simulation.samples.toString().toLowerCase() != 'null' && 
+        !file(params.read_simulation.samples).exists()) {
+        errors.add("ERROR: samples file does not exist: ${params.read_simulation.samples}")
     }
-    
+    0
     return errors
 }
 
@@ -112,7 +105,7 @@ def validateDatabaseParams() {
         }
     }
     
-    // Taxonomic classification database validation
+    // Taxonomic classification database validation (Kraken2/Bracken)
     if (params.taxonomic_classification.enabledFor) {
         if (!params.databases.kraken2.cache && !params.databases.kraken2.key && !params.databases.kraken2.fetchCollection) {
             errors.add("ERROR: Taxonomic classification is enabled but no Kraken2 database cache, key, or fetchCollection is specified")
@@ -122,6 +115,13 @@ def validateDatabaseParams() {
             if (!params.databases.bracken.cache && !params.databases.bracken.key) {
                 errors.add("ERROR: Bracken is enabled but no database cache or key is specified")
             }
+        }
+    }
+    
+    // Kaiju database validation
+    if (params.taxonomic_classification.kaiju.enabledFor) {
+        if (!params.databases.kaiju.cache || !params.databases.kaiju.key || !params.databases.kaiju.databaseType) {
+            errors.add("ERROR: Kaiju classification is enabled but Kaiju database cache, key, and databaseType must all be specified")
         }
     }
     
@@ -169,7 +169,7 @@ def validateModuleParams() {
         }
     }
     
-    // Validate classification parameters
+    // Validate classification parameters (Kraken2/Bracken)
     if (params.taxonomic_classification.enabledFor) {
         def validTargets = ["reads", "contigs", "mags", "derep"]
         def targets = params.taxonomic_classification.enabledFor.split(",").collect { it.trim() }
@@ -187,6 +187,21 @@ def validateModuleParams() {
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
             errors.add("ERROR: Taxonomic classification for dereplicated MAGs is enabled, but dereplication is disabled")
+        }
+    }
+    
+    // Validate Kaiju classification parameters
+    if (params.taxonomic_classification.kaiju.enabledFor) {
+        def validTargets = ["reads", "contigs"]
+        def targets = params.taxonomic_classification.kaiju.enabledFor.split(",").collect { it.trim() }
+        def invalidTargets = targets.findAll { !(it in validTargets) }
+        
+        if (invalidTargets) {
+            errors.add("ERROR: Invalid targets for taxonomic_classification.kaiju.enabledFor: ${invalidTargets.join(", ")}. Valid options are: ${validTargets.join(", ")}")
+        }
+        
+        if (targets.contains("contigs") && !params.genome_assembly.enabled) {
+            errors.add("ERROR: Kaiju classification for contigs is enabled, but genome assembly is disabled")
         }
     }
     

@@ -63,6 +63,43 @@ process SIMULATE_READS {
     """
 }
 
+process SIMULATE_READS_MASON {
+    label "readSimulation"
+    scratch true
+    tag "${sample_id}"
+    errorStrategy 'retry'
+    maxRetries 3
+    storeDir params.storeDir
+    clusterOptions params.read_simulation.clusterOptions
+
+    input:
+    tuple val(sample_id), val(abundance_profile), val(read_count), val(read_length), path(genomes)
+
+    output:
+    tuple val(sample_id), path(reads), emit: reads
+
+    script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
+    reads = "${params.runId}_reads_${sample_id}"
+    """
+    if [ ! -d "${q2cacheDir}" ]; then
+      qiime tools cache-create --cache ${q2cacheDir}
+    fi
+
+    qiime assembly simulate-reads-mason \
+      --verbose \
+      --i-reference-genomes ${genomes} \
+      --p-sample-names ${sample_id} \
+      --p-abundance-profiles ${abundance_profile} \
+      --p-num-reads ${read_count} \
+      --p-read-length ${read_length} \
+      --p-random-seed ${params.read_simulation.seed} \
+      --p-threads ${task.cpus} \
+      --o-reads ${q2cacheDir}:${reads} \
+    && touch ${reads}
+    """
+}
+
 process FETCH_SEQS {
     label "fondue"
     label "needsInternet"
@@ -388,8 +425,10 @@ process INIT_CACHE {
 
 process FETCH_ARTIFACT {
     publishDir params.publishDir, mode: 'copy'
-    memory { 2.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     time { 2.h * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
 
     input:
     val cache_key
@@ -460,9 +499,10 @@ process PARTITION_DEREP_MAGS {
     cpus 1
     storeDir params.storeDir
     time { 2.h * task.attempt }
-    memory { 2.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     maxRetries 3
     errorStrategy 'retry'
+    scratch true
 
     input:
     path mags_derep
@@ -477,18 +517,42 @@ process PARTITION_DEREP_MAGS {
     mags=\$(ls ${params.q2cacheDir}/data/\$uuid/data/*.{fa,fasta} 2>/dev/null | xargs -n 1 basename | sed -E 's/\\.(fa|fasta)\$//')
     mkdir -p "${params.q2TemporaryCachesDir}/mags"
 
-    for mag in \${mags}; do
-      q2cacheDir="${params.q2TemporaryCachesDir}/mags/\$mag"
-      key="${params.runId}_mags_derep_partitioned_\$mag"
+    # Convert MAGs to array and process in specified number of batches
+    readarray -t mag_array <<< "\${mags}"
+    total_mags=\${#mag_array[@]}
+    batch_count=${params.functional_annotation.partitionBatchCount}
+    
+    # Calculate batch size (ceiling division)
+    batch_size=\$(( (total_mags + batch_count - 1) / batch_count ))
+
+    for ((batch_id=0; batch_id<\${batch_count}; batch_id++)); do
+      start_idx=\$((batch_id * batch_size))
+      
+      # Skip if we've processed all MAGs
+      if [ \$start_idx -ge \$total_mags ]; then
+        break
+      fi
+      
+      end_idx=\$((start_idx + batch_size))
+      if [ \$end_idx -gt \$total_mags ]; then
+        end_idx=\$total_mags
+      fi
+      
+      q2cacheDir="${params.q2TemporaryCachesDir}/mags/batch_\${batch_id}"
+      key="${params.runId}_mags_derep_partitioned_\${batch_id}"
+      
       if [ ! -d \$q2cacheDir ]; then
         echo "Creating cache \$q2cacheDir..."
         qiime tools cache-create --cache \$q2cacheDir
       fi
 
+      # Create metadata.tsv with all MAGs in this batch
       echo "id" > metadata.tsv
-      echo "\$mag" >> metadata.tsv
+      for ((j=start_idx; j<\${end_idx}; j++)); do
+        echo "\${mag_array[j]}" >> metadata.tsv
+      done
 
-      echo "Filtering \$mag..."
+      echo "Filtering batch \${batch_id} (\$((end_idx - start_idx)) MAGs)..."
       cat metadata.tsv
 
       qiime annotate filter-derep-mags \
@@ -508,8 +572,9 @@ process COLLATE_PARTITIONS {
     time { 2.h * task.attempt }
     memory { 2.GB * task.attempt }
     errorStrategy 'retry'
+    storeDir params.storeDir
     maxRetries 3
-
+ 
     input:
     val id_and_paths
     val cache_key_out 
@@ -535,7 +600,6 @@ process COLLATE_PARTITIONS {
     qiime ${qiime_action} \
       ${qiime_input_flag} ${inputString} \
       ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out} \
-      --use-cache ${params.q2cacheDir} \
     && touch ${cache_key_out}
     """
 
@@ -693,4 +757,21 @@ process FILTER_SAMPLES {
       exit \$qiime_exit_code
       """
     }
+}
+
+process CLEAN_UP_CACHES {
+    time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    
+    input:
+    path dependency
+    val path_to_remove
+
+    script:
+    """
+    echo "Removing ${path_to_remove}"
+    rm -rf ${path_to_remove}
+    """
 }

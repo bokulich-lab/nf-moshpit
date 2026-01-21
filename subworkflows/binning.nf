@@ -6,9 +6,12 @@ include { FETCH_BUSCO_DB } from '../modules/contig_binning'
 include { FILTER_MAGS } from '../modules/contig_binning'
 include { COLLATE_PARTITIONS as COLLATE_BINS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_FILTERED_BINS } from '../modules/data_prep'
-include { COLLATE_PARTITIONS as COLLATE_BUSCO_RESULTS } from '../modules/data_prep'
+include { COLLATE_BUSCO_RESULTS } from '../modules/contig_binning'
+include { COLLATE_PARTITIONS as COLLATE_UNBINNED_CONTIGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS_FILTERED } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BUSCO_RESULTS } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_UNBINNED_CONTIGS } from '../modules/data_prep'
 
 workflow BIN {
     take:
@@ -22,8 +25,13 @@ workflow BIN {
         bins_all = BIN_CONTIGS_METABAT.out.bins | collect(flat: false)
         bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
 
+        unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs | collect(flat: false)
+        unbinned_contigs.view()
+        unbinned_contigs = COLLATE_UNBINNED_CONTIGS(unbinned_contigs, "${params.runId}_unbinned_contigs", "types collate-contigs", "--i-contigs", "--o-collated-contigs", true)
+
         if (params.binning.fetchArtifact) {
             FETCH_ARTIFACT_MAGS(bins_all)
+            FETCH_ARTIFACT_UNBINNED_CONTIGS(unbinned_contigs)
         }
 
         if (params.binning.qc.checkm.enabled) {
@@ -32,17 +40,46 @@ workflow BIN {
 
         busco_db = FETCH_BUSCO_DB()
         lineages = Channel.of(params.binning.qc.busco.lineageDatasets.split(","))
-        bins_with_lineage = lineages.combine(BIN_CONTIGS_METABAT.out.bins)
+        bins_with_lineage = BIN_CONTIGS_METABAT.out.bins.combine(BIN_CONTIGS_METABAT.out.unbinned_contigs, by: 0)
+        bins_with_lineage_unbinned = lineages.combine(bins_with_lineage)
 
-        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage, busco_db)
-        busco_results_partitioned = busco_results_partitioned | collect(flat: false)
-        busco_results = COLLATE_BUSCO_RESULTS(busco_results_partitioned, "${params.runId}_busco_results", "annotate collate-busco-results", "--i-results", "--o-collated-results", true)
+        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage_unbinned, busco_db)
+        busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
+        
+        busco_results = COLLATE_BUSCO_RESULTS(
+            busco_results_by_lineage.map { it[0] },          // lineage
+            busco_results_by_lineage.map { it[1..-1] },      // ids_and_paths
+            "${params.runId}_busco_results", 
+            "annotate collate-busco-results", 
+            "--i-results", 
+            "--o-collated-results", 
+            true
+        )
         VISUALIZE_BUSCO(busco_results, q2_cache)
 
+        if (params.binning.qc.busco.fetchArtifact) {
+            busco_results.collated_results.view()
+            FETCH_ARTIFACT_BUSCO_RESULTS(busco_results.collated_results.map { it[1] })
+        }
+
         if (params.binning.qc.filtering.enabled) {
-            bins = FILTER_MAGS(BIN_CONTIGS_METABAT.out.bins, busco_results, "mag", q2_cache)
+            filtered_busco_results = busco_results
+                .filter { lineage -> 
+                    def lineage_element = lineage[0]
+                    def matches = params.binning.qc.busco.selectLineage.split(",").any { selectedLineage ->
+                        def trimmed = selectedLineage.trim()
+                        def contains = lineage_element.contains(trimmed)
+                        contains
+                    }
+                    matches
+                }
+
+            combined = BIN_CONTIGS_METABAT.out.bins.combine(filtered_busco_results)
+
+            bins = FILTER_MAGS(combined.map { _id, _bins, lineage, busco_results -> [_id, _bins, lineage] }, combined.map { _id, _bins, lineage, busco_results -> busco_results }, "mag", q2_cache)
+            bins = bins.map { _id, _bins, lineage -> [_id, _bins] } // we need to remove the lineage column
             bins_all = bins | collect(flat: false)
-            bins_all = COLLATE_FILTERED_BINS(bins_all, "${params.runId}_mags_filtered", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
+            bins_all = COLLATE_FILTERED_BINS(bins_all, "${params.runId}_mags_filtered_${params.binning.qc.busco.selectLineage}", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
             if (params.binning.qc.filtering.fetchArtifact) {
                 FETCH_ARTIFACT_MAGS_FILTERED(bins_all)   
             }
@@ -54,7 +91,7 @@ workflow BIN {
         bins = bins
         contig_map = BIN_CONTIGS_METABAT.out.contig_map
         unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs
-        busco_results = busco_results
+        busco_results = busco_results.collated_results
         bins_collated = bins_all
 }
 
