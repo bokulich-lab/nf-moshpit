@@ -1,6 +1,6 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2025.10`
+**Currently supported QIIME 2 version:** `2026.1`
 
 **Currently supported runtimes:** `conda`, `singularity`
 
@@ -65,14 +65,18 @@ graph TD
     sampleFiltering -->|Yes| countAndFilter[TABULATE_READ_COUNTS + FILTER_SAMPLES] --> final_reads[Final Reads]
     sampleFiltering -->|No| final_reads
     
-    %% Taxonomic classification DB
+    %% Taxonomic classification DBs
     final_reads --> needTaxonomy{Taxonomy needed?}
-    needTaxonomy -->|Yes| FETCH_KRAKEN2_DB[FETCH_KRAKEN2_DB]
+    needTaxonomy -->|Kraken2/Bracken| FETCH_KRAKEN2_DB[FETCH_KRAKEN2_DB]
+    needTaxonomy -->|Kaiju| FETCH_KAIJU_DB[FETCH_KAIJU_DB]
     needTaxonomy -->|No| skipTaxonomy[Skip taxonomy]
     
     %% Read classification
     final_reads --> classifyReads{Classify Reads?}
-    classifyReads -->|Yes| CLASSIFY_READS --> continuePipeline
+    classifyReads -->|Kraken2| CLASSIFY_READS --> brackenCheck{Bracken enabled?}
+    brackenCheck -->|Yes| ESTIMATE_BRACKEN --> BRACKEN_TAXA_BARPLOT[DRAW_TAXA_BARPLOT (bracken)] --> continuePipeline
+    brackenCheck -->|No| continuePipeline
+    classifyReads -->|Kaiju| CLASSIFY_READS_KAIJU --> KAIJU_READS_TAXA_BARPLOT[DRAW_TAXA_BARPLOT (kaiju-reads)] --> continuePipeline
     classifyReads -->|No| continuePipeline[Continue Pipeline]
     
     %% Assembly
@@ -87,7 +91,8 @@ graph TD
     
     %% Contig classification
     ASSEMBLE --> classifyContigs{Classify contigs?}
-    classifyContigs -->|Yes| CLASSIFY_CONTIGS
+    classifyContigs -->|Kraken2| CLASSIFY_CONTIGS
+    classifyContigs -->|Kaiju| CLASSIFY_CONTIGS_KAIJU
     classifyContigs -->|No| skipContigClassify[Skip contig classification]
     
     %% Contig annotation
@@ -143,9 +148,9 @@ graph TD
     multiplyCheck -->|No| skipMultiply[Skip table multiplication]
     
     %% Apply classes
-    class INIT_CACHE,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,PARTITION_READS,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_MAGS,MULTIPLY_TABLES moduleClass
-    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_CONTIGS,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ESTIMATE_ABUNDANCE,ESTIMATE_CONTIG_ABUNDANCE subworkflowClass
-    class inputChoice,needPartition,subsample,hostRemoval,sampleFiltering,needTaxonomy,classifyReads,assemblyCheck,functionalCheck,classifyContigs,annotateContigs,contigAbundance,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck conditionClass
+    class INIT_CACHE,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,PARTITION_READS,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_KAIJU_DB,ESTIMATE_BRACKEN,BRACKEN_TAXA_BARPLOT,KAIJU_READS_TAXA_BARPLOT,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_MAGS,MULTIPLY_TABLES moduleClass
+    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_READS_KAIJU,CLASSIFY_CONTIGS,CLASSIFY_CONTIGS_KAIJU,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ESTIMATE_ABUNDANCE,ESTIMATE_CONTIG_ABUNDANCE subworkflowClass
+    class inputChoice,needPartition,subsample,hostRemoval,sampleFiltering,needTaxonomy,classifyReads,brackenCheck,assemblyCheck,functionalCheck,classifyContigs,annotateContigs,contigAbundance,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck conditionClass
     class reads,reads_partitioned,filtered_reads,final_reads,bins,derep_bins dataClass
 ```
 
