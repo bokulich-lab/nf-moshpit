@@ -4,7 +4,7 @@ include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_READS } from '../modules/taxonomic_cl
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_CONTIGS } from '../modules/taxonomic_classification'
 include { ESTIMATE_BRACKEN } from '../modules/taxonomic_classification'
 include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES } from '../modules/taxonomic_classification'
-include { DRAW_TAXA_BARPLOT } from '../modules/taxonomic_classification'
+include { DRAW_TAXA_BARPLOT; DRAW_TAXA_BARPLOT as DRAW_TAXA_BARPLOT_KAIJU_READS } from '../modules/taxonomic_classification'
 include { COLLATE_PARTITIONS as COLLATE_REPORTS_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_HITS_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_REPORTS_MAGS } from '../modules/data_prep'
@@ -129,6 +129,7 @@ workflow CLASSIFY_READS_KAIJU {
         taxonomy_all = CLASSIFY_KAIJU_READS.out.taxonomy | collect(flat: false)
         ft_all = COLLATE_FT(ft_all, "${params.runId}_kaiju_feature_table_reads", "feature-table merge", "--i-tables", "--o-merged-table", true)
         taxonomy_all = COLLATE_TAXONOMY(taxonomy_all, "${params.runId}_kaiju_taxonomy_reads", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
+        DRAW_TAXA_BARPLOT_KAIJU_READS(ft_all, taxonomy_all, "kaiju-reads")
 
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_KAIJU_FT_READS(ft_all)
