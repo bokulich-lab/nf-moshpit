@@ -247,7 +247,7 @@ workflow {
         }
 
         // annotate contigs
-        if (params.functional_annotation.enabledFor.contains("contigs")) {groupTuple
+        if (params.functional_annotation.enabledFor.contains("contigs")) {
             ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
         }
 
