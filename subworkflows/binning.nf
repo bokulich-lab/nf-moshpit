@@ -19,6 +19,7 @@ workflow BIN {
         maps
         q2_cache
     main:
+        qzv_outputs = Channel.empty()
         contigs_with_maps = contigs.combine(maps, by: 0)
 
         bins = BIN_CONTIGS_METABAT(contigs_with_maps)
@@ -26,7 +27,6 @@ workflow BIN {
         bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
 
         unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs | collect(flat: false)
-        unbinned_contigs.view()
         unbinned_contigs = COLLATE_UNBINNED_CONTIGS(unbinned_contigs, "${params.runId}_unbinned_contigs", "types collate-contigs", "--i-contigs", "--o-collated-contigs", true)
 
         if (params.binning.fetchArtifact) {
@@ -36,6 +36,7 @@ workflow BIN {
 
         if (params.binning.qc.checkm.enabled) {
             EVALUATE_BINS_CHECKM(bins_all)
+            qzv_outputs = qzv_outputs.mix(EVALUATE_BINS_CHECKM.out.qzv)
         }
 
         busco_db = FETCH_BUSCO_DB()
@@ -56,9 +57,9 @@ workflow BIN {
             true
         )
         VISUALIZE_BUSCO(busco_results, q2_cache)
+        qzv_outputs = qzv_outputs.mix(VISUALIZE_BUSCO.out.qzv)
 
         if (params.binning.qc.busco.fetchArtifact) {
-            busco_results.collated_results.view()
             FETCH_ARTIFACT_BUSCO_RESULTS(busco_results.collated_results.map { it[1] })
         }
 
@@ -93,6 +94,7 @@ workflow BIN {
         unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs
         busco_results = busco_results.collated_results
         bins_collated = bins_all
+        qzv = qzv_outputs
 }
 
 workflow BIN_NO_BUSCO {
@@ -101,6 +103,7 @@ workflow BIN_NO_BUSCO {
         maps
         q2_cache
     main:
+        qzv_outputs = Channel.empty()
         contigs_with_maps = contigs.combine(maps, by: 0)
 
         bins = BIN_CONTIGS_METABAT(contigs_with_maps)
@@ -111,10 +114,12 @@ workflow BIN_NO_BUSCO {
         }
         if (params.binning.qc.checkm.enabled) {
             EVALUATE_BINS_CHECKM(bins_all)
+            qzv_outputs = qzv_outputs.mix(EVALUATE_BINS_CHECKM.out.qzv)
         }
     emit:
         bins = BIN_CONTIGS_METABAT.out.bins
         contig_map = BIN_CONTIGS_METABAT.out.contig_map
         unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs
         bins_collated = bins_all
+        qzv = qzv_outputs
 }

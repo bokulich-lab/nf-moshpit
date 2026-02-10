@@ -16,10 +16,12 @@ include { SUBSAMPLE_READS } from './modules/data_prep'
 include { REMOVE_HOST } from './modules/data_prep'
 include { PROCESS_READS_FASTP } from './modules/data_prep'
 include { VISUALIZE_FASTP } from './modules/data_prep'
+include { MAKE_REPORT } from './modules/data_prep'
 include { PARTITION_DEREP_MAGS } from './modules/data_prep'
 include { COLLATE_PARTITIONS } from './modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_FASTP_REPORTS } from './modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_READS } from './modules/data_prep'
+include { COLLATE_PARTITIONS as COLLATE_FT } from './modules/data_prep'
 include { TABULATE_READ_COUNTS } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
 include { FILTER_SAMPLES as PARTITION_READS } from './modules/data_prep'
@@ -31,6 +33,7 @@ include { CLASSIFY_READS } from './subworkflows/classification'
 include { CLASSIFY_CONTIGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS_DEREP } from './subworkflows/classification'
+include { COLLAPSE_CONTIGS } from './modules/taxonomic_classification'
 include { ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_MAGS } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_CONTIGS } from './subworkflows/functional_annotation'
@@ -71,6 +74,7 @@ workflow {
     }
 
     cache = INIT_CACHE()
+    qzv_reports = Channel.empty()
 
     // Log header with workflow version and timestamp
     writeLog("======== MOSHPIT WORKFLOW REPORT =========")
@@ -130,7 +134,11 @@ workflow {
             .map { row -> tuple(row.id, row.profile, row.readCount, row.readLength, row.genomesPath) }
 
         simulated_reads = SIMULATE_READS_MASON(simulation_data)
-        reads = simulated_reads.reads
+
+        simulated_tables = SIMULATE_READS_MASON.out.reads.map { _id, reads, table -> [_id, table] } | collect(flat: false)
+        simulated_tables = COLLATE_FT(simulated_tables, "${params.runId}_mason_ft", "feature-table merge", "--i-tables", "--o-merged-table", true)
+
+        reads = simulated_reads.reads | map { _id, reads, table -> [_id, reads] }
         reads | count | subscribe { writeLog("Samples simulated: " + it) }
     } else {
         writeLog("Simulating reads from fetched genomes")
@@ -161,6 +169,7 @@ workflow {
     fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
     VISUALIZE_FASTP(fastp_reports_all, cache)
+    qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv)
 
     // remove host reads
     if (params.host_removal.enabled) {
@@ -220,16 +229,19 @@ workflow {
 
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
-        CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+        reads_classification = CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+        qzv_reports = qzv_reports.mix(reads_classification.qzv)
     }
 
     if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
-        CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
+        reads_kaiju_classification = CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
+        qzv_reports = qzv_reports.mix(reads_kaiju_classification.qzv)
     }
 
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
+        qzv_reports = qzv_reports.mix(contigs.qzv)
 
         contigs.contigs | count | subscribe { writeLog("Samples after contig assembly and filtering: " + it) }
 
@@ -240,7 +252,11 @@ workflow {
 
         // classify contigs
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
-            CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+            classification = CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+            if (params.abundance_estimation.enabledFor.contains("contigs")) {
+                    contigs_collapsed = COLLAPSE_CONTIGS(classification.feature_map, classification.taxonomy, contigs.contig_abundance)
+                    qzv_reports = qzv_reports.mix(contigs_collapsed.qzv)
+            }
         }
         if (params.taxonomic_classification.kaiju.enabledFor.contains("contigs")) {
             CLASSIFY_CONTIGS_KAIJU(contigs.contigs, FETCH_KAIJU_DB.out.kaiju_db, cache)
@@ -248,7 +264,11 @@ workflow {
 
         // annotate contigs
         if (params.functional_annotation.enabledFor.contains("contigs")) {
+<<<<<<< HEAD
             ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
+=======
+            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
+>>>>>>> f25e340 (ENH: add final report generation)
         }
 
         // bin contigs into MAGs and evaluate
@@ -258,6 +278,7 @@ workflow {
             } else {
                 binning_results = BIN_NO_BUSCO(contigs.contigs, contigs.mapped_reads, cache)
             }
+                qzv_reports = qzv_reports.mix(binning_results.qzv)
             
             binning_results.bins | count | subscribe { writeLog("Samples after binning: " + it) }
             
@@ -302,6 +323,9 @@ workflow {
             }
         }
     }
+
+    qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it[1].size() > 0 }
+    MAKE_REPORT(qzv_reports_all)
 }
 
 // Add final summary section

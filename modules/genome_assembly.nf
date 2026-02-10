@@ -77,11 +77,12 @@ process EVALUATE_CONTIGS {
     path q2Cache
 
     output:
-    path "${params.runId}-contigs.qzv"
+    tuple val(viz_label), path("${params.runId}-contigs.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
     
     script:
+    viz_label = "Assembly QC (QUAST)"
     """
     qiime assembly evaluate-quast \
       --verbose \
@@ -111,11 +112,12 @@ process EVALUATE_CONTIGS_NO_READS {
     path q2Cache
 
     output:
-    path "${params.runId}-contigs.qzv"
+    tuple val(viz_label), path("${params.runId}-contigs.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
     
     script:
+    viz_label = "Assembly QC (QUAST)"
     """
     qiime assembly evaluate-quast \
       --verbose \

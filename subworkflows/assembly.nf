@@ -17,6 +17,7 @@ workflow ASSEMBLE {
         q2_cache
 
     main:
+        qzv_outputs = Channel.empty()
         if (params.genome_assembly.assembler.toLowerCase() == 'metaspades') {
             contigs = ASSEMBLE_METASPADES(reads, q2_cache)
         } else if (params.genome_assembly.assembler.toLowerCase() == 'megahit') {
@@ -46,23 +47,32 @@ workflow ASSEMBLE {
                 maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
                 if (params.assembly_qc.enabled && params.assembly_qc.useMappedReads) {
                     EVALUATE_CONTIGS(contigs_all, maps_all, q2_cache)
+                    qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS.out.qzv)
                 } else if (params.assembly_qc.enabled) {
                     EVALUATE_CONTIGS_NO_READS(contigs_all, q2_cache)
+                    qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_NO_READS.out.qzv)
                 }
                 if (params.abundance_estimation.enabledFor.contains("contigs")) {
-                    CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
+                    contig_abundance = CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
+                } else {
+                    contig_abundance = ""
                 }
             } else {
                 mapped_reads = ""
+                contig_abundance = ""
                 if (params.assembly_qc.enabled) {
                     EVALUATE_CONTIGS_NO_READS(contigs_all, q2_cache)
+                    qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_NO_READS.out.qzv)
                 }
             }
         } else {
             mapped_reads = ""
+            contig_abundance = ""
         }
 
     emit:
         contigs
         mapped_reads
+        contig_abundance
+        qzv = qzv_outputs
 }

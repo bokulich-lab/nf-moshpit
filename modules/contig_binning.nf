@@ -112,9 +112,10 @@ process VISUALIZE_BUSCO {
     path q2_cache
 
     output:
-    path "${params.runId}-mags-busco-${lineage}.qzv"
+    tuple val(viz_label), path("${params.runId}-mags-busco-${lineage}.qzv"), emit: qzv
 
     script:
+    viz_label = "Bins QC (BUSCO): ${lineage}"
     """
     #!/usr/bin/env python
 
@@ -168,7 +169,7 @@ process FILTER_MAGS {
     storeDir params.storeDir
     // scratch true
     tag "${_id}"
-    errorStrategy 'retry'
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
 
     input:
     tuple val(_id), path(bins_file), val(lineage)
@@ -183,6 +184,9 @@ process FILTER_MAGS {
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     key_mags_filtered = "${params.runId}_mags_filtered_${lineage}_${_id}"
     """
+    echo Processing: ${_id}
+    set +e
+
     qiime annotate filter-mags \
       --verbose \
       --p-where "${params.binning.qc.filtering.condition}" \
@@ -190,8 +194,23 @@ process FILTER_MAGS {
       --p-on ${filtering_axis} \
       --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
       --i-mags ${q2cacheDir}:${bins_file} \
-      --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" \
-    && touch ${key_mags_filtered}
+      --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" > output.txt 2> error.txt
+
+    qiime_exit_code=\$?
+    echo "QIIME exit code: \$qiime_exit_code"
+    set -e
+
+    cat output.txt >> .command.out
+    cat error.txt >> .command.err
+
+    touch ${key_mags_filtered}
+    
+    if grep -q "No MAGs remain after filtering" output.txt || grep -q "No MAGs remain after filtering" error.txt; then
+      echo "No MAGs remain after filtering."
+      exit 125
+    fi
+    
+    exit \$qiime_exit_code
     """
 }
 
@@ -206,9 +225,10 @@ process EVALUATE_BINS_CHECKM {
     path bins_file
 
     output:
-    path "${params.runId}-mags-checkm.qzv"
+    tuple val(viz_label), path("${params.runId}-mags-checkm.qzv"), emit: qzv
 
     script:
+    viz_label = "Bins QC (CheckM)"
     reducedTree = params.binning.qc.checkm.reducedTree ? "--p-reduced-tree" :  "--p-no-reduced-tree"
     """
     qiime checkm evaluate-bins \

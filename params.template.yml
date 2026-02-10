@@ -72,7 +72,6 @@ databases:
 # ======== ANALYSIS PARAMETERS ========
 fondue:
   paired: true
-  filterEmpty: true
   clusterOptions: ""
 
 read_subsampling:

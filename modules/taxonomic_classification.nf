@@ -177,6 +177,71 @@ process GET_KRAKEN_FEATURES {
     }
 }
 
+process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
+    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    errorStrategy "retry"
+    maxRetries 3
+    storeDir params.storeDir
+    // scratch true
+
+    input:
+    path kraken2_reports
+    path kraken2_hits
+
+    output:
+    path taxonomy, emit: taxonomy
+    path feature_map, emit: feature_map
+
+    script:
+    taxonomy = "${params.runId}_kraken_taxonomy_contigs"
+    feature_map = "${params.runId}_kraken_feature_map_contigs"
+
+    """
+    qiime annotate map-taxonomy-to-contigs \
+      --verbose \
+      --i-reports ${params.q2cacheDir}:${kraken2_reports} \
+      --i-outputs ${params.q2cacheDir}:${kraken2_hits} \
+      --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
+      --o-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --o-feature-map "${params.q2cacheDir}:${feature_map}" \
+    && touch ${taxonomy} \
+    && touch ${feature_map}
+    """
+}
+
+process COLLAPSE_CONTIGS {
+    time { 4.h * task.attempt }
+    memory { 4.GB * task.attempt }
+    errorStrategy "retry"
+    maxRetries 3
+    storeDir params.storeDir
+    // scratch true
+
+    input:
+    path feature_map
+    path taxonomy
+    path contig_abundances
+
+    output:
+    path collapsed_table, emit: collapsed_table
+    tuple val(viz_label), path("${params.runId}-contigs-collapsed.qzv"), emit: qzv
+
+    script:
+    viz_label = "Collapsed contigs (Kraken2)"
+    collapsed_table = "${params.runId}_contigs_collapsed_kraken2"
+    """
+    qiime annotate collapse-contigs \
+      --verbose \
+      --i-contig-map ${params.q2cacheDir}:${feature_map} \
+      --i-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --i-table ${params.q2cacheDir}:${contig_abundances} \
+      --o-collapsed-table ${params.q2cacheDir}:${collapsed_table} \
+      --o-visualization "${params.runId}-contigs-collapsed.qzv" \
+    && touch ${collapsed_table}
+    """
+}
+
 process CLASSIFY_KAIJU {
     label "taxonomicClassificationKaiju"
     storeDir params.storeDir
@@ -255,9 +320,11 @@ process DRAW_TAXA_BARPLOT {
     val tool_name
 
     output:
-    path "${params.runId}-${tool_name}-taxa-barplot.qzv"
+    tuple val(viz_label), path("${params.runId}-${tool_name}-taxa-barplot.qzv"), emit: qzv
 
     script:
+    viz_label = "Taxa barplot: ${tool_name}"
+
     """
     qiime taxa barplot \
       --verbose \

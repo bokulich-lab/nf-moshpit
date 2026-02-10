@@ -92,12 +92,21 @@ workflow ANNOTATE_EGGNOG_CONTIGS {
         contigs
         diamond_db
         eggnog_db
+        q2_cache
     main:
         SEARCH_ORTHOLOGS_CONTIGS(contigs, diamond_db, "contigs")
         ANNOTATE_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits, eggnog_db, "contigs")
 
         collated_orthologs = COLLATE_HITS_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits | collect(flat: false), "${params.runId}_eggnog_orthologs_contigs", "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
         collated_annotations = COLLATE_ANNOTATIONS_CONTIGS(ANNOTATE_CONTIGS.out.annotations | collect(flat: false), "${params.runId}_eggnog_annotations_contigs", "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+
+        if (params.functional_annotation.annotation.extract != "") {
+            annotation_type = Channel.of(params.functional_annotation.annotation.extract.types.split(","))
+            extracted_annotations = EXTRACT_ANNOTATIONS(collated_annotations, annotation_type, "contigs", q2_cache)
+            if (params.functional_annotation.annotation.extract.fetchArtifact) {
+                FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS(extracted_annotations | map { _type, key -> key})
+            }
+        }
 
         if (params.functional_annotation.ortholog_search.fetchArtifact) {
             FETCH_ARTIFACT_ORTHOLOGS(collated_orthologs)

@@ -76,11 +76,12 @@ process SIMULATE_READS_MASON {
     tuple val(sample_id), val(abundance_profile), val(read_count), val(read_length), path(genomes)
 
     output:
-    tuple val(sample_id), path(reads), emit: reads
+    tuple val(sample_id), path(reads), path(table), emit: reads
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     reads = "${params.runId}_reads_${sample_id}"
+    table = "${params.runId}_mason_ft_${sample_id}"
     """
     if [ ! -d "${q2cacheDir}" ]; then
       qiime tools cache-create --cache ${q2cacheDir}
@@ -96,7 +97,9 @@ process SIMULATE_READS_MASON {
       --p-random-seed ${params.read_simulation.seed} \
       --p-threads ${task.cpus} \
       --o-reads ${q2cacheDir}:${reads} \
-    && touch ${reads}
+      --o-table ${q2cacheDir}:${table} \
+    && touch ${reads} \
+    && touch ${table}
     """
 }
 
@@ -329,9 +332,11 @@ process VISUALIZE_FASTP {
     path q2_cache
 
     output:
-    path "${params.runId}-reads-qc-fastp.qzv"
+    tuple val(viz_label), path("${params.runId}-reads-qc-fastp.qzv"), emit: qzv
 
     script:
+    viz_label = "Reads QC (FastP)"
+
     """
     qiime fastp visualize \
       --verbose \
@@ -773,5 +778,49 @@ process CLEAN_UP_CACHES {
     """
     echo "Removing ${path_to_remove}"
     rm -rf ${path_to_remove}
+    """
+}
+
+process MAKE_REPORT {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    time { 1.h * task.attempt }
+    publishDir params.publishDir, mode: 'copy'
+    scratch true
+
+    input:
+    val visualizations
+
+    output:
+    path "${params.runId}-report.qzv"
+
+    script:
+    def visualization_json = groovy.json.JsonOutput.toJson(
+        visualizations.collect { [label: it[0].toString(), path: it[1].toString()] }
+    )
+    """
+    cat <<'EOF' > visualizations.json
+    ${visualization_json}
+    EOF
+
+    python - <<'PY'
+    import json
+    from qiime2 import Visualization
+    from q2templates.reports import matryoshka_template
+
+    with open('visualizations.json') as handle:
+        entries = json.load(handle)
+
+    visualizations = {
+        entry["label"]: Visualization.load(entry["path"])
+        for entry in entries
+    }
+
+    viz = Visualization.make_report(matryoshka_template, visualizations)
+    viz.save('${params.runId}-report.qzv')
+    print('Visualization saved to "${params.runId}-report.qzv"')
+    PY
     """
 }
