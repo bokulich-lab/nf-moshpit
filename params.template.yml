@@ -21,6 +21,9 @@ condaEnv: /path/to/conda/env
 # E-mail address required by q2-fondue
 email: user@example.com
 
+# Archive the per-sample caches upon completion
+archive: true
+
 # ============ INPUT DATA ============
 # Option 1: import reads using a manifest file
 inputReadsManifest: /path/to/manifest

@@ -25,6 +25,7 @@ include { COLLATE_PARTITIONS as COLLATE_FT } from './modules/data_prep'
 include { TABULATE_READ_COUNTS } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
 include { FILTER_SAMPLES as PARTITION_READS } from './modules/data_prep'
+include { ARCHIVE_SAMPLE_CACHE } from './modules/data_prep'
 include { ASSEMBLE } from './subworkflows/assembly'
 include { BIN } from './subworkflows/binning'
 include { BIN_NO_BUSCO } from './subworkflows/binning'
@@ -64,7 +65,8 @@ workflow {
         "${params.publishDir}",
         "${params.traceDir}",
         "${params.containerCacheDir}",
-        "${params.q2TemporaryCachesDir}"
+        "${params.q2TemporaryCachesDir}",
+        "${params.archiveDir}"
     ]
     directoryPaths.each { d ->
         def dir = new File(d)
@@ -169,7 +171,9 @@ workflow {
     fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
     VISUALIZE_FASTP(fastp_reports_all, cache)
+
     qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv)
+    deepest_signal = VISUALIZE_FASTP.out
 
     // remove host reads
     if (params.host_removal.enabled) {
@@ -277,6 +281,7 @@ workflow {
                 qzv_reports = qzv_reports.mix(binning_results.qzv)
             
             binning_results.bins | count | subscribe { writeLog("Samples after binning: " + it) }
+            deepest_signal = binning_results.bins_collated
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
@@ -291,10 +296,12 @@ workflow {
 
             if (params.dereplication.enabled) {
                 DEREPLICATE(binning_results.bins_collated, cache)
+                deepest_signal = DEREPLICATE.out.bins_derep
                 
                 // estimate abundance
                 if (params.abundance_estimation.enabledFor.contains("derep")) {
                     MAG_ABUNDANCE(DEREPLICATE.out.bins_derep, reads_partitioned, cache)
+                    deepest_signal = MAG_ABUNDANCE.out.feature_table
                 }
 
                 if (params.taxonomic_classification.enabledFor.contains("derep") || params.functional_annotation.enabledFor.contains("derep")) {
@@ -309,6 +316,7 @@ workflow {
                         ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
                         if (params.abundance_estimation.enabledFor.contains("derep")) {
                             annotation_ft = MULTIPLY_TABLES(MAG_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
+                            deepest_signal = annotation_ft.map { _type, key -> key }
                             if (params.functional_annotation.annotation.extract.fetchArtifact) {
                                 annotation_key = annotation_ft | map { _type, key -> key }
                                 FETCH_MULTIPLIED_TABLE(annotation_key)
@@ -322,6 +330,12 @@ workflow {
 
     qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it[1].size() > 0 }
     MAKE_REPORT(qzv_reports_all)
+
+    // Archive per-sample caches to reduce inode usage on Lustre
+    if (params.archive) {
+        sample_ids_for_archive = reads_partitioned.map { id, _reads -> id }
+        ARCHIVE_SAMPLE_CACHE(sample_ids_for_archive, deepest_signal.collect())
+    }
 }
 
 // Add final summary section
