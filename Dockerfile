@@ -17,7 +17,8 @@ WORKDIR /home/qiime2
 
 RUN conda update -q -y conda \
     && conda install -c conda-forge -q -y wget mamba \
-    && apt-get install -y procps \
+    && apt-get update \
+    && apt-get install -y procps zip unzip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
