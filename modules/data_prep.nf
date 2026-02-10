@@ -694,3 +694,58 @@ process FILTER_SAMPLES {
       """
     }
 }
+
+process ARCHIVE_SAMPLE_CACHE {
+    tag "${sample_id}"
+    cpus 1
+    memory { 2.GB * task.attempt }
+    time { 4.h * task.attempt }
+    maxRetries 2
+    errorStrategy 'retry'
+
+    input:
+    val sample_id
+    val ready
+
+    output:
+    val sample_id, emit: archived
+
+    script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
+    archivePath = "${params.archiveDir}/${sample_id}.zip"
+    """
+    set -euo pipefail
+    echo "=== Archiving cache for sample ${sample_id} ==="
+
+    if [ ! -d "${q2cacheDir}" ]; then
+        echo "Cache directory not found: ${q2cacheDir} - skipping."
+        exit 0
+    fi
+
+    mkdir -p ${params.archiveDir}
+
+    cd ${params.q2TemporaryCachesDir}
+    zip -rq ${archivePath} ${sample_id}/
+
+    echo "Verifying archive integrity..."
+    if ! unzip -tq ${archivePath}; then
+        echo "ERROR: Archive CRC check failed!"
+        rm -f ${archivePath}
+        exit 1
+    fi
+
+    original_count=\$(find ${q2cacheDir} -type f | wc -l)
+    archive_count=\$(zipinfo -1 ${archivePath} | grep -cv '/\$' || true)
+    echo "Files: original=\${original_count}, archive=\${archive_count}"
+
+    if [ "\${archive_count}" -lt "\${original_count}" ]; then
+        echo "ERROR: Archive has fewer files than original!"
+        rm -f ${archivePath}
+        exit 1
+    fi
+
+    echo "Verification passed - removing original cache."
+    rm -rf ${q2cacheDir}
+    echo "=== Done: ${archivePath} ==="
+    """
+}
