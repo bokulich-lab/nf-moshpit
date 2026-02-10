@@ -264,11 +264,7 @@ workflow {
 
         // annotate contigs
         if (params.functional_annotation.enabledFor.contains("contigs")) {
-<<<<<<< HEAD
-            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db)
-=======
             ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
->>>>>>> f25e340 (ENH: add final report generation)
         }
 
         // bin contigs into MAGs and evaluate
