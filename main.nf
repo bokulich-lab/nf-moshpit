@@ -54,9 +54,12 @@ nextflow.enable.dsl = 2
 
 validateParameters()
 
-def logFile = new File( "${params.sampleReport}" )
+def executionStats = [:]
+def trackMetric = { key, value ->
+    executionStats[key] = value
+}
 def writeLog = { value ->
-    logFile << value + "\n"
+    log.info value
 }
 
 workflow {
@@ -102,7 +105,7 @@ workflow {
 
         writeLog("Reading reads from manifest: ${params.inputReadsManifest}")
         reads = IMPORT_READS(ids)
-        reads | count | subscribe { writeLog("Samples imported from manifest: " + it) }
+        reads | count | subscribe { trackMetric("Samples imported from manifest", it) }
     } else if (params.inputReads && params.inputReadsCache && params.metadata) {
         reads = Channel.fromPath(params.inputReads)
         metadata = Channel.fromPath(params.metadata)
@@ -115,7 +118,7 @@ workflow {
 
         writeLog("Using existing reads '${params.inputReads}' from ${params.inputReadsCache} cache")
         reads = PARTITION_READS(reads_with_ids, "", true)
-        reads | count | subscribe { writeLog("Samples partitioned from an input artifact: " + it) }
+        reads | count | subscribe { trackMetric("Samples partitioned from an input artifact", it) }
     } else if (params.fondueAccessionIds) {
         ids = Channel
             .fromPath(params.fondueAccessionIds)
@@ -123,11 +126,11 @@ workflow {
             .map { row -> row.id }
         
         writeLog("Reading SRA accessions from: ${params.fondueAccessionIds}")
-        ids | count | subscribe { writeLog("SRA accessions to fetch: " + it) }
+        ids | count | subscribe { trackMetric("SRA accessions to fetch", it) }
         
         fetched_reads = FETCH_SEQS(ids)
         reads = (params.fondue.paired) ? fetched_reads.paired : fetched_reads.single
-        reads | count | subscribe { writeLog("Samples returned from fondue: " + it) }
+        reads | count | subscribe { trackMetric("Samples returned from fondue", it) }
     } else if (params.read_simulation.samples) {
         writeLog("Simulating samples from: ${params.read_simulation.samples}")
         simulation_data = Channel
@@ -141,7 +144,7 @@ workflow {
         simulated_tables = COLLATE_FT(simulated_tables, "${params.runId}_mason_ft", "feature-table merge", "--i-tables", "--o-merged-table", true)
 
         reads = simulated_reads.reads | map { _id, reads, table -> [_id, reads] }
-        reads | count | subscribe { writeLog("Samples simulated: " + it) }
+        reads | count | subscribe { trackMetric("Samples simulated", it) }
     } else {
         writeLog("Simulating reads from fetched genomes")
         writeLog("Number of random genomes to fetch: ${params.read_simulation.nGenomes}")
@@ -153,7 +156,7 @@ workflow {
         ids_with_genomes = ids.combine(genomes)
         simulated_reads = SIMULATE_READS(ids_with_genomes)
         reads = simulated_reads.reads
-        reads | count | subscribe { writeLog("Samples simulated: " + it) }
+        reads | count | subscribe { trackMetric("Samples simulated", it) }
     }
 
     reads_partitioned = reads
@@ -161,13 +164,13 @@ workflow {
     // subsample reads
     if (params.read_subsampling.enabled) {
         reads_partitioned = SUBSAMPLE_READS(reads_partitioned)
-        reads_partitioned | count | subscribe { writeLog("Samples after subsampling: " + it) }
+        reads_partitioned | count | subscribe { trackMetric("Samples after subsampling", it) }
     }
 
     // perform read QC and trimming
     fastp_results = PROCESS_READS_FASTP(reads_partitioned)
     reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
-    reads_partitioned | count | subscribe { writeLog("Samples after fastp processing: " + it) }
+    reads_partitioned | count | subscribe { trackMetric("Samples after fastp processing", it) }
     fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
     VISUALIZE_FASTP(fastp_reports_all, cache)
@@ -179,7 +182,7 @@ workflow {
     if (params.host_removal.enabled) {
         filtering_results = REMOVE_HOST(reads_partitioned)
         reads_partitioned = filtering_results.reads
-        reads_partitioned | count | subscribe { writeLog("Samples after host removal: " + it) }
+        reads_partitioned | count | subscribe { trackMetric("Samples after host removal", it) }
     }
 
     if (params.taxonomic_classification.enabledFor != "") {
@@ -228,7 +231,7 @@ workflow {
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
         reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
-        reads_partitioned | count | subscribe { writeLog("Samples after filtering by read count: " + it) }
+        reads_partitioned | count | subscribe { trackMetric("Samples after filtering by read count", it) }
     }
 
     // classify reads
@@ -247,7 +250,7 @@ workflow {
         contigs = ASSEMBLE(reads_partitioned, cache)
         qzv_reports = qzv_reports.mix(contigs.qzv)
 
-        contigs.contigs | count | subscribe { writeLog("Samples after contig assembly and filtering: " + it) }
+        contigs.contigs | count | subscribe { trackMetric("Samples after contig assembly and filtering", it) }
 
         if (params.functional_annotation.enabledFor != "") {
             diamond_db = FETCH_DIAMOND_DB()
@@ -280,7 +283,7 @@ workflow {
             }
                 qzv_reports = qzv_reports.mix(binning_results.qzv)
             
-            binning_results.bins | count | subscribe { writeLog("Samples after binning: " + it) }
+            binning_results.bins | count | subscribe { trackMetric("Samples after binning", it) }
             deepest_signal = binning_results.bins_collated
             
             // classify MAGs
@@ -350,4 +353,20 @@ workflow.onComplete {
     writeLog("Error report: ${workflow.errorReport ?: 'None'}")
     writeLog("Working dir : ${workflow.workDir}")
     writeLog("==========================================")
+    
+    // Write JSON report
+    def jsonMap = [
+        "id": "moshpit_sample_counts",
+        "plot_type": "barplot",
+        "pconfig": [
+            "id": "sample_counts_plot",
+            "title": "Samples Retained",
+            "ylab": "# Samples"
+        ],
+        "data": executionStats.collectEntries { key, value -> [key, ["count": value]] }
+    ]
+    
+    def jsonFile = new File(params.sampleReport)
+    jsonFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(jsonMap))
+    writeLog("Report written to: ${params.sampleReport}")
 }
