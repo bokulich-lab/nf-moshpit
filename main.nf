@@ -26,6 +26,11 @@ include { TABULATE_READ_COUNTS } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
 include { FILTER_SAMPLES as PARTITION_READS } from './modules/data_prep'
 include { ARCHIVE_SAMPLE_CACHE } from './modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_INPUT } from './modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_SUBSAMPLED } from './modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_FASTP } from './modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_HOST } from './modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_FILTERED } from './modules/data_prep'
 include { ASSEMBLE } from './subworkflows/assembly'
 include { BIN } from './subworkflows/binning'
 include { BIN_NO_BUSCO } from './subworkflows/binning'
@@ -163,13 +168,27 @@ workflow {
 
     // subsample reads
     if (params.read_subsampling.enabled) {
+        input_reads = reads_partitioned
         reads_partitioned = SUBSAMPLE_READS(reads_partitioned)
         reads_partitioned | count | subscribe { trackMetric("Samples after subsampling", it) }
+        
+        if (!params.retain.input) {
+            CLEANUP_INPUT(input_reads.join(reads_partitioned).map { id, i, o -> tuple(id, i) })
+        }
     }
 
     // perform read QC and trimming
+    input_reads_fastp = reads_partitioned
     fastp_results = PROCESS_READS_FASTP(reads_partitioned)
     reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
+    
+    if ((params.read_subsampling.enabled && !params.retain.subsampling) || (!params.read_subsampling.enabled && !params.retain.input)) {
+        if (params.read_subsampling.enabled) {
+            CLEANUP_SUBSAMPLED(input_reads_fastp.join(fastp_results).map { id, i, o, r -> tuple(id, i) })
+        } else {
+            CLEANUP_INPUT(input_reads_fastp.join(fastp_results).map { id, i, o, r -> tuple(id, i) })
+        }
+    }
     reads_partitioned | count | subscribe { trackMetric("Samples after fastp processing", it) }
     fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
@@ -180,9 +199,14 @@ workflow {
 
     // remove host reads
     if (params.host_removal.enabled) {
+        input_reads_host = reads_partitioned
         filtering_results = REMOVE_HOST(reads_partitioned)
         reads_partitioned = filtering_results.reads
         reads_partitioned | count | subscribe { trackMetric("Samples after host removal", it) }
+
+        if (!params.retain.fastp) {
+            CLEANUP_FASTP(input_reads_host.join(filtering_results.reads).map { id, i, o -> tuple(id, i) })
+        }
     }
 
     if (params.taxonomic_classification.enabledFor != "") {
@@ -228,10 +252,19 @@ workflow {
     }
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
+        input_reads_filter = reads_partitioned
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
         reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
         reads_partitioned | count | subscribe { trackMetric("Samples after filtering by read count", it) }
+        
+        if ((params.host_removal.enabled && !params.retain.host_removal) || (!params.host_removal.enabled && !params.retain.fastp)) {
+             if (params.host_removal.enabled) {
+                CLEANUP_HOST(input_reads_filter.join(reads_partitioned).map { id, i, o -> tuple(id, i) })
+             } else {
+                CLEANUP_FASTP(input_reads_filter.join(reads_partitioned).map { id, i, o -> tuple(id, i) })
+             }
+        }
     }
 
     // classify reads

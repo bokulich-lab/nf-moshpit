@@ -879,3 +879,23 @@ process ARCHIVE_SAMPLE_CACHE {
     echo "=== Done: ${archivePath} ==="
     """
 }
+
+process REMOVE_FROM_CACHE {
+    cpus 1
+    memory { 500.MB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    
+    input:
+    tuple val(sample_id), val(artifact_path)
+
+    script:
+    key = new File(artifact_path.toString()).getName()
+    """
+    echo "Removing ${key} from ${sample_id} cache..."
+    qiime tools cache-remove \
+      --cache ${params.q2TemporaryCachesDir}/${sample_id} \
+      --key ${key}
+    """
+}

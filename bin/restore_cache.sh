@@ -66,16 +66,17 @@ skipped=0
 
 for sample_id in "${SAMPLES[@]}"; do
     archive="$ARCHIVE_DIR/${sample_id}.zip"
+    echo "Archive: $archive"
 
     if [ ! -f "$archive" ]; then
         echo "  WARNING: Archive not found for sample ${sample_id}: $archive"
-        ((failed++))
+        failed=$((failed + 1))
         continue
     fi
 
     if [ -d "$CACHES_DIR/${sample_id}" ]; then
         echo "  SKIP: Cache already exists for sample ${sample_id}"
-        ((skipped++))
+        skipped=$((skipped + 1))
         continue
     fi
 
@@ -84,7 +85,7 @@ for sample_id in "${SAMPLES[@]}"; do
     # Verify archive integrity before extracting
     if ! unzip -tq "$archive" > /dev/null 2>&1; then
         echo "  ERROR: Archive integrity check failed for ${sample_id}"
-        ((failed++))
+        failed=$((failed + 1))
         continue
     fi
 
@@ -93,10 +94,10 @@ for sample_id in "${SAMPLES[@]}"; do
 
     if [ -d "$CACHES_DIR/${sample_id}" ]; then
         echo "  OK: Restored ${sample_id}"
-        ((restored++))
+        restored=$((restored + 1))
     else
         echo "  ERROR: Extraction failed for ${sample_id}"
-        ((failed++))
+        failed=$((failed + 1))
     fi
 done
 
@@ -108,5 +109,6 @@ echo "Failed:   ${failed}"
 echo "======================="
 
 if [ $failed -gt 0 ]; then
+    echo "ERROR: Failed to restore some caches"
     exit 1
 fi
