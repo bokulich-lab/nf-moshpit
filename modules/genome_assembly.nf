@@ -13,7 +13,7 @@ process ASSEMBLE_METASPADES {
     tuple val(sample_id), path(key)
 
     script:
-    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}

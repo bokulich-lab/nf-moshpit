@@ -19,7 +19,7 @@ workflow ASSEMBLE {
     main:
         qzv_outputs = Channel.empty()
         if (params.genome_assembly.assembler.toLowerCase() == 'metaspades') {
-            contigs = ASSEMBLE_METASPADES(reads, q2_cache)
+            contigs = ASSEMBLE_METASPADES(reads)
         } else if (params.genome_assembly.assembler.toLowerCase() == 'megahit') {
             contigs = ASSEMBLE_MEGAHIT(reads)
         } else {
