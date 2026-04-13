@@ -22,7 +22,7 @@ RUN conda update -q -y conda \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget -O ${ENVIRONMENT}-env.yml https://raw.githubusercontent.com/qiime2/distributions/dev/${EPOCH}/${DISTRO}/${ENVIRONMENT}/qiime2-${DISTRO}-ubuntu-latest-conda.yml
+RUN wget -O ${ENVIRONMENT}-env.yml https://raw.githubusercontent.com/qiime2/distributions/dev/${EPOCH}/${DISTRO}/${ENVIRONMENT}/qiime2-${DISTRO}-linux-64-conda.yml
 
 RUN mamba env create -n ${DISTRO}-${EPOCH} --file ${ENVIRONMENT}-env.yml \
     && mamba run -n ${DISTRO}-${EPOCH} pip install git+https://github.com/bokulich-lab/q2-annotate.git git+https://github.com/bokulich-lab/q2-assembly.git \
