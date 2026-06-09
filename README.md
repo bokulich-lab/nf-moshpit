@@ -2,10 +2,10 @@
 
 **Currently supported QIIME 2 version:** `2026.1`
 
-**Currently supported runtimes:** `conda`, `singularity`
+**Currently supported runtimes:** `conda`, `singularity`, `docker`
 
-This repository contains the Nextflow workflow for shotgun metagenome analysis using QIIME 2. A working QIIME 2 metagenome conda environment or singularity image 
-is required to execute the action included in this workflow. Please follow the [official QIIME 2 installation instructions](https://docs.qiime2.org/2025.4/install/native/#qiime-2-metagenome-distribution) to learn how to create one.
+This repository contains the Nextflow workflow for shotgun metagenome analysis using QIIME 2 (MOSHPIT). A working MOSHPIT conda environment, Singularity image, or Docker image
+is required to execute the actions included in this workflow. Please follow the [MOSHPIT installation instructions](https://library.qiime2.org/quickstart/moshpit) to learn how to create one.
 
 Workflow configuration happens through several config files:
 - [nextflow.config](nextflow.config): executor and runtime selection as well as all relevant directories
@@ -13,11 +13,14 @@ Workflow configuration happens through several config files:
 - [defaults.config](conf/defaults.config): default parameter values for all workflow modules
 - [profiles.config](conf/profiles.config): execution profiles for different environments
 
-There are multiple ways to provide the data to the workflow (the workflow will look for the data in this order):
-- provide reads directly (`params.inputReads`) - this needs to be the name of the cache key holding the reads
-- provide a list of SRA accession IDs to be fetched by [q2-fondue](https://github.com/bokulich-lab/q2-fondue) (`params.fondueAccessionIds`)
-- simulate reads/samples from exisitng genomes (`params.read_simulation.sampleGenomes` in the [respective config](conf/tools.config))
-- simulate reads/samples from genomes fetched from NCBI (the workflow defaults to this option if none of the params above were specified)
+There are multiple ways to provide data to the workflow. The workflow checks these methods in the following order and uses the first one that is configured:
+
+1. **Import from a FASTQ manifest** (`params.inputReadsManifest`) — a CSV with columns `id`, `forward`, and optionally `reverse`. Reads are imported via `IMPORT_READS` into per-sample QIIME 2 caches.
+2. **Use existing reads from a QIIME 2 cache** (`params.inputReads`, `params.inputReadsCache`, and `params.metadata`) — provide the cache key name, path to the cache directory, and a TSV metadata file listing sample IDs to extract. Samples are partitioned from the collated artifact into per-sample caches.
+3. **Download from SRA via [q2-fondue](https://github.com/bokulich-lab/q2-fondue)** (`params.fondueAccessionIds`) — a TSV file with accession IDs. Requires `params.email`.
+4. **Simulate reads with MASON** (`params.read_simulation.samples`) — a TSV specifying per-sample simulation parameters and reference genomes. Uses `SIMULATE_READS_MASON`. This is the simulation input recognized by parameter validation.
+
+> **Note:** A legacy fallback path (`FETCH_GENOMES` + `SIMULATE_READS`, using parameters such as `read_simulation.nGenomes` and `read_simulation.sampleNames`) still exists in the workflow code, but it is not accepted by parameter validation on its own. For new runs, use one of the four validated input methods above.
 
 ## Workflow Overview
 
@@ -30,133 +33,110 @@ graph TD
     classDef conditionClass fill:#f8bbd0,stroke:#880e4f,stroke-width:2px
     classDef dataClass fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px
     
-    %% Starting point
     start[Start] --> inputChoice{Input Source?}
     
-    %% Input data acquisition
-    inputChoice -->|params.inputReads| reads[Input Reads]
-    inputChoice -->|params.fondueAccessionIds| fondue[FETCH_SEQS]
-    inputChoice -->|params.read_simulation.sampleGenomes| simFromProvided[SIMULATE_READS from provided genomes]
-    inputChoice -->|default| simFromFetched[FETCH_GENOMES + SIMULATE_READS]
+    inputChoice -->|inputReadsManifest| importReads[IMPORT_READS]
+    inputChoice -->|inputReads + cache + metadata| partitionCache[Partition from cache]
+    inputChoice -->|fondueAccessionIds| fondue[FETCH_SEQS]
+    inputChoice -->|read_simulation.samples| mason[SIMULATE_READS_MASON]
+    inputChoice -->|legacy fallback| simFromFetched[FETCH_GENOMES + SIMULATE_READS]
     
+    importReads --> reads[Per-sample Reads]
+    partitionCache --> reads
     fondue --> reads
-    simFromProvided --> reads
+    mason --> reads
     simFromFetched --> reads
     
-    %% Read processing branch
-    reads --> needPartition{Need Partitioning?}
-    needPartition -->|No| reads_partitioned[Partitioned Reads]
-    needPartition -->|Yes| partition[PARTITION_READS] --> reads_partitioned
-    
-    %% Subsampling
-    reads_partitioned --> subsample{Subsampling?}
+    reads --> subsample{Subsampling?}
     subsample -->|Yes| SUBSAMPLE_READS --> qc[PROCESS_READS_FASTP]
     subsample -->|No| qc
     
-    qc --> fastp_report[VISUALIZE_FASTP]
+    qc --> VISUALIZE_FASTP
     
-    %% Host removal
     qc --> hostRemoval{Host Removal?}
     hostRemoval -->|Yes| REMOVE_HOST --> filtered_reads[Filtered Reads]
     hostRemoval -->|No| filtered_reads
     
-    %% Sample filtering
     filtered_reads --> sampleFiltering{Sample Filtering?}
     sampleFiltering -->|Yes| countAndFilter[TABULATE_READ_COUNTS + FILTER_SAMPLES] --> final_reads[Final Reads]
     sampleFiltering -->|No| final_reads
     
-    %% Taxonomic classification DBs
-    final_reads --> needTaxonomy{Taxonomy needed?}
-    needTaxonomy -->|Kraken2/Bracken| FETCH_KRAKEN2_DB[FETCH_KRAKEN2_DB]
-    needTaxonomy -->|Kaiju| FETCH_KAIJU_DB[FETCH_KAIJU_DB]
-    needTaxonomy -->|No| skipTaxonomy[Skip taxonomy]
+    final_reads --> krakenDb{Kraken2 enabled?}
+    krakenDb -->|Yes| FETCH_KRAKEN2_DB
+    final_reads --> kaijuDb{Kaiju enabled?}
+    kaijuDb -->|Yes| FETCH_KAIJU_DB
     
-    %% Read classification
-    final_reads --> classifyReads{Classify Reads?}
-    classifyReads -->|Kraken2| CLASSIFY_READS --> brackenCheck{Bracken enabled?}
-    brackenCheck -->|Yes| ESTIMATE_BRACKEN --> BRACKEN_TAXA_BARPLOT[DRAW_TAXA_BARPLOT (bracken)] --> continuePipeline
-    brackenCheck -->|No| continuePipeline
-    classifyReads -->|Kaiju| CLASSIFY_READS_KAIJU --> KAIJU_READS_TAXA_BARPLOT[DRAW_TAXA_BARPLOT (kaiju-reads)] --> continuePipeline
-    classifyReads -->|No| continuePipeline[Continue Pipeline]
+    final_reads --> classifyKraken{Kraken2 reads?}
+    classifyKraken -->|Yes| CLASSIFY_READS --> brackenCheck{Bracken enabled?}
+    brackenCheck -->|Yes| ESTIMATE_BRACKEN --> BRACKEN_TAXA_BARPLOT
+    brackenCheck -->|No| continuePipeline[Continue Pipeline]
+    classifyKraken -->|No| continuePipeline
     
-    %% Assembly
+    final_reads --> classifyKaiju{Kaiju reads?}
+    classifyKaiju -->|Yes| CLASSIFY_READS_KAIJU --> KAIJU_READS_TAXA_BARPLOT --> continuePipeline
+    classifyKaiju -->|No| continuePipeline
+    
     final_reads --> assemblyCheck{Assembly enabled?}
-    assemblyCheck -->|No| endWorkflow[End Workflow]
+    assemblyCheck -->|No| finalize[MAKE_REPORT + FIX_CACHE_PERMISSIONS]
     assemblyCheck -->|Yes| ASSEMBLE
     
-    %% Functional annotation DB
     ASSEMBLE --> functionalCheck{Functional annotation?}
     functionalCheck -->|Yes| fetchDBs[FETCH_DIAMOND_DB + FETCH_EGGNOG_DB]
-    functionalCheck -->|No| skipFunctional[Skip functional]
     
-    %% Contig classification
-    ASSEMBLE --> classifyContigs{Classify contigs?}
-    classifyContigs -->|Kraken2| CLASSIFY_CONTIGS
-    classifyContigs -->|Kaiju| CLASSIFY_CONTIGS_KAIJU
-    classifyContigs -->|No| skipContigClassify[Skip contig classification]
+    ASSEMBLE --> classifyContigsKraken{Kraken2 contigs?}
+    classifyContigsKraken -->|Yes| CLASSIFY_CONTIGS --> collapseCheck{Contig abundance?}
+    collapseCheck -->|Yes| COLLAPSE_CONTIGS
+    classifyContigsKraken -->|No| classifyContigsKaiju{Kaiju contigs?}
+    classifyContigsKaiju -->|Yes| CLASSIFY_CONTIGS_KAIJU
     
-    %% Contig annotation
     ASSEMBLE --> annotateContigs{Annotate contigs?}
     annotateContigs -->|Yes| ANNOTATE_EGGNOG_CONTIGS
-    annotateContigs -->|No| skipContigAnnotate[Skip contig annotation]
     
-    %% Contig abundance estimation
-    ASSEMBLE --> contigAbundance{Contig abundance?}
-    contigAbundance -->|Yes| ESTIMATE_CONTIG_ABUNDANCE
-    contigAbundance -->|No| skipContigAbundance[Skip contig abundance]
-    
-    %% Binning
     ASSEMBLE --> binningCheck{Binning enabled?}
-    binningCheck -->|No| skipBinning[Skip binning]
+    binningCheck -->|No| finalize
     binningCheck -->|Yes| buscoCheck{BUSCO enabled?}
-    buscoCheck -->|Yes| BIN --> bins[MAG Bins]
-    buscoCheck -->|No| BIN_NO_BUSCO --> bins
+    buscoCheck -->|Yes| BIN
+    buscoCheck -->|No| BIN_NO_BUSCO
+    BIN --> bins[MAG Bins]
+    BIN_NO_BUSCO --> bins
     
-    %% MAG classification
     bins --> classifyMAGs{Classify MAGs?}
     classifyMAGs -->|Yes| CLASSIFY_MAGS
-    classifyMAGs -->|No| skipMAGClassify[Skip MAG classification]
-    
-    %% MAG annotation
     bins --> annotateMAGs{Annotate MAGs?}
     annotateMAGs -->|Yes| ANNOTATE_EGGNOG_MAGS
-    annotateMAGs -->|No| skipMAGAnnotate[Skip MAG annotation]
     
-    %% Dereplication
     bins --> derepCheck{Dereplication enabled?}
-    derepCheck -->|No| endBinning[End binning]
+    derepCheck -->|No| finalize
     derepCheck -->|Yes| DEREPLICATE --> derep_bins[Dereplicated MAGs]
     
-    %% Abundance estimation
-    derep_bins --> abundanceCheck{Abundance estimation?}
-    abundanceCheck -->|Yes| ESTIMATE_ABUNDANCE
-    abundanceCheck -->|No| skipAbundance[Skip abundance]
+    derep_bins --> abundanceCheck{MAG abundance?}
+    abundanceCheck -->|Yes| MAG_ABUNDANCE
     
-    %% Dereplicated MAG classification
     derep_bins --> classifyDerepMAGs{Classify derep MAGs?}
     classifyDerepMAGs -->|Yes| CLASSIFY_MAGS_DEREP
-    classifyDerepMAGs -->|No| skipDerepClassify[Skip derep classification]
     
-    %% Dereplicated MAG annotation
     derep_bins --> annotateDerepMAGs{Annotate derep MAGs?}
-    annotateDerepMAGs -->|Yes| PARTITION_MAGS --> ANNOTATE_EGGNOG_MAGS_DEREP
-    annotateDerepMAGs -->|No| skipDerepAnnotate[Skip derep annotation]
-    
-    %% Multiply tables for combined analysis
+    annotateDerepMAGs -->|Yes| PARTITION_DEREP_MAGS --> ANNOTATE_EGGNOG_MAGS_DEREP
     ANNOTATE_EGGNOG_MAGS_DEREP --> multiplyCheck{Abundance available?}
     multiplyCheck -->|Yes| MULTIPLY_TABLES
-    multiplyCheck -->|No| skipMultiply[Skip table multiplication]
     
-    %% Apply classes
-    class INIT_CACHE,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,PARTITION_READS,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_KAIJU_DB,ESTIMATE_BRACKEN,BRACKEN_TAXA_BARPLOT,KAIJU_READS_TAXA_BARPLOT,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_MAGS,MULTIPLY_TABLES moduleClass
-    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_READS_KAIJU,CLASSIFY_CONTIGS,CLASSIFY_CONTIGS_KAIJU,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ESTIMATE_ABUNDANCE,ESTIMATE_CONTIG_ABUNDANCE subworkflowClass
-    class inputChoice,needPartition,subsample,hostRemoval,sampleFiltering,needTaxonomy,classifyReads,brackenCheck,assemblyCheck,functionalCheck,classifyContigs,annotateContigs,contigAbundance,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck conditionClass
-    class reads,reads_partitioned,filtered_reads,final_reads,bins,derep_bins dataClass
+    MULTIPLY_TABLES --> finalize
+    MAG_ABUNDANCE --> finalize
+    continuePipeline --> finalize
+    finalize --> archiveCheck{Archive enabled?}
+    archiveCheck -->|Yes| ARCHIVE_SAMPLE_CACHE
+    archiveCheck -->|No| endWorkflow[End Workflow]
+    ARCHIVE_SAMPLE_CACHE --> endWorkflow
+    
+    class INIT_CACHE,IMPORT_READS,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,SIMULATE_READS_MASON,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_KAIJU_DB,ESTIMATE_BRACKEN,BRACKEN_TAXA_BARPLOT,KAIJU_READS_TAXA_BARPLOT,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_DEREP_MAGS,MULTIPLY_TABLES,MAKE_REPORT,FIX_CACHE_PERMISSIONS,ARCHIVE_SAMPLE_CACHE,COLLAPSE_CONTIGS moduleClass
+    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_READS_KAIJU,CLASSIFY_CONTIGS,CLASSIFY_CONTIGS_KAIJU,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,MAG_ABUNDANCE subworkflowClass
+    class inputChoice,subsample,hostRemoval,sampleFiltering,krakenDb,kaijuDb,classifyKraken,brackenCheck,classifyKaiju,assemblyCheck,functionalCheck,classifyContigsKraken,collapseCheck,classifyContigsKaiju,annotateContigs,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck,archiveCheck conditionClass
+    class reads,filtered_reads,final_reads,bins,derep_bins dataClass
 ```
 
 ### Legend
 - **Light blue nodes**: Individual processes/modules
-- **Yellow nodes**: Subworkflows that group related processes
+- **Yellow nodes**: Subworkflows that group related processes (e.g. `ASSEMBLE` also runs contig abundance estimation internally when enabled)
 - **Pink nodes**: Conditional decision points
 - **Green nodes**: Data flow elements
 
@@ -174,22 +154,28 @@ nextflow run main.nf -params-file params.yml -profile slurm,singularity -work-di
 
 This approach is recommended as it provides a cleaner way to manage all configuration parameters in a single file, rather than modifying multiple config files.
 
+Alternatively, you can use the browser-based configurator in the [`ui/`](ui/) directory. Open `ui/index.html` in a browser to step through all options from `params.template.yml` and download a ready-to-run `params.yml`. See [`ui/README.md`](ui/README.md) for details.
+
 ## Configuration details
 Some of the most useful configuration parameters are explained below.
 
 ### Common parameters
 | Parameter | Meaning | Config file |
 | --------- | ------- | ----------- |
-| params.email | Your e-mail address - only needed when using q2-fondue | [params.template.yml](params.template.yml) |
+| params.runId | A unique ID which will be prepended to all the result names for the given pipeline run. Should not contain underscores. | [params.template.yml](params.template.yml) |
+| params.outputDir | Base output directory for all results and intermediate files. | [params.template.yml](params.template.yml) |
+| params.condaEnv | Path to the conda environment to use. | [params.template.yml](params.template.yml) |
+| params.container | Path to the main container image (SIF or Docker tag). | [params.template.yml](params.template.yml) |
+| params.containerCheckM | Path to the CheckM container image (required when CheckM QC is enabled). | [params.template.yml](params.template.yml) |
+| params.containerSkani | Path to the Skani container image (reserved for future Skani dereplication support). | [params.template.yml](params.template.yml) |
+| params.internetModule | Name of the HPC module that provides internet access (required for processes that download data). | [params.template.yml](params.template.yml) |
+| params.email | Your e-mail address — required only when using q2-fondue. | [params.template.yml](params.template.yml) |
+| params.inputReadsManifest | CSV manifest with `id`, `forward`, and optionally `reverse` columns for FASTQ import. | [params.template.yml](params.template.yml) |
 | params.inputReadsCache | QIIME 2 cache where the input reads are stored. | [params.template.yml](params.template.yml) |
 | params.inputReads | Cache key under which the input reads are stored. | [params.template.yml](params.template.yml) |
 | params.metadata | Metadata file with sample IDs corresponding to the samples from the input cache which should be analyzed. | [params.template.yml](params.template.yml) |
-| params.runId | A unique ID which will be prepended to all the result names for the given pipeline run. Should not contain underscores. | [params.template.yml](params.template.yml) |
-| params.fondueAccessionIds | Path to a TSV file containing SRA accession IDs for data download | [params.template.yml](params.template.yml) |
-| params.condaEnv | Path to the conda environment to use. | [params.template.yml](params.template.yml) |
-| params.container | Path to the container image file. | [params.template.yml](params.template.yml) |
-| params.internetModule | Name of the module that provides internet access on HPC clusters. | [params.template.yml](params.template.yml) |
-| params.outputDir | Base output directory for all results and intermediate files. | [params.template.yml](params.template.yml) |
+| params.fondueAccessionIds | Path to a TSV file containing SRA accession IDs for data download. | [params.template.yml](params.template.yml) |
+| params.archive | Whether to archive per-sample caches after the run completes. | [params.template.yml](params.template.yml) |
 
 ### Directory configurations
 The workflow uses several directories to store various outputs and intermediate files. All directories are by default based on the `params.outputDir` which is set to `$launchDir/results` unless specified otherwise.
@@ -204,6 +190,18 @@ The workflow uses several directories to store various outputs and intermediate 
 | params.containerCacheDir | Directory for caching container images. | `${params.outputDir}/container_cache` |
 | params.q2cacheDir | QIIME 2 cache location - will be created if it does not exist. | `${params.outputDir}/caches/main` |
 | params.q2TemporaryCachesDir | Directory for temporary QIIME 2 caches. | `${params.outputDir}/caches` |
+| params.archiveDir | Directory where archived per-sample caches are stored. | `${params.outputDir}/archives` |
+
+### Cache retention
+
+The `retain` settings control whether intermediate per-sample cache keys are removed after each processing step. By default all are retained (`true`). Set individual flags to `false` to free disk space during the run:
+
+| Parameter | Removes cache keys after |
+| --------- | ---------------------- |
+| `retain.input` | Subsampling or fastp (when subsampling is disabled) |
+| `retain.subsampling` | fastp (when subsampling is enabled) |
+| `retain.fastp` | Host removal or sample filtering |
+| `retain.host_removal` | Sample filtering |
 
 ### Database Configuration
 
@@ -216,36 +214,55 @@ parameter is provided allowing specification of which database version should be
 | Host removal | Bowtie 2 index used to filter out contaminating reads. |
 | Kraken 2 | Taxonomic classification database used for read, contig, and MAG classification. |
 | Bracken | Database used for re-estimation of Kraken 2 abundances obtained from reads. |
-| BUSCO | Database used for quality control of MAGs. |
+| Kaiju | Alternative taxonomic classifier for reads and contigs (`databases.kaiju.databaseType` also required). |
+| BUSCO | Database used for quality control of MAGs during binning. |
+| CheckM | Reference data path for CheckM bin quality assessment (`databases.checkm.path`). |
 | EggNOG orthologs | DIAMOND protein alignment database used for ortholog search. |
-| EggNOG annotations | Functional annotation database used for gene annotation of contigs and MAGs |
+| EggNOG annotations | Functional annotation database used for gene annotation of contigs and MAGs. |
 
 ### Workflow Module Parameters
 
 The workflow is divided into several modules, each with its own parameters defined in the [params.template.yml](params.template.yml) file. Here's an overview of the main modules:
 
-1. **Read Acquisition**: 
+1. **Read Acquisition**:
    - `fondue`: Parameters for downloading reads from SRA using q2-fondue
-   - `read_simulation`: Parameters for simulating reads from genomes
+   - `read_simulation`: Parameters for MASON read simulation (`samples` TSV) and legacy genome simulation
 
 2. **Read Processing**:
    - `read_subsampling`: Parameters for subsampling reads
    - `read_qc`: Parameters for quality control using fastp
-   - `host_removal`: Parameters for removing host DNA
-   - `sample_filtering`: Parameters for filtering samples based on read count
+   - `host_removal`: Parameters for removing host DNA (including alignment mode and sensitivity)
+   - `sample_filtering`: Parameters for filtering samples based on read count (`minReads`)
 
 3. **Assembly and Analysis**:
-   - `genome_assembly`: Parameters for metagenomic assembly
-   - `assembly_qc`: Parameters for assembly quality control
-   - `binning`: Parameters for genome binning
-   - `dereplication`: Parameters for MAG dereplication
-   - `abundance_estimation`: Parameters for contig/MAG abundance estimation
+   - `genome_assembly`: Parameters for metagenomic assembly (`megahit` or `metaspades`)
+   - `assembly_qc`: Assembly quality control, including optional QUAST evaluation
+   - `binning`: Genome binning with optional BUSCO and CheckM QC and MAG filtering
+   - `dereplication`: MAG dereplication (currently uses sourmash; skani parameters exist but are not yet wired)
+   - `abundance_estimation`: Contig and dereplicated MAG abundance estimation
 
 4. **Annotation**:
-   - `taxonomic_classification`: Parameters for taxonomic classification
-   - `functional_annotation`: Parameters for functional annotation
+   - `taxonomic_classification`: Kraken2/Bracken classification (`enabledFor`: reads, contigs, mags, derep)
+   - `taxonomic_classification.kaiju`: Kaiju classification (`enabledFor`: reads, contigs)
+   - `functional_annotation`: eggNOG functional annotation (`enabledFor`: contigs, mags, derep)
 
-Each module has an `enabled` parameter that can be set to `true` or `false` to include or exclude it from the workflow. For detailed information on each parameter, refer to the [params.template.yml](params.template.yml) file.
+Most modules use an `enabled` flag (`true`/`false`) or an `enabledFor` comma-separated list to control which analysis targets are included. Many modules also support `fetchArtifact` flags to export selected results as QZA files. For detailed information on each parameter, refer to the [params.template.yml](params.template.yml) file.
+
+### Execution profiles
+
+Profiles are defined in [conf/profiles.config](conf/profiles.config) and are combined on the command line (e.g. `-profile slurm,singularity,medium`).
+
+| Profile | Purpose |
+| ------- | ------- |
+| `standard` | Local execution |
+| `slurm` | Slurm executor (recommended on HPC) |
+| `conda` | Run processes in a conda environment (`params.condaEnv`) |
+| `singularity` | Run processes in a Singularity container (`params.container`) |
+| `docker` | Run processes in a Docker container (`params.container`) |
+| `low` / `medium` / `high` | Scale CPU, memory, and time globally |
+| `cpu_intensive` / `mem_intensive` | Boost resource allocation for intensive task labels |
+| `quick_test` | Reduced resources for fast test runs (used in CI) |
+| `long_jobs` | Extended time limits for slow processes |
 
 ### Executor: conda
 | Parameter | Meaning | Config file |
@@ -256,11 +273,21 @@ Each module has an `enabled` parameter that can be set to `true` or `false` to i
 | Parameter | Meaning | Config file |
 | --------- | ------- | ----------- |
 | params.container | Location of the SIF image file. | [params.template.yml](params.template.yml) |
-| singularity.runOptions | Run flags to pass to the Singularity command - you should include all the data mounts here | [conf/singularity.config](conf/singularity.config) |
+| params.additionalVolumeMounts | Extra bind mounts appended to Singularity run options. | [params.template.yml](params.template.yml) |
+| params.additionalContainerOptions | Extra flags passed to Singularity (e.g. `--security='gid:<id>'` for network drives). | [params.template.yml](params.template.yml) |
+| singularity.runOptions | Default bind mounts and home directory mapping for Singularity. | [conf/profiles.config](conf/profiles.config) |
 
-> Important: you should set the NXF_SINGULARITY_HOME_MOUNT environment variable to `true` before running the pipeline with Singularity. Otherwise, QIIME 2 will not work properly.
+> Important: you should set the `NXF_SINGULARITY_HOME_MOUNT` environment variable to `true` before running the pipeline with Singularity. Otherwise, QIIME 2 will not work properly.
 
-Currently, the workflow is optimized to be executed using the `slurm` executor using `conda` or `singularity`. If you are using processes which require Internet access you will need to provide the name of the module allowing Internet access from the cluster - this can be done by passing the name of the required module through the `params.internetModule` parameter.
+### Executor: docker
+| Parameter | Meaning | Config file |
+| --------- | ------- | ----------- |
+| params.container | Docker image tag (e.g. `moshpit-ci:local`). | [params.template.yml](params.template.yml) |
+| params.tmpDir | Temporary directory for Docker (optional). | [params.template.yml](params.template.yml) |
+
+A [Dockerfile](Dockerfile) is provided for building a pipeline container. CI uses `-profile docker,quick_test`.
+
+Currently, the workflow is optimized for the `slurm` executor with `conda`, `singularity`, or `docker`. Processes that require internet access (e.g. database fetching, q2-fondue) need the `params.internetModule` HPC module to be set so those jobs can load it.
 
 ## Network drives
 It is possible to provide input data from QIIME 2 cache existing on a network drive. In this case, make sure:
@@ -280,7 +307,7 @@ nextflow run main.nf \
 
 ## Step-by-Step Guide
 
-This guide will help you get started with the moshpit-nf workflow if you're not familiar with Nextflow.
+This guide will help you get started with the nf-moshpit workflow if you're not familiar with Nextflow.
 
 ### Prerequisites
 
@@ -293,7 +320,7 @@ This guide will help you get started with the moshpit-nf workflow if you're not 
    module load stack/.2024-06-silent gcc/12.2.0 openjdk/17.0.8.1_1 nextflow/23.10.0
    ```
    
-2. **Install QIIME 2 metagenome**: Follow the [official QIIME 2 installation instructions](https://docs.qiime2.org/2025.4/install/native/#qiime-2-metagenome-distribution) to create a conda environment or obtain a Singularity image.
+2. **Install MOSHPIT**: Follow the [MOSHPIT installation instructions](https://library.qiime2.org/quickstart/moshpit) to create a conda environment, Docker image, or Singularity image.
 
 3. **Set up your HPC environment**: If running on an HPC cluster, make sure you have access to the necessary compute resources (e.g., Slurm) and any required environment modules.
 
@@ -318,16 +345,19 @@ cd nf-moshpit
    nano params.yml
    ```
 
+   Alternatively, open [`ui/index.html`](ui/index.html) in a browser to configure parameters interactively and download the resulting YAML.
+
 2. **Configure basic parameters**:
    - `runId`: Set a unique identifier for your run (e.g., `Analysis1`)
    - `outputDir`: Specify where the results should be stored (e.g., `/path/to/your/results`). Make sure there is enough storage space.
    - `email`: Your email address (needed for data download with q2-fondue)
    - `container` or `condaEnv`: Path to your Singularity image or conda environment
 
-3. **Specify your input data**:
-   - To use existing reads: Set `inputReads`, `inputReadsCache` and `metadata`
-   - To download from SRA: Set `fondueAccessionIds` to path of a TSV file with accession IDs
-   - To simulate reads: Configure `read_simulation` parameters
+3. **Specify your input data** (use one method):
+   - To import FASTQ files: Set `inputReadsManifest` to a CSV with `id`, `forward`, and optionally `reverse` columns
+   - To use existing reads from a cache: Set `inputReads`, `inputReadsCache`, and `metadata`
+   - To download from SRA: Set `fondueAccessionIds` and `email`
+   - To simulate reads: Set `read_simulation.samples` to a TSV with simulation parameters
 
 4. **Configure modules**:
    For each analysis step, decide whether to enable it by setting `enabled: true` or `enabled: false`. Some modules use the `enabledFor` parameter (which accepts a comma-separated list of inputs):
@@ -387,7 +417,7 @@ nextflow run main.nf \
    - `*_trace.txt`: Detailed information about each process execution
    - `*_timeline.html`: Timeline of processes execution
    - `*_report.html`: Summary report of the workflow execution
-   - `*_sample_report.txt`: Summary report of sample counts kept across the workflow.
+   - `*_sample_report_mqc.json`: MultiQC-compatible JSON report of sample counts retained across the workflow.
 
 3. **For Slurm jobs**, you can use standard commands to check status:
    ```bash
@@ -396,7 +426,7 @@ nextflow run main.nf \
 
 ### Step 6: Examine the results
 
-All of the results are stored in the _main_ QIIME 2 cache which can be found under `${params.outputDir}/caches/main`. Final results (e.g., feature tables or collated artifacts) can also be fetched in QZA artifacts using respective `fetchArtifact` paramater specified in the configuration.
+All of the results are stored in the _main_ QIIME 2 cache which can be found under `${params.outputDir}/caches/main`. Final results (e.g., feature tables or collated artifacts) can also be exported as QZA files using the respective `fetchArtifact` parameters specified in the configuration.
 
 Results in the form of artifacts are stored in the directory specified by `params.publishDir` (default: `${params.outputDir}/results`):
 - QZA files: QIIME 2 artifacts containing data.
@@ -428,7 +458,7 @@ qiime tools view <visualization_file.qzv>
 
 ### Example minimal configuration
 
-Here's a minimal configuration to get started with simulated data:
+Here's a minimal configuration to get started with imported FASTQ data (mirroring the CI test setup):
 
 ```yaml
 # params.yml
@@ -436,11 +466,8 @@ runId: FirstRun
 outputDir: /path/to/output
 container: /path/to/moshpit.sif
 
-# Read simulation settings
-read_simulation:
-  sampleCount: 2
-  nGenomes: 4
-  readCount: 1000000
+# Import reads from a CSV manifest (id, forward, reverse)
+inputReadsManifest: /path/to/manifest.csv
 
 # Database configuration
 databases:
@@ -448,6 +475,9 @@ databases:
     cache: /path/to/db/cache
     key: kraken2_standard
     fetchCollection: standard
+  bracken:
+    cache: /path/to/db/cache
+    key: bracken_standard
   eggnogOrthologs:
     cache: /path/to/db/cache
     key: eggnog_diamond_db
@@ -463,14 +493,19 @@ genome_assembly:
 binning:
   enabled: true
 
+dereplication:
+  enabled: true
+
 taxonomic_classification:
-  enabledFor: "mags"
+  enabledFor: "reads,mags,derep"
+  bracken:
+    enabled: true
 
 functional_annotation:
-  enabledFor: "mags"
+  enabledFor: "mags,derep"
 ```
 
-This configuration will simulate reads from 4 random genomes, assemble them, perform binning, and run taxonomic and functional annotation on the resulting MAGs.
+This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a TSV and leave `inputReadsManifest` unset.
 
 For more detailed information about all available parameters, refer to the [params.template.yml](params.template.yml) file.
 
@@ -485,20 +520,23 @@ The validation checks for:
 1. **Mandatory Core Parameters**:
    - `runId`: A unique identifier for the workflow run
    - `outputDir`: Path where all outputs will be saved
-   - Either `container` (path to Singularity image) or `condaEnv` (path to conda environment)
-   - `internetModule`: HPC module name for internet access
-   - `email`: Required for q2-fondue operations
+   - Either `container` (path to container image) or `condaEnv` (path to conda environment)
+   - `email`: Required only when using q2-fondue (`fondueAccessionIds`)
 
 2. **Input Data** (at least one of these methods must be specified):
    - Manifest file: `inputReadsManifest`
    - Existing reads: `inputReads`, `inputReadsCache`, and `metadata`
    - Accession IDs: `fondueAccessionIds`
-   - Read simulation: appropriate `read_simulation` parameters
+   - Read simulation: `read_simulation.samples` (MASON simulation TSV)
+
+   If multiple input methods are configured, the workflow uses the priority order described at the top of this README and emits a warning.
 
 3. **Database Parameters** for enabled modules:
    - Host removal requires hostRemoval database settings
-   - Taxonomic classification requires Kraken2 and optionally Bracken database settings
+   - Kraken2/Bracken classification requires Kraken2 and optionally Bracken database settings
+   - Kaiju classification requires Kaiju database settings (`cache`, `key`, and `databaseType`)
    - BUSCO quality control requires BUSCO database settings
+   - CheckM quality control requires `databases.checkm.path` and `containerCheckM`
    - Functional annotation requires eggNOG database settings
 
 4. **Module Parameter Consistency**:
@@ -520,15 +558,16 @@ When a validation error is detected, the workflow will terminate with a detailed
 ```
 === PARAMETER VALIDATION ERRORS ===
 ERROR: runId parameter is required
-ERROR: No input method specified. Please provide one of: inputReadsManifest, (inputReads + inputReadsCache + metadata), fondueAccessionIds, or read_simulation parameters
+ERROR: No valid input method specified. Please provide one of: inputReadsManifest, (inputReads + inputReadsCache + metadata), fondueAccessionIds, or read_simulation parameters
 ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled
 ```
 
 ### Recommended Configuration Process
 
-1. Start with the template parameters file: `cp params.template.yml params.yml`
-2. Set the mandatory parameters (runId, outputDir, container/condaEnv, internetModule, email)
+1. Start with the template parameters file: `cp params.template.yml params.yml` (or use the [configurator UI](ui/))
+2. Set the mandatory parameters (runId, outputDir, container/condaEnv, and email if using fondue)
 3. Configure your input data method
 4. Enable the workflow modules you want to use
 5. For each enabled module, set the required database paths
-6. Run the workflow - validation will automatically check your parameters
+6. Set `internetModule` on HPC clusters if any enabled step requires internet access (database fetching, fondue, etc.)
+7. Run the workflow — validation will automatically check your parameters

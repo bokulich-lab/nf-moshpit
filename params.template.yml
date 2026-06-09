@@ -25,7 +25,7 @@ email: user@example.com
 archive: true
 
 retain:
-  input: false
+  input: true
   subsampling: true
   fastp: true
   host_removal: true
@@ -131,8 +131,10 @@ genome_assembly:
 
 assembly_qc:
   enabled: true
-  useMappedReads: false
-  additionalFlags: ""
+  quast:
+    enabled: false
+    useMappedReads: false
+    additionalFlags: ""
 
 binning:
   enabled: true

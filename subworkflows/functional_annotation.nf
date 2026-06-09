@@ -7,6 +7,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_ORTHOLOGS } from '../modules/data_pre
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_ANNOTATIONS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS } from '../modules/data_prep'
 include { CLEAN_UP_CACHES } from '../modules/data_prep'
+include { FIX_CACHE_PERMISSIONS } from '../modules/data_prep'
 
 workflow ANNOTATE_EGGNOG_MAGS {
     take:
@@ -34,7 +35,8 @@ workflow ANNOTATE_EGGNOG_MAGS {
         if (params.functional_annotation.annotation.fetchArtifact) {
             FETCH_ARTIFACT_ANNOTATIONS(collated_annotations)
         }
-
+    emit:
+        collated_orthologs
 }
 
 workflow ANNOTATE_EGGNOG_MAGS_DEREP {
@@ -65,7 +67,17 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
 
 
         if (params.functional_annotation.cleanUp) {
-            CLEAN_UP_CACHES(collated_annotations, "${params.q2TemporaryCachesDir}/mags")
+            wait_for_collation = collated_orthologs.mix(collated_annotations).collect().map { true }
+            CLEAN_UP_CACHES(wait_for_collation, "${params.q2TemporaryCachesDir}/mags")
+        } else {
+             // If not cleaning up, fix permissions on each batch's cache
+             // We can recreate the batch IDs from params.functional_annotation.partitionBatchCount.
+             
+             batch_ids = Channel.of(0..(params.functional_annotation.partitionBatchCount - 1))
+             mags_cache_batches = batch_ids.map { batch_id -> 
+                tuple("mags_batch_${batch_id}", "${params.q2TemporaryCachesDir}/mags/batch_${batch_id}", collated_annotations) 
+             }
+             FIX_CACHE_PERMISSIONS(mags_cache_batches)
         }
 
         if (params.functional_annotation.annotation.extract != "") {
@@ -114,4 +126,6 @@ workflow ANNOTATE_EGGNOG_CONTIGS {
         if (params.functional_annotation.annotation.fetchArtifact) {
             FETCH_ARTIFACT_ANNOTATIONS(collated_annotations)
         }
+    emit:
+        collated_orthologs
 }

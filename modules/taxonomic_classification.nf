@@ -146,20 +146,21 @@ process GET_KRAKEN_FEATURES {
 
     output:
     path features, emit: taxonomy
-    path "${params.runId}_kraken_presence_absence", emit: feature_table, optional: true
+    path ft_all, emit: feature_table, optional: true
 
     script:
     features = "${params.runId}_kraken_features_${input_type}"
-    if (input_type == "reads") {
+    ft_all = "${params.runId}_kraken_presence_absence_${input_type}"
+    if (input_type == "reads" || input_type == "mags") {
       """
       qiime annotate kraken2-to-features \
         --verbose \
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
         --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
         --o-taxonomy ${params.q2cacheDir}:${features} \
-        --o-table "${params.q2cacheDir}:${params.runId}_kraken_presence_absence" \
+        --o-table "${params.q2cacheDir}:${ft_all}" \
       && touch ${features} \
-      && touch ${params.runId}_kraken_presence_absence
+      && touch ${ft_all}
       """
     } else {
       if (params.binning.qc.busco.enabled) {

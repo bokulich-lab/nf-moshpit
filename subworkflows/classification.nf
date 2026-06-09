@@ -3,7 +3,7 @@ include { CLASSIFY_KRAKEN2_DEREP as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modul
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_READS } from '../modules/taxonomic_classification'
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_CONTIGS } from '../modules/taxonomic_classification'
 include { ESTIMATE_BRACKEN } from '../modules/taxonomic_classification'
-include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES } from '../modules/taxonomic_classification'
+include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_FEATURES } from '../modules/taxonomic_classification'
 include { DRAW_TAXA_BARPLOT; DRAW_TAXA_BARPLOT as DRAW_TAXA_BARPLOT_KAIJU_READS } from '../modules/taxonomic_classification'
 include { COLLATE_PARTITIONS as COLLATE_REPORTS_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_HITS_READS } from '../modules/data_prep'
@@ -36,10 +36,14 @@ workflow CLASSIFY_MAGS {
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
         collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
         collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        
+        GET_KRAKEN_MAG_FEATURES(collated_reports, collated_hits, "mags")
         if (params.taxonomic_classification.kraken2.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(collated_reports)
             FETCH_ARTIFACT_HITS(collated_hits)
         }
+    emit:
+        taxonomy = GET_KRAKEN_MAG_FEATURES.out.taxonomy
 }
 
 workflow CLASSIFY_MAGS_DEREP {
@@ -59,6 +63,8 @@ workflow CLASSIFY_MAGS_DEREP {
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_KRAKEN2_TAXONOMY(GET_KRAKEN_MAG_DEREP_FEATURES.out.taxonomy)
         }
+    emit:
+        taxonomy = GET_KRAKEN_MAG_DEREP_FEATURES.out.taxonomy
 }
 
 workflow CLASSIFY_READS {

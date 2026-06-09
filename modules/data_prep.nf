@@ -200,7 +200,11 @@ process FETCH_SEQS {
       key=${reads_single}
     fi
 
-    uuid=\$(cat ${q2cacheDir}/keys/\$key | grep 'data' | awk '{print \$2}')
+    uuid=\$(awk -F':' '/^[[:space:]]*data[[:space:]]*:/ {val=\$2; gsub(/^[[:space:]]+|[[:space:]]+\$/, "", val); gsub(/^["'"'"']|["'"'"']\$/, "", val); print val; exit}' "${q2cacheDir}/keys/\$key")
+    if [[ -z "\$uuid" ]]; then
+      echo "Failed to parse cache key metadata from ${q2cacheDir}/keys/\$key"
+      exit 1
+    fi
     paths=\$(ls ${q2cacheDir}/data/\$uuid/data | grep 'fastq')
     echo "Samples found: \$paths"
     
@@ -518,7 +522,11 @@ process PARTITION_DEREP_MAGS {
 
     script:
     """
-    uuid=\$(cat ${params.q2cacheDir}/keys/${mags_derep} | grep 'data' | awk '{print \$2}')
+    uuid=\$(awk -F':' '/^[[:space:]]*data[[:space:]]*:/ {val=\$2; gsub(/^[[:space:]]+|[[:space:]]+\$/, "", val); gsub(/^["'"'"']|["'"'"']\$/, "", val); print val; exit}' "${params.q2cacheDir}/keys/${mags_derep}")
+    if [[ -z "\$uuid" ]]; then
+      echo "Failed to parse cache key metadata from ${params.q2cacheDir}/keys/${mags_derep}"
+      exit 1
+    fi
     mags=\$(ls ${params.q2cacheDir}/data/\$uuid/data/*.{fa,fasta} 2>/dev/null | xargs -n 1 basename | sed -E 's/\\.(fa|fasta)\$//')
     mkdir -p "${params.q2TemporaryCachesDir}/mags"
 
@@ -771,7 +779,7 @@ process CLEAN_UP_CACHES {
     errorStrategy 'retry'
     
     input:
-    path dependency
+    val dependency
     val path_to_remove
 
     script:
@@ -897,5 +905,50 @@ process REMOVE_FROM_CACHE {
     qiime tools cache-remove \
       --cache ${params.q2TemporaryCachesDir}/${sample_id} \
       --key ${key}
+    """
+}
+
+process FIX_CACHE_PERMISSIONS {
+    tag "${id}"
+    cpus 1
+    memory { 500.MB * task.attempt }
+    time { 1.h * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    
+    input:
+    tuple val(id), val(path), val(ready_signal)
+
+    output:
+    val id
+
+    script:
+    """
+    CACHE="${path}"
+    # Normalize to avoid surprises with trailing slashes
+    CACHE="\${CACHE%/}"
+    
+    if [ ! -d "\${CACHE}" ]; then
+        echo "Error: cache directory does not exist: \${CACHE}" >&2
+        # We don't exit with error here to avoid failing the pipeline if the cache was already cleaned up or doesn't exist for some reason
+        exit 0
+    fi
+
+    # Top level cache directory needs to be writable by the group
+    echo "Updating top-level permissions on '\${CACHE}' (g+rw)"
+    chmod g+rw "\${CACHE}"
+
+    # Pools and processes need to be writable by the group (if present)
+    echo "Updating permissions on 'pools' and 'processes' within '\${CACHE}' (g+rw)"
+    [[ -d "\${CACHE}/pools" ]]     && chmod -R g+rw "\${CACHE}/pools"
+    [[ -d "\${CACHE}/processes" ]] && chmod -R g+rw "\${CACHE}/processes"
+
+    # Data and keys need to be readable by the group (if present)
+    echo "Updating permissions on the 'keys' within '\${CACHE}' (g+r)"
+    [[ -d "\${CACHE}/keys" ]] && chmod -R g+r "\${CACHE}/keys"
+    echo "Updating permissions on the 'data' within '\${CACHE}' (g+rx)"
+    [[ -d "\${CACHE}/data" ]] && chmod -R g+rx "\${CACHE}/data"
+
+    echo "All done!"
     """
 }

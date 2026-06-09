@@ -31,6 +31,8 @@ include { REMOVE_FROM_CACHE as CLEANUP_SUBSAMPLED } from './modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_FASTP } from './modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_HOST } from './modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_FILTERED } from './modules/data_prep'
+include { FIX_CACHE_PERMISSIONS } from './modules/data_prep'
+include { FIX_CACHE_PERMISSIONS as FIX_CACHE_PERMISSIONS_MAIN } from './modules/data_prep'
 include { ASSEMBLE } from './subworkflows/assembly'
 include { BIN } from './subworkflows/binning'
 include { BIN_NO_BUSCO } from './subworkflows/binning'
@@ -85,6 +87,7 @@ workflow {
 
     cache = INIT_CACHE()
     qzv_reports = Channel.empty()
+    workflow_barrier = Channel.empty()
 
     // Log header with workflow version and timestamp
     writeLog("======== MOSHPIT WORKFLOW REPORT =========")
@@ -195,6 +198,7 @@ workflow {
     VISUALIZE_FASTP(fastp_reports_all, cache)
 
     qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv)
+    workflow_barrier = workflow_barrier.mix(VISUALIZE_FASTP.out.qzv)
     deepest_signal = VISUALIZE_FASTP.out
 
     // remove host reads
@@ -223,10 +227,14 @@ workflow {
         
         FETCH_KAIJU_DB.out.kaiju_db
             .subscribe {
-                def dirInfo = getDirectorySizeInGB("${params.databases.kaiju.cache}/keys/${params.databases.kaiju.key}", "${params.databases.kaiju.cache}/data")
-                params.taxonomic_classification = params.taxonomic_classification ?: [:]
-                params.taxonomic_classification.kaiju = params.taxonomic_classification.kaiju ?: [:]
-                params.taxonomic_classification.kaiju.memory = dirInfo.sizeInGBRoundedUp
+                try {
+                    def dirInfo = getDirectorySizeInGB("${params.databases.kaiju.cache}/keys/${params.databases.kaiju.key}", "${params.databases.kaiju.cache}/data")
+                    params.taxonomic_classification = params.taxonomic_classification ?: [:]
+                    params.taxonomic_classification.kaiju = params.taxonomic_classification.kaiju ?: [:]
+                    params.taxonomic_classification.kaiju.memory = dirInfo.sizeInGBRoundedUp
+                } catch (Exception e) {
+                    log.warn "Unable to auto-size Kaiju memory from cache key `${params.databases.kaiju.key}`. Keeping configured value. Cause: ${e.message}"
+                }
             }
     }
 
@@ -271,17 +279,20 @@ workflow {
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
         reads_classification = CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
         qzv_reports = qzv_reports.mix(reads_classification.qzv)
+        workflow_barrier = workflow_barrier.mix(reads_classification.qzv)
     }
 
     if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
         reads_kaiju_classification = CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
         qzv_reports = qzv_reports.mix(reads_kaiju_classification.qzv)
+        workflow_barrier = workflow_barrier.mix(reads_kaiju_classification.qzv)
     }
 
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
         qzv_reports = qzv_reports.mix(contigs.qzv)
+        workflow_barrier = workflow_barrier.mix(contigs.qzv)
 
         contigs.contigs | count | subscribe { trackMetric("Samples after contig assembly and filtering", it) }
 
@@ -293,18 +304,24 @@ workflow {
         // classify contigs
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
             classification = CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+
+            workflow_barrier = workflow_barrier.mix(classification.taxonomy)
+
             if (params.abundance_estimation.enabledFor.contains("contigs")) {
                     contigs_collapsed = COLLAPSE_CONTIGS(classification.feature_map, classification.taxonomy, contigs.contig_abundance)
                     qzv_reports = qzv_reports.mix(contigs_collapsed.qzv)
+                    workflow_barrier = workflow_barrier.mix(contigs_collapsed.qzv)
             }
         }
         if (params.taxonomic_classification.kaiju.enabledFor.contains("contigs")) {
             CLASSIFY_CONTIGS_KAIJU(contigs.contigs, FETCH_KAIJU_DB.out.kaiju_db, cache)
+            workflow_barrier = workflow_barrier.mix(CLASSIFY_CONTIGS_KAIJU.out.kaiju_classification)
         }
 
         // annotate contigs
         if (params.functional_annotation.enabledFor.contains("contigs")) {
-            ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
+            annotation_signal = ANNOTATE_EGGNOG_CONTIGS(contigs.contigs, diamond_db, eggnog_db, cache)
+            workflow_barrier = workflow_barrier.mix(annotation_signal)
         }
 
         // bin contigs into MAGs and evaluate
@@ -318,44 +335,53 @@ workflow {
             
             binning_results.bins | count | subscribe { trackMetric("Samples after binning", it) }
             deepest_signal = binning_results.bins_collated
+            workflow_barrier = workflow_barrier.mix(binning_results.bins_collated)
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
                 CLASSIFY_MAGS(binning_results.bins, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+                workflow_barrier = workflow_barrier.mix(CLASSIFY_MAGS.out.taxonomy)
             }
 
             // annotate MAGs
             if (params.functional_annotation.enabledFor.contains("mags")) {
-                ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
+                annotation_signal_mags = ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
+                workflow_barrier = workflow_barrier.mix(annotation_signal_mags)
             }
 
 
             if (params.dereplication.enabled) {
                 DEREPLICATE(binning_results.bins_collated, cache)
                 deepest_signal = DEREPLICATE.out.bins_derep
+                workflow_barrier = workflow_barrier.mix(DEREPLICATE.out.bins_derep)
                 
                 // estimate abundance
                 if (params.abundance_estimation.enabledFor.contains("derep")) {
                     MAG_ABUNDANCE(DEREPLICATE.out.bins_derep, reads_partitioned, cache)
                     deepest_signal = MAG_ABUNDANCE.out.feature_table
+                    workflow_barrier = workflow_barrier.mix(MAG_ABUNDANCE.out.feature_table)
                 }
 
                 if (params.taxonomic_classification.enabledFor.contains("derep") || params.functional_annotation.enabledFor.contains("derep")) {
                     // classify dereplicated MAGs
                     if (params.taxonomic_classification.enabledFor.contains("derep")) {
                         CLASSIFY_MAGS_DEREP(DEREPLICATE.out.bins_derep, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+                        workflow_barrier = workflow_barrier.mix(CLASSIFY_MAGS_DEREP.out.taxonomy)
                     }
 
                     // annotate dereplicated MAGs
                     if (params.functional_annotation.enabledFor.contains("derep")) {
                         mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
-                        ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
+                        mags_derep_extracted = ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
+                        workflow_barrier = workflow_barrier.mix(mags_derep_extracted)
                         if (params.abundance_estimation.enabledFor.contains("derep")) {
                             annotation_ft = MULTIPLY_TABLES(MAG_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
                             deepest_signal = annotation_ft.map { _type, key -> key }
+                            workflow_barrier = workflow_barrier.mix(annotation_ft)
                             if (params.functional_annotation.annotation.extract.fetchArtifact) {
                                 annotation_key = annotation_ft | map { _type, key -> key }
-                                FETCH_MULTIPLIED_TABLE(annotation_key)
+                                fetched_artifact = FETCH_MULTIPLIED_TABLE(annotation_key)
+                                workflow_barrier = workflow_barrier.mix(fetched_artifact)
                             }
                         }
                     }
@@ -367,11 +393,42 @@ workflow {
     qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it[1].size() > 0 }
     MAKE_REPORT(qzv_reports_all)
 
+    // Fix sample cache permissions
+    // We use workflow_barrier to wait for EVERYTHING
+    final_signal = workflow_barrier.collect().map { true }
+
+    // Collect all valid read IDs into a single list to prevent eager streaming
+    sample_ids_list = reads_partitioned
+        .map { id, _reads -> tuple(id, "${params.q2TemporaryCachesDir}/${id}") }
+        .collect(flat: false)
+    
+    // Combine the collected list with the final signal, then unpack it back into a queue
+    sample_ids_for_fix = sample_ids_list
+        .combine(final_signal)
+        .flatMap { rec ->
+            def signal = rec[-1]       // last item
+            def items  = rec[0..-2]    // all sample tuples
+            items.collect { item -> tuple(item[0], item[1], signal) }
+        }
+
+    // logic:
+    // 1. Always fix permissions when done
+    // 2. Archive acts on the result (if enabled)
+    fixed_sample_caches = FIX_CACHE_PERMISSIONS(sample_ids_for_fix)
+
     // Archive per-sample caches to reduce inode usage on Lustre
     if (params.archive) {
-        sample_ids_for_archive = reads_partitioned.map { id, _reads -> id }
-        ARCHIVE_SAMPLE_CACHE(sample_ids_for_archive, deepest_signal.collect())
+        ARCHIVE_SAMPLE_CACHE(fixed_sample_caches, true)
     }
+
+    // Fix main cache permissions at the very end
+    // We use the result of sample cache fixing (or deeper signal) to trigger this
+    // Wait for fixed_sample_caches before fixing the main cache
+    main_cache_input = Channel.of(tuple("main", "${params.q2cacheDir}"))
+        .combine(fixed_sample_caches.collect().map { true })
+        .map { rec -> tuple(rec[0], rec[1], rec[2]) }
+        
+    FIX_CACHE_PERMISSIONS_MAIN(main_cache_input)
 }
 
 // Add final summary section
