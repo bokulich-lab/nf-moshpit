@@ -418,6 +418,7 @@ nextflow run main.nf \
    - `*_timeline.html`: Timeline of processes execution
    - `*_report.html`: Summary report of the workflow execution
    - `*_sample_report_mqc.json`: MultiQC-compatible JSON report of sample counts retained across the workflow.
+   - `*_read_counts_mqc.json`: MultiQC-compatible JSON table of per-sample read counts at each read-processing step (input, subsampled, fastp, host_removed, filtered), including percent retained relative to the initial input count.
 
 3. **For Slurm jobs**, you can use standard commands to check status:
    ```bash

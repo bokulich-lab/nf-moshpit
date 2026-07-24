@@ -518,7 +518,7 @@ process PARTITION_DEREP_MAGS {
     path q2_cache
 
     output:
-    path "${params.runId}_mags_derep_partitioned_*"
+    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*"
 
     script:
     """
@@ -552,7 +552,7 @@ process PARTITION_DEREP_MAGS {
       fi
       
       q2cacheDir="${params.q2TemporaryCachesDir}/mags/batch_\${batch_id}"
-      key="${params.runId}_mags_derep_partitioned_\${batch_id}"
+      key="${params.runId}_mags_${params.binning.primary}_derep_partitioned_\${batch_id}"
       
       if [ ! -d \$q2cacheDir ]; then
         echo "Creating cache \$q2cacheDir..."
@@ -568,7 +568,7 @@ process PARTITION_DEREP_MAGS {
       echo "Filtering batch \${batch_id} (\$((end_idx - start_idx)) MAGs)..."
       cat metadata.tsv
 
-      qiime annotate filter-derep-mags \
+      qiime mag filter-derep-mags \
         --verbose \
         --i-mags ${params.q2cacheDir}:${mags_derep} \
         --m-metadata-file metadata.tsv \
@@ -692,6 +692,239 @@ process TABULATE_READ_COUNTS {
       --i-sequences ${q2cacheDir}:${reads} \
       --o-counts ${q2cacheDir}:${key} \
       && touch ${key}
+    """
+}
+
+process TABULATE_READ_COUNTS_BATCH {
+    cpus 1
+    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    tag "${step}"
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val samples
+    val step
+
+    output:
+    tuple val(step), path("${step}_read_counts.tsv")
+
+    script:
+    def samplesData = samples.collect { item ->
+        [sample_id: item[0].toString(), reads_key: new File(item[1].toString()).getName()]
+    }
+    def samplesJson = groovy.json.JsonOutput.toJson(samplesData)
+    """
+python3 - <<'PY'
+import os, json, gzip
+
+samples = ${samplesJson}
+q2_tmp_dir = "${params.q2TemporaryCachesDir}"
+
+def uuid_from_key(cache_dir, key):
+    key_file = os.path.join(cache_dir, "keys", key)
+    with open(key_file) as fh:
+        for line in fh:
+            if line.strip().startswith("data:"):
+                return line.split(":", 1)[1].strip().strip("'\\\"")
+    raise RuntimeError(f"No 'data:' field found in {key_file}")
+
+def count_reads_fastq(fastq_files):
+    total = 0
+    for fq in fastq_files:
+        opener = gzip.open if fq.endswith(".gz") else open
+        with opener(fq, "rt") as fh:
+            total += sum(1 for _ in fh) // 4
+    return total
+
+print("sample_id\\tcount")
+with open("${step}_read_counts.tsv", "w") as out:
+    out.write("sample_id\\tcount\\n")
+    for s in samples:
+        sample_id = s["sample_id"]
+        reads_key = s["reads_key"]
+        cache_dir = os.path.join(q2_tmp_dir, sample_id)
+        uuid = uuid_from_key(cache_dir, reads_key)
+        data_dir = os.path.join(cache_dir, "data", uuid, "data")
+        fastq_files = sorted(
+            os.path.join(data_dir, f)
+            for f in os.listdir(data_dir)
+            if f.endswith(".fastq.gz") or f.endswith(".fastq")
+        )
+        n = count_reads_fastq(fastq_files)
+        print(f"  {sample_id}: {n} reads", flush=True)
+        out.write(f"{sample_id}\\t{n}\\n")
+
+print("Done")
+PY
+    """
+}
+
+process MAKE_SAMPLE_REPORT {
+    cpus 1
+    memory { 1.GB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val metrics
+
+    output:
+    path "${params.runId}_sample_report_mqc.json"
+
+    script:
+    def metricsJson = groovy.json.JsonOutput.toJson(
+        metrics.collect { item -> [label: item[0].toString(), count: item[1] as int] }
+    )
+    """
+python3 - <<'PY'
+import json
+
+metrics = ${metricsJson}
+data = {m["label"]: {"count": m["count"]} for m in metrics}
+report = {
+    "id": "moshpit_sample_counts",
+    "plot_type": "barplot",
+    "pconfig": {
+        "id": "sample_counts_plot",
+        "title": "Samples Retained",
+        "ylab": "# Samples",
+    },
+    "data": data,
+}
+
+with open("${params.runId}_sample_report_mqc.json", "w") as out:
+    json.dump(report, out, indent=2)
+
+print(f"Written sample report with {len(data)} metrics")
+PY
+    """
+}
+
+process MULTIQC {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    publishDir "${params.publishDir}/multiqc", mode: 'copy'
+
+    input:
+    path sample_report
+    path read_counts_report
+
+    output:
+    path "multiqc_report.html"
+    path "multiqc_report_data"
+
+    script:
+    """
+    multiqc . --filename multiqc_report --force
+    """
+}
+
+process REPORT_READ_COUNTS {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    time { 1.h * task.attempt }
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val step_tsvs
+
+    output:
+    path "${params.runId}_read_counts_mqc.json"
+
+    script:
+    def tsvListJson = groovy.json.JsonOutput.toJson(
+        step_tsvs.collect { item -> [step: item[0].toString(), tsv: item[1].toString()] }
+    )
+    """
+python3 - <<'PY'
+import json
+
+step_order = ["input", "subsampled", "fastp", "host_removed", "filtered"]
+
+entries = ${tsvListJson}
+
+counts = {}
+observed_steps = set()
+
+for entry in entries:
+    step = entry['step']
+    tsv_path = entry['tsv']
+    observed_steps.add(step)
+
+    with open(tsv_path) as tf:
+        lines = [l.rstrip('\\n') for l in tf if l.strip()]
+
+    if not lines:
+        continue
+    header = lines[0].split('\\t')
+    for line in lines[1:]:
+        row = dict(zip(header, line.split('\\t')))
+        sid = row.get('sample_id')
+        cnt = row.get('count')
+        if sid and cnt:
+            counts.setdefault(sid, {})[step] = int(cnt)
+
+active_steps = [s for s in step_order if s in observed_steps]
+
+headers = {}
+for step in active_steps:
+    headers[step] = {
+        "title": step.replace("_", " ").capitalize(),
+        "description": f"Read count after {step} step",
+        "format": "{:,.0f}",
+        "min": 0,
+        "scale": "Blues",
+    }
+    pct_key = f"{step}_pct"
+    headers[pct_key] = {
+        "title": f"{step.replace('_', ' ').capitalize()} %",
+        "description": f"Reads retained after {step} step relative to input",
+        "format": "{:.1f}",
+        "suffix": "%",
+        "min": 0,
+        "max": 100,
+        "scale": "RdYlGn",
+    }
+
+data = {}
+for sample_id, step_counts in sorted(counts.items()):
+    row = {}
+    input_count = step_counts.get("input")
+    for step in active_steps:
+        n = step_counts.get(step)
+        if n is not None:
+            row[step] = n
+            row[f"{step}_pct"] = round(n / input_count * 100, 2) if input_count else None
+    data[sample_id] = row
+
+report = {
+    "id": "moshpit_read_counts",
+    "section_name": "Read Counts per Processing Step",
+    "description": "Number of reads per sample at each read processing stage. Percentages are relative to the initial input.",
+    "plot_type": "table",
+    "pconfig": {
+        "id": "read_counts_table",
+        "title": "Read Counts per Processing Step",
+    },
+    "headers": headers,
+    "data": data,
+}
+
+with open("${params.runId}_read_counts_mqc.json", "w") as out:
+    json.dump(report, out, indent=2)
+
+print(f"Written with {len(data)} samples and {len(active_steps)} steps")
+PY
     """
 }
 
@@ -889,6 +1122,7 @@ process ARCHIVE_SAMPLE_CACHE {
 }
 
 process REMOVE_FROM_CACHE {
+    tag "${sample_id}"
     cpus 1
     memory { 500.MB * task.attempt }
     time { 30.min * task.attempt }

@@ -47,13 +47,15 @@ process ASSEMBLE_MEGAHIT {
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_contigs_partitioned_${sample_id}"
+    presets_flag = params.genome_assembly.megahit.presets ? "--p-presets ${params.genome_assembly.megahit.presets}" : ""
+    kList_flag = params.genome_assembly.megahit.kList ? "--p-k-list ${params.genome_assembly.megahit.kList}" : ""
     """
     echo Processing sample ${sample_id}
     qiime assembly assemble-megahit \
       --verbose \
       --i-reads ${q2cacheDir}:${reads_file} \
-      --p-presets ${params.genome_assembly.megahit.presets} \
-      --p-k-list ${params.genome_assembly.megahit.kList} \
+      ${presets_flag} \
+      ${kList_flag} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
       --no-recycle \

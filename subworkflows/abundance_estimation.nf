@@ -18,9 +18,9 @@ workflow MAG_ABUNDANCE {
         combined = reads.combine(mags_derep_index)
         reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache) | collect(flat: false)
         if (params.binning.qc.busco.enabled) {
-          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.qc.busco.selectLineage}"
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}"
         } else {
-          reads_to_mags_key = "${params.runId}_reads_to_derep_mags"
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}"
         }
         maps_all = COLLATE_PARTITIONS(reads_to_mags, reads_to_mags_key, "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
         lengths = GET_MAG_LENGTHS(mags_derep, q2_cache, "mags_derep")

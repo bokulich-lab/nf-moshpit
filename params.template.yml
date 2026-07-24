@@ -7,8 +7,15 @@ outputDir: /path/to/output
 
 # Singularity parameters: path to the SIF image, additional volume mounts and other options
 container: /path/to/container.sif
+# Optional per-plugin overrides (default to container when unset)
+containerAnnotate: /path/to/annotate.sif
+containerAssembly: /path/to/assembly.sif
+containerMag: /path/to/mag.sif
 containerCheckM: /path/to/checkm.sif
 containerSkani: /path/to/skani.sif
+containerSourmash: /path/to/sourmash.sif
+containerHumann3: /path/to/humann3.sif
+containerFastp: /path/to/fastp.sif
 additionalVolumeMounts: "additional volumes to be mounted in the containers"
 additionalContainerOptions: "additional options to be passed to Singularity"
 
@@ -77,6 +84,18 @@ databases:
   eggnogAnnotations:
     cache:  ""
     key:    ""
+  humann3Chocophlan:
+    cache:  ""
+    key:    ""
+  humann3TranslatedSearch:
+    cache:  ""
+    key:    ""
+    build: "uniref90_diamond"
+  humann3Metaphlan:
+    cache:  ""
+    key:    ""
+    index: "latest"
+    cpus: 1
 
 # ======== ANALYSIS PARAMETERS ========
 fondue:
@@ -138,8 +157,24 @@ assembly_qc:
 
 binning:
   enabled: true
-  clusterOptions: ""
+  primary: metabat2
   fetchArtifact: false
+  metabat2:
+    enabled: true
+    clusterOptions: ""
+    min_contig: 1500
+    seed: 100
+    additionalFlags: ""
+  semibin2:
+    enabled: false
+    clusterOptions: ""
+    environment: global
+    training_type: semi
+    min_len: 1500
+    epochs: 15
+    batch_size: 2048
+    random_seed: 100
+    additionalFlags: ""
   qc:
     busco:
       enabled: false
@@ -236,6 +271,30 @@ functional_annotation:
       fetchArtifact: false
   cleanUp: false
   partitionBatchCount: 10
+
+humann3:
+  enabled: false
+  clusterOptions: ""
+  fetchArtifact: false
+  memory_use: "minimum" # minimum, maximum
+  prescreen_threshold: 0.01
+  nucleotide_identity_threshold: 0.0
+  nucleotide_query_coverage_threshold: 90.0
+  nucleotide_subject_coverage_threshold: 50.0
+  translated_identity_threshold: null
+  translated_query_coverage_threshold: 90.0
+  translated_subject_coverage_threshold: 50.0
+  evalue: 1.0
+  gap_fill: true
+  minpath: true
+  pathways: "metacyc" # metacyc, unipathway
+  output_max_decimals: 10
+  log_level: "INFO"
+  additionalFlags: ""
+  conversion:
+    destratify: false
+    metaphlan_level: 7
+    additionalFlags: ""
 
 weblog:
   enabled: false

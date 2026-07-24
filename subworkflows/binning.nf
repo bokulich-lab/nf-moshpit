@@ -1,125 +1,57 @@
-include { BIN_CONTIGS_METABAT } from '../modules/contig_binning'
-include { EVALUATE_BINS_BUSCO } from '../modules/contig_binning'
-include { EVALUATE_BINS_CHECKM } from '../modules/contig_binning'
-include { VISUALIZE_BUSCO } from '../modules/contig_binning'
 include { FETCH_BUSCO_DB } from '../modules/contig_binning'
-include { FILTER_MAGS } from '../modules/contig_binning'
-include { COLLATE_PARTITIONS as COLLATE_BINS } from '../modules/data_prep'
-include { COLLATE_PARTITIONS as COLLATE_FILTERED_BINS } from '../modules/data_prep'
-include { COLLATE_BUSCO_RESULTS } from '../modules/contig_binning'
-include { COLLATE_PARTITIONS as COLLATE_UNBINNED_CONTIGS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS_FILTERED } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BUSCO_RESULTS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_UNBINNED_CONTIGS } from '../modules/data_prep'
+include { RUN_BINNER as RUN_BINNER_METABAT2 } from './run_binner'
+include { RUN_BINNER as RUN_BINNER_SEMIBIN2 } from './run_binner'
 
-workflow BIN {
+workflow BINNING {
     take:
         contigs
         maps
         q2_cache
+
     main:
         qzv_outputs = Channel.empty()
-        contigs_with_maps = contigs.combine(maps, by: 0)
 
-        bins = BIN_CONTIGS_METABAT(contigs_with_maps)
-        bins_all = BIN_CONTIGS_METABAT.out.bins | collect(flat: false)
-        bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
-
-        unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs | collect(flat: false)
-        unbinned_contigs = COLLATE_UNBINNED_CONTIGS(unbinned_contigs, "${params.runId}_unbinned_contigs", "types collate-contigs", "--i-contigs", "--o-collated-contigs", true)
-
-        if (params.binning.fetchArtifact) {
-            FETCH_ARTIFACT_MAGS(bins_all)
-            FETCH_ARTIFACT_UNBINNED_CONTIGS(unbinned_contigs)
-        }
-
-        if (params.binning.qc.checkm.enabled) {
-            EVALUATE_BINS_CHECKM(bins_all)
-            qzv_outputs = qzv_outputs.mix(EVALUATE_BINS_CHECKM.out.qzv)
-        }
-
-        busco_db = FETCH_BUSCO_DB()
-        lineages = Channel.of(params.binning.qc.busco.lineageDatasets.split(","))
-        bins_with_lineage = BIN_CONTIGS_METABAT.out.bins.combine(BIN_CONTIGS_METABAT.out.unbinned_contigs, by: 0)
-        bins_with_lineage_unbinned = lineages.combine(bins_with_lineage)
-
-        busco_results_partitioned = EVALUATE_BINS_BUSCO(bins_with_lineage_unbinned, busco_db)
-        busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
-        
-        busco_results = COLLATE_BUSCO_RESULTS(
-            busco_results_by_lineage.map { it[0] },          // lineage
-            busco_results_by_lineage.map { it[1..-1] },      // ids_and_paths
-            "${params.runId}_busco_results", 
-            "annotate collate-busco-results", 
-            "--i-results", 
-            "--o-collated-results", 
-            true
-        )
-        VISUALIZE_BUSCO(busco_results, q2_cache)
-        qzv_outputs = qzv_outputs.mix(VISUALIZE_BUSCO.out.qzv)
-
-        if (params.binning.qc.busco.fetchArtifact) {
-            FETCH_ARTIFACT_BUSCO_RESULTS(busco_results.collated_results.map { it[1] })
-        }
-
-        if (params.binning.qc.filtering.enabled) {
-            filtered_busco_results = busco_results
-                .filter { lineage -> 
-                    def lineage_element = lineage[0]
-                    def matches = params.binning.qc.busco.selectLineage.split(",").any { selectedLineage ->
-                        def trimmed = selectedLineage.trim()
-                        def contains = lineage_element.contains(trimmed)
-                        contains
-                    }
-                    matches
-                }
-
-            combined = BIN_CONTIGS_METABAT.out.bins.combine(filtered_busco_results)
-
-            bins = FILTER_MAGS(combined.map { _id, _bins, lineage, busco_results -> [_id, _bins, lineage] }, combined.map { _id, _bins, lineage, busco_results -> busco_results }, "mag", q2_cache)
-            bins = bins.map { _id, _bins, lineage -> [_id, _bins] } // we need to remove the lineage column
-            bins_all = bins | collect(flat: false)
-            bins_all = COLLATE_FILTERED_BINS(bins_all, "${params.runId}_mags_filtered_${params.binning.qc.busco.selectLineage}", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
-            if (params.binning.qc.filtering.fetchArtifact) {
-                FETCH_ARTIFACT_MAGS_FILTERED(bins_all)   
-            }
+        if (params.binning.qc.busco.enabled) {
+            busco_db = FETCH_BUSCO_DB()
         } else {
-            bins = BIN_CONTIGS_METABAT.out.bins
+            busco_db = Channel.empty()
+        }
+
+        if (params.binning.metabat2.enabled) {
+            metabat2_results = RUN_BINNER_METABAT2(
+                'metabat2',
+                contigs,
+                maps,
+                q2_cache,
+                params.binning.qc.busco.enabled,
+                busco_db
+            )
+            qzv_outputs = qzv_outputs.mix(metabat2_results.qzv)
+        }
+
+        if (params.binning.semibin2.enabled) {
+            semibin2_results = RUN_BINNER_SEMIBIN2(
+                'semibin2',
+                contigs,
+                maps,
+                q2_cache,
+                params.binning.qc.busco.enabled,
+                busco_db
+            )
+            qzv_outputs = qzv_outputs.mix(semibin2_results.qzv)
+        }
+
+        if (params.binning.primary == 'metabat2') {
+            selected = metabat2_results
+        } else {
+            selected = semibin2_results
         }
 
     emit:
-        bins = bins
-        contig_map = BIN_CONTIGS_METABAT.out.contig_map
-        unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs
-        busco_results = busco_results.collated_results
-        bins_collated = bins_all
-        qzv = qzv_outputs
-}
-
-workflow BIN_NO_BUSCO {
-    take:
-        contigs
-        maps
-        q2_cache
-    main:
-        qzv_outputs = Channel.empty()
-        contigs_with_maps = contigs.combine(maps, by: 0)
-
-        bins = BIN_CONTIGS_METABAT(contigs_with_maps)
-        bins_all = bins.bins | collect(flat: false)
-        bins_all = COLLATE_BINS(bins_all, "${params.runId}_mags", "types collate-sample-data-mags", "--i-mags", "--o-collated-mags", true)
-        if (params.binning.fetchArtifact) {
-            FETCH_ARTIFACT_MAGS(bins_all)
-        }
-        if (params.binning.qc.checkm.enabled) {
-            EVALUATE_BINS_CHECKM(bins_all)
-            qzv_outputs = qzv_outputs.mix(EVALUATE_BINS_CHECKM.out.qzv)
-        }
-    emit:
-        bins = BIN_CONTIGS_METABAT.out.bins
-        contig_map = BIN_CONTIGS_METABAT.out.contig_map
-        unbinned_contigs = BIN_CONTIGS_METABAT.out.unbinned_contigs
-        bins_collated = bins_all
+        bins = selected.bins
+        contig_map = selected.contig_map
+        unbinned_contigs = selected.unbinned_contigs
+        busco_results = selected.busco_results
+        bins_collated = selected.bins_collated
         qzv = qzv_outputs
 }
