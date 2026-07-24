@@ -1,6 +1,6 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2026.1`
+**Currently supported QIIME 2 version:** `2026.7`
 
 **Currently supported runtimes:** `conda`, `singularity`, `docker`
 
@@ -12,6 +12,7 @@ Workflow configuration happens through several config files:
 - [resources.config](conf/resources.config): CPU, memory and time requirements for each process
 - [defaults.config](conf/defaults.config): default parameter values for all workflow modules
 - [profiles.config](conf/profiles.config): execution profiles for different environments
+- [containers.config](conf/containers.config): per-process container overrides for plugin-specific images
 
 There are multiple ways to provide data to the workflow. The workflow checks these methods in the following order and uses the first one that is configured:
 
@@ -76,6 +77,11 @@ graph TD
     classifyKaiju -->|Yes| CLASSIFY_READS_KAIJU --> KAIJU_READS_TAXA_BARPLOT --> continuePipeline
     classifyKaiju -->|No| continuePipeline
     
+    final_reads --> humannCheck{HUMAnN 3 enabled?}
+    humannCheck -->|Yes| fetchHumannDBs[FETCH_CHOCOPHLAN_DB + FETCH_TRANSLATED_SEARCH_DB + FETCH_METAPHLAN_DB]
+    fetchHumannDBs --> ANNOTATE_READS_HUMANN --> continuePipeline
+    humannCheck -->|No| continuePipeline
+    
     final_reads --> assemblyCheck{Assembly enabled?}
     assemblyCheck -->|No| finalize[MAKE_REPORT + FIX_CACHE_PERMISSIONS]
     assemblyCheck -->|Yes| ASSEMBLE
@@ -128,9 +134,9 @@ graph TD
     archiveCheck -->|No| endWorkflow[End Workflow]
     ARCHIVE_SAMPLE_CACHE --> endWorkflow
     
-    class INIT_CACHE,IMPORT_READS,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,SIMULATE_READS_MASON,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_KAIJU_DB,ESTIMATE_BRACKEN,BRACKEN_TAXA_BARPLOT,KAIJU_READS_TAXA_BARPLOT,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_DEREP_MAGS,MULTIPLY_TABLES,MAKE_REPORT,FIX_CACHE_PERMISSIONS,ARCHIVE_SAMPLE_CACHE,COLLAPSE_CONTIGS moduleClass
-    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_READS_KAIJU,CLASSIFY_CONTIGS,CLASSIFY_CONTIGS_KAIJU,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,MAG_ABUNDANCE subworkflowClass
-    class inputChoice,subsample,hostRemoval,sampleFiltering,krakenDb,kaijuDb,classifyKraken,brackenCheck,classifyKaiju,assemblyCheck,functionalCheck,classifyContigsKraken,collapseCheck,classifyContigsKaiju,annotateContigs,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck,archiveCheck conditionClass
+    class INIT_CACHE,IMPORT_READS,FETCH_SEQS,FETCH_GENOMES,SIMULATE_READS,SIMULATE_READS_MASON,SUBSAMPLE_READS,PROCESS_READS_FASTP,VISUALIZE_FASTP,REMOVE_HOST,TABULATE_READ_COUNTS,FILTER_SAMPLES,FETCH_KRAKEN2_DB,FETCH_KAIJU_DB,ESTIMATE_BRACKEN,BRACKEN_TAXA_BARPLOT,KAIJU_READS_TAXA_BARPLOT,FETCH_CHOCOPHLAN_DB,FETCH_TRANSLATED_SEARCH_DB,FETCH_METAPHLAN_DB,FETCH_DIAMOND_DB,FETCH_EGGNOG_DB,PARTITION_DEREP_MAGS,MULTIPLY_TABLES,MAKE_REPORT,FIX_CACHE_PERMISSIONS,ARCHIVE_SAMPLE_CACHE,COLLAPSE_CONTIGS moduleClass
+    class ASSEMBLE,BIN,BIN_NO_BUSCO,DEREPLICATE,CLASSIFY_READS,CLASSIFY_READS_KAIJU,CLASSIFY_CONTIGS,CLASSIFY_CONTIGS_KAIJU,CLASSIFY_MAGS,CLASSIFY_MAGS_DEREP,ANNOTATE_EGGNOG_CONTIGS,ANNOTATE_EGGNOG_MAGS,ANNOTATE_EGGNOG_MAGS_DEREP,ANNOTATE_READS_HUMANN,MAG_ABUNDANCE subworkflowClass
+    class inputChoice,subsample,hostRemoval,sampleFiltering,krakenDb,kaijuDb,classifyKraken,brackenCheck,classifyKaiju,humannCheck,assemblyCheck,functionalCheck,classifyContigsKraken,collapseCheck,classifyContigsKaiju,annotateContigs,binningCheck,buscoCheck,classifyMAGs,annotateMAGs,derepCheck,abundanceCheck,classifyDerepMAGs,annotateDerepMAGs,multiplyCheck,archiveCheck conditionClass
     class reads,filtered_reads,final_reads,bins,derep_bins dataClass
 ```
 
@@ -165,7 +171,13 @@ Some of the most useful configuration parameters are explained below.
 | params.runId | A unique ID which will be prepended to all the result names for the given pipeline run. Should not contain underscores. | [params.template.yml](params.template.yml) |
 | params.outputDir | Base output directory for all results and intermediate files. | [params.template.yml](params.template.yml) |
 | params.condaEnv | Path to the conda environment to use. | [params.template.yml](params.template.yml) |
-| params.container | Path to the main container image (SIF or Docker tag). | [params.template.yml](params.template.yml) |
+| params.container | Path to the main container image (SIF or Docker tag). Used as the fallback when a plugin-specific container is unset. | [params.template.yml](params.template.yml) |
+| params.containerAnnotate | Optional override for q2-annotate processes. | [params.template.yml](params.template.yml) |
+| params.containerAssembly | Optional override for q2-assembly processes. | [params.template.yml](params.template.yml) |
+| params.containerMag | Optional override for q2-mag processes. | [params.template.yml](params.template.yml) |
+| params.containerFastp | Optional override for q2-fastp processes. | [params.template.yml](params.template.yml) |
+| params.containerHumann3 | Optional override for q2-humann3 processes (required when HUMAnN 3 is enabled unless `container` is set). | [params.template.yml](params.template.yml) |
+| params.containerSourmash | Optional override for q2-sourmash processes. | [params.template.yml](params.template.yml) |
 | params.containerCheckM | Path to the CheckM container image (required when CheckM QC is enabled). | [params.template.yml](params.template.yml) |
 | params.containerSkani | Path to the Skani container image (reserved for future Skani dereplication support). | [params.template.yml](params.template.yml) |
 | params.internetModule | Name of the HPC module that provides internet access (required for processes that download data). | [params.template.yml](params.template.yml) |
@@ -192,16 +204,27 @@ The workflow uses several directories to store various outputs and intermediate 
 | params.q2TemporaryCachesDir | Directory for temporary QIIME 2 caches. | `${params.outputDir}/caches` |
 | params.archiveDir | Directory where archived per-sample caches are stored. | `${params.outputDir}/archives` |
 
+When `params.archive` is `true`, each sample's QIIME 2 cache is zipped into `params.archiveDir` after the run finishes (with integrity checks before the original cache is removed). To resume a workflow from archived caches, restore them first with [bin/restore_cache.sh](bin/restore_cache.sh):
+
+```bash
+# Restore all samples, then resume
+./bin/restore_cache.sh /path/to/output/archives /path/to/output/caches
+nextflow run main.nf -params-file params.yml -profile slurm,singularity -resume
+
+# Or restore specific sample IDs only
+./bin/restore_cache.sh /path/to/output/archives /path/to/output/caches SRR123456 SRR789012
+```
+
 ### Cache retention
 
-The `retain` settings control whether intermediate per-sample cache keys are removed after each processing step. By default all are retained (`true`). Set individual flags to `false` to free disk space during the run:
+The `retain` settings control whether intermediate per-sample cache keys are removed after the next processing step finishes. By default all are retained (`true`). Set a flag to `false` to free disk space during the run. Cleanup only runs when the relevant upstream/downstream steps are enabled:
 
-| Parameter | Removes cache keys after |
-| --------- | ---------------------- |
-| `retain.input` | Subsampling or fastp (when subsampling is disabled) |
-| `retain.subsampling` | fastp (when subsampling is enabled) |
-| `retain.fastp` | Host removal or sample filtering |
-| `retain.host_removal` | Sample filtering |
+| Parameter | Keys removed when set to `false` | Removed after |
+| --------- | -------------------------------- | ------------- |
+| `retain.input` | Input reads | Subsampling, if enabled; otherwise fastp |
+| `retain.subsampling` | Subsampled reads | fastp (only applies when subsampling is enabled) |
+| `retain.fastp` | fastp-processed reads | Host removal, if enabled; otherwise sample filtering (only if one of those steps is enabled) |
+| `retain.host_removal` | Host-filtered reads | Sample filtering (only applies when both host removal and sample filtering are enabled) |
 
 ### Database Configuration
 
@@ -219,6 +242,9 @@ parameter is provided allowing specification of which database version should be
 | CheckM | Reference data path for CheckM bin quality assessment (`databases.checkm.path`). |
 | EggNOG orthologs | DIAMOND protein alignment database used for ortholog search. |
 | EggNOG annotations | Functional annotation database used for gene annotation of contigs and MAGs. |
+| HUMAnN 3 ChocoPhlAn | Nucleotide database used by HUMAnN 3 for reads (`databases.humann3Chocophlan`). |
+| HUMAnN 3 translated search | Translated search database used by HUMAnN 3 (`databases.humann3TranslatedSearch`; `build` selects the UniRef DIAMOND build). |
+| HUMAnN 3 MetaPhlAn | MetaPhlAn database used by HUMAnN 3 (`databases.humann3Metaphlan`; `index` and `cpus` optional). |
 
 ### Workflow Module Parameters
 
@@ -245,6 +271,7 @@ The workflow is divided into several modules, each with its own parameters defin
    - `taxonomic_classification`: Kraken2/Bracken classification (`enabledFor`: reads, contigs, mags, derep)
    - `taxonomic_classification.kaiju`: Kaiju classification (`enabledFor`: reads, contigs)
    - `functional_annotation`: eggNOG functional annotation (`enabledFor`: contigs, mags, derep)
+   - `humann3`: HUMAnN 3 functional profiling of reads (`enabled`; requires ChocoPhlAn, translated-search, and MetaPhlAn databases, plus `containerHumann3` or `container`)
 
 Most modules use an `enabled` flag (`true`/`false`) or an `enabledFor` comma-separated list to control which analysis targets are included. Many modules also support `fetchArtifact` flags to export selected results as QZA files. For detailed information on each parameter, refer to the [params.template.yml](params.template.yml) file.
 
@@ -485,6 +512,16 @@ databases:
   eggnogAnnotations:
     cache: /path/to/db/cache
     key: eggnog_annotations
+  # Optional HUMAnN 3 DBs (required when humann3.enabled is true)
+  # humann3Chocophlan:
+  #   cache: /path/to/db/cache
+  #   key: humann3_chocophlan
+  # humann3TranslatedSearch:
+  #   cache: /path/to/db/cache
+  #   key: humann3_uniref90
+  # humann3Metaphlan:
+  #   cache: /path/to/db/cache
+  #   key: humann3_metaphlan
 
 # Analysis modules to enable
 genome_assembly:
@@ -504,6 +541,11 @@ taxonomic_classification:
 
 functional_annotation:
   enabledFor: "mags,derep"
+
+# Optional: HUMAnN 3 profiling of reads
+# humann3:
+#   enabled: true
+# containerHumann3: /path/to/humann3.sif
 ```
 
 This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a TSV and leave `inputReadsManifest` unset.
@@ -539,6 +581,7 @@ The validation checks for:
    - BUSCO quality control requires BUSCO database settings
    - CheckM quality control requires `databases.checkm.path` and `containerCheckM`
    - Functional annotation requires eggNOG database settings
+   - HUMAnN 3 requires ChocoPhlAn, translated-search, and MetaPhlAn database settings, plus `containerHumann3` or `container`
 
 4. **Module Parameter Consistency**:
    - Ensures assembly is enabled if binning is enabled
