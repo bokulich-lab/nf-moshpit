@@ -20,11 +20,11 @@ process CLASSIFY_KRAKEN2 {
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (input_type == "mags") {
       if (params.binning.qc.busco.enabled) {
-        reports_key = "${params.runId}_kraken_reports_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {
-        reports_key = "${params.runId}_kraken_reports_mags_partitioned_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${_id}"
       }
     } else if (input_type == "reads") {
         reports_key = "${params.runId}_kraken_reports_reads_partitioned_${_id}"
@@ -70,11 +70,11 @@ process CLASSIFY_KRAKEN2_DEREP {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      reports_key = "${params.runId}_kraken_reports_mags_derep_${params.binning.qc.busco.selectLineage}"
-      hits_key = "${params.runId}_kraken_outputs_mags_derep_${params.binning.qc.busco.selectLineage}"
+      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
+      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
     } else {
-      reports_key = "${params.runId}_kraken_reports_mags_derep"
-      hits_key = "${params.runId}_kraken_outputs_mags_derep"
+      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep"
+      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep"
     }
     threads = 4 * task.cpus
     """
@@ -146,20 +146,25 @@ process GET_KRAKEN_FEATURES {
 
     output:
     path features, emit: taxonomy
-    path "${params.runId}_kraken_presence_absence", emit: feature_table, optional: true
+    path ft_all, emit: feature_table, optional: true
 
     script:
     features = "${params.runId}_kraken_features_${input_type}"
-    if (input_type == "reads") {
+    ft_all = "${params.runId}_kraken_presence_absence_${input_type}"
+    if (input_type == "mags") {
+      features = "${params.runId}_kraken_features_mags_${params.binning.primary}"
+      ft_all = "${params.runId}_kraken_presence_absence_mags_${params.binning.primary}"
+    }
+    if (input_type == "reads" || input_type == "mags") {
       """
       qiime annotate kraken2-to-features \
         --verbose \
         --i-reports ${params.q2cacheDir}:${kraken2_reports} \
         --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
         --o-taxonomy ${params.q2cacheDir}:${features} \
-        --o-table "${params.q2cacheDir}:${params.runId}_kraken_presence_absence" \
+        --o-table "${params.q2cacheDir}:${ft_all}" \
       && touch ${features} \
-      && touch ${params.runId}_kraken_presence_absence
+      && touch ${ft_all}
       """
     } else {
       if (params.binning.qc.busco.enabled) {
@@ -175,6 +180,71 @@ process GET_KRAKEN_FEATURES {
       && touch ${features}
       """
     }
+}
+
+process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
+    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    errorStrategy "retry"
+    maxRetries 3
+    storeDir params.storeDir
+    // scratch true
+
+    input:
+    path kraken2_reports
+    path kraken2_hits
+
+    output:
+    path taxonomy, emit: taxonomy
+    path feature_map, emit: feature_map
+
+    script:
+    taxonomy = "${params.runId}_kraken_taxonomy_contigs"
+    feature_map = "${params.runId}_kraken_feature_map_contigs"
+
+    """
+    qiime annotate map-taxonomy-to-contigs \
+      --verbose \
+      --i-reports ${params.q2cacheDir}:${kraken2_reports} \
+      --i-outputs ${params.q2cacheDir}:${kraken2_hits} \
+      --p-coverage-threshold ${params.taxonomic_classification.feature_selection.coverageThreshold} \
+      --o-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --o-feature-map "${params.q2cacheDir}:${feature_map}" \
+    && touch ${taxonomy} \
+    && touch ${feature_map}
+    """
+}
+
+process COLLAPSE_CONTIGS {
+    time { 4.h * task.attempt }
+    memory { 4.GB * task.attempt }
+    errorStrategy "retry"
+    maxRetries 3
+    storeDir params.storeDir
+    // scratch true
+
+    input:
+    path feature_map
+    path taxonomy
+    path contig_abundances
+
+    output:
+    path collapsed_table, emit: collapsed_table
+    tuple val(viz_label), path("${params.runId}-contigs-collapsed.qzv"), emit: qzv
+
+    script:
+    viz_label = "Collapsed contigs (Kraken2)"
+    collapsed_table = "${params.runId}_contigs_collapsed_kraken2"
+    """
+    qiime annotate collapse-contigs \
+      --verbose \
+      --i-contig-map ${params.q2cacheDir}:${feature_map} \
+      --i-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --i-table ${params.q2cacheDir}:${contig_abundances} \
+      --o-collapsed-table ${params.q2cacheDir}:${collapsed_table} \
+      --o-visualization "${params.runId}-contigs-collapsed.qzv" \
+    && touch ${collapsed_table}
+    """
 }
 
 process CLASSIFY_KAIJU {
@@ -255,9 +325,11 @@ process DRAW_TAXA_BARPLOT {
     val tool_name
 
     output:
-    path "${params.runId}-${tool_name}-taxa-barplot.qzv"
+    tuple val(viz_label), path("${params.runId}-${tool_name}-taxa-barplot.qzv"), emit: qzv
 
     script:
+    viz_label = "Taxa barplot: ${tool_name}"
+
     """
     qiime taxa barplot \
       --verbose \

@@ -12,9 +12,9 @@ process CALCULATE_MINHASHES {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      minhash_key = "${params.runId}_mags_minhash_${params.binning.qc.busco.selectLineage}"
+      minhash_key = "${params.runId}_mags_${params.binning.primary}_minhash_${params.binning.qc.busco.selectLineage}"
     } else {
-      minhash_key = "${params.runId}_mags_minhash"
+      minhash_key = "${params.runId}_mags_${params.binning.primary}_minhash"
     }
     """
     qiime sourmash compute \
@@ -43,9 +43,9 @@ process COMPARE_MINHASHES {
     script:
     ignore_abundance = params.dereplication.sourmash.trackAbundance ? false : true
     if (params.binning.qc.busco.enabled) {
-      dist_matrix_key = "${params.runId}_mags_dist_matrix_${params.binning.qc.busco.selectLineage}"
+      dist_matrix_key = "${params.runId}_mags_${params.binning.primary}_dist_matrix_${params.binning.qc.busco.selectLineage}"
     } else {
-      dist_matrix_key = "${params.runId}_mags_dist_matrix"
+      dist_matrix_key = "${params.runId}_mags_${params.binning.primary}_dist_matrix"
     }
     """
     qiime sourmash compare \
@@ -59,7 +59,6 @@ process COMPARE_MINHASHES {
 }
 
 process COMPARE_GENOMES_SKANI {
-    container params.containerSkani
     label "dereplication"
     errorStrategy 'retry'
     maxRetries 3
@@ -78,9 +77,9 @@ process COMPARE_GENOMES_SKANI {
     median_flag = params.dereplication.skani.median ? "--p-median True" : ""
     faster_small_flag = params.dereplication.skani.fasterSmall ? "--p-faster-small True" : ""
     if (params.binning.qc.busco.enabled) {
-      dist_matrix_key = "${params.runId}_mags_dist_matrix_${params.binning.qc.busco.selectLineage}"
+      dist_matrix_key = "${params.runId}_mags_${params.binning.primary}_dist_matrix_${params.binning.qc.busco.selectLineage}"
     } else {
-      dist_matrix_key = "${params.runId}_mags_dist_matrix"
+      dist_matrix_key = "${params.runId}_mags_${params.binning.primary}_dist_matrix"
     }
     """
     qiime skani compare-seqs \
@@ -113,14 +112,14 @@ process DEREPLICATE_MAGS {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      bins_derep_key = "${params.runId}_mags_dereplicated_${params.binning.qc.busco.selectLineage}"
-      feature_table_key = "${params.runId}_mags_pa_table_${params.binning.qc.busco.selectLineage}"
+      bins_derep_key = "${params.runId}_mags_${params.binning.primary}_dereplicated_${params.binning.qc.busco.selectLineage}"
+      feature_table_key = "${params.runId}_mags_${params.binning.primary}_pa_table_${params.binning.qc.busco.selectLineage}"
     } else {
-      bins_derep_key = "${params.runId}_mags_dereplicated"
-      feature_table_key = "${params.runId}_mags_pa_table"
+      bins_derep_key = "${params.runId}_mags_${params.binning.primary}_dereplicated"
+      feature_table_key = "${params.runId}_mags_${params.binning.primary}_pa_table"
     }
     """
-    qiime annotate dereplicate-mags \
+    qiime mag dereplicate-mags \
       --verbose \
       --p-threshold ${params.dereplication.threshold} \
       --i-mags ${params.q2cacheDir}:${bins_file} \

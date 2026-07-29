@@ -13,7 +13,7 @@ process ASSEMBLE_METASPADES {
     tuple val(sample_id), path(key)
 
     script:
-    q2cacheDir = "${params.q2cacheDir}/${sample_id}"
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_contigs_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id}
@@ -47,13 +47,15 @@ process ASSEMBLE_MEGAHIT {
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_contigs_partitioned_${sample_id}"
+    presets_flag = params.genome_assembly.megahit.presets ? "--p-presets ${params.genome_assembly.megahit.presets}" : ""
+    kList_flag = params.genome_assembly.megahit.kList ? "--p-k-list ${params.genome_assembly.megahit.kList}" : ""
     """
     echo Processing sample ${sample_id}
     qiime assembly assemble-megahit \
       --verbose \
       --i-reads ${q2cacheDir}:${reads_file} \
-      --p-presets ${params.genome_assembly.megahit.presets} \
-      --p-k-list ${params.genome_assembly.megahit.kList} \
+      ${presets_flag} \
+      ${kList_flag} \
       --p-min-contig-len ${params.genome_assembly.megahit.minContigLen} \
       --p-num-cpu-threads ${task.cpus} \
       --no-recycle \
@@ -65,8 +67,36 @@ process ASSEMBLE_MEGAHIT {
 
 process EVALUATE_CONTIGS {
     label "contigEvaluation"
-    label "needsInternet"
     publishDir params.publishDir, mode: 'copy', pattern: '*-contigs.qzv'
+    errorStrategy "retry"
+    maxRetries 3
+    scratch true
+
+    input:
+    path contigs_file
+    path q2Cache
+
+    output:
+    tuple val(viz_label), path("${params.runId}-contigs.qzv"), emit: qzv
+    path "${params.runId}_contig_qc_results"
+    
+    script:
+    viz_label = "Assembly QC"
+    """
+    qiime assembly evaluate-contigs \
+      --verbose \
+      --p-n-cpus ${task.cpus} \
+      --i-contigs ${params.q2cacheDir}:${contigs_file} \
+      --o-visualization "${params.runId}-contigs.qzv" \
+      --o-results "${params.q2cacheDir}:${params.runId}_contig_qc_results" \
+    && touch ${params.runId}_contig_qc_results
+    """
+}
+
+process EVALUATE_CONTIGS_QUAST {
+    label "contigEvaluation"
+    label "needsInternet"
+    publishDir params.publishDir, mode: 'copy', pattern: '*-contigs-quast.qzv'
     errorStrategy "retry"
     maxRetries 3
     scratch true
@@ -77,11 +107,12 @@ process EVALUATE_CONTIGS {
     path q2Cache
 
     output:
-    path "${params.runId}-contigs.qzv"
+    tuple val(viz_label), path("${params.runId}-contigs-quast.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
     
     script:
+    viz_label = "Assembly QC (QUAST)"
     """
     qiime assembly evaluate-quast \
       --verbose \
@@ -90,7 +121,7 @@ process EVALUATE_CONTIGS {
       ${params.assembly_qc.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --i-alignment-maps ${params.q2cacheDir}:${reads_file} \
-      --o-visualization "${params.runId}-contigs.qzv" \
+      --o-visualization "${params.runId}-contigs-quast.qzv" \
       --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
       --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
     && touch ${params.runId}_quast_results_table \
@@ -98,10 +129,10 @@ process EVALUATE_CONTIGS {
     """
 }
 
-process EVALUATE_CONTIGS_NO_READS {
+process EVALUATE_CONTIGS_QUAST_NO_READS {
     label "contigEvaluation"
     label "needsInternet"
-    publishDir params.publishDir, mode: 'copy', pattern: '*-contigs.qzv'
+    publishDir params.publishDir, mode: 'copy', pattern: '*-contigs-quast.qzv'
     errorStrategy "retry"
     maxRetries 3
     scratch true
@@ -111,11 +142,12 @@ process EVALUATE_CONTIGS_NO_READS {
     path q2Cache
 
     output:
-    path "${params.runId}-contigs.qzv"
+    tuple val(viz_label), path("${params.runId}-contigs-quast.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
     
     script:
+    viz_label = "Assembly QC (QUAST)"
     """
     qiime assembly evaluate-quast \
       --verbose \
@@ -123,7 +155,7 @@ process EVALUATE_CONTIGS_NO_READS {
       --p-threads ${task.cpus} \
       ${params.assembly_qc.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
-      --o-visualization "${params.runId}-contigs.qzv" \
+      --o-visualization "${params.runId}-contigs-quast.qzv" \
       --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \
       --o-reference-genomes "${params.q2cacheDir}:${params.runId}_quast_reference_genomes" \
     && touch ${params.runId}_quast_results_table \

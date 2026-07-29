@@ -1,22 +1,27 @@
 #!/usr/bin/env nextflow
 
+def extractCacheDataKey(yamlFile) {
+    def matcher = yamlFile.readLines().findResult { line ->
+        def hit = (line =~ /^\s*data\s*:\s*["']?([^"'\s]+)["']?\s*$/)
+        hit.matches() ? hit[0][1] : null
+    }
+
+    if (matcher) {
+        return matcher
+    }
+
+    def preview = yamlFile.readLines().take(5).join('\n')
+    throw new Exception("Could not parse 'data' key from cache key YAML: ${yamlFile}. First lines:\n${preview}")
+}
+
 // Function to parse YAML file, extract UUID, construct path, and get directory size in GB
 def getDirectorySizeInGB(inputPath, basePath) {
-    // Parse the YAML file to extract UUID from "data" key
     def yamlFile = new java.io.File(inputPath)
-    def uuid = null
-    
-    if (yamlFile.exists()) {
-        yamlFile.eachLine { line ->
-            if (line.startsWith("data:")) {
-                uuid = line.split(":", 2)[1].trim()
-            }
-        }
+    if (!yamlFile.exists()) {
+        throw new Exception("Cache key YAML does not exist: ${inputPath}")
     }
-    
-    if (!uuid) {
-        throw new Exception("Could not find 'data' key in YAML file: ${inputPath}")
-    }
+
+    def uuid = extractCacheDataKey(yamlFile)
     
     // Construct the final path by appending UUID to base path
     def concatenatedPath = java.nio.file.Paths.get(basePath).resolve(uuid).toString()

@@ -3,7 +3,7 @@ include { CLASSIFY_KRAKEN2_DEREP as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modul
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_READS } from '../modules/taxonomic_classification'
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_CONTIGS } from '../modules/taxonomic_classification'
 include { ESTIMATE_BRACKEN } from '../modules/taxonomic_classification'
-include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES } from '../modules/taxonomic_classification'
+include { GET_KRAKEN_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_DEREP_FEATURES; GET_KRAKEN_FEATURES as GET_KRAKEN_MAG_FEATURES } from '../modules/taxonomic_classification'
 include { DRAW_TAXA_BARPLOT; DRAW_TAXA_BARPLOT as DRAW_TAXA_BARPLOT_KAIJU_READS } from '../modules/taxonomic_classification'
 include { COLLATE_PARTITIONS as COLLATE_REPORTS_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_HITS_READS } from '../modules/data_prep'
@@ -21,6 +21,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT; FETCH_ARTIFACT as FETCH_ARTIFACT_
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_READS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_READS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_CONTIGS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
+include { MAP_KRAKEN2_TAXONOMY_TO_CONTIGS } from '../modules/taxonomic_classification'
 
 workflow CLASSIFY_MAGS {
     take:
@@ -33,12 +34,16 @@ workflow CLASSIFY_MAGS {
         // collate reports and hits
         reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
-        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
-        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
+        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        
+        GET_KRAKEN_MAG_FEATURES(collated_reports, collated_hits, "mags")
         if (params.taxonomic_classification.kraken2.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(collated_reports)
             FETCH_ARTIFACT_HITS(collated_hits)
         }
+    emit:
+        taxonomy = GET_KRAKEN_MAG_FEATURES.out.taxonomy
 }
 
 workflow CLASSIFY_MAGS_DEREP {
@@ -58,6 +63,8 @@ workflow CLASSIFY_MAGS_DEREP {
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_KRAKEN2_TAXONOMY(GET_KRAKEN_MAG_DEREP_FEATURES.out.taxonomy)
         }
+    emit:
+        taxonomy = GET_KRAKEN_MAG_DEREP_FEATURES.out.taxonomy
 }
 
 workflow CLASSIFY_READS {
@@ -67,6 +74,7 @@ workflow CLASSIFY_READS {
         bracken_db
         q2_cache
     main:
+        qzv_outputs = Channel.empty()
         classification = CLASSIFY_READS_KRAKEN2(reads, kraken2_db, "reads")
 
         reports_all = CLASSIFY_READS_KRAKEN2.out.reports | collect(flat: false)
@@ -77,6 +85,7 @@ workflow CLASSIFY_READS {
         if (params.taxonomic_classification.bracken.enabled) {
             ESTIMATE_BRACKEN(reports_all, bracken_db, q2_cache)
             DRAW_TAXA_BARPLOT(ESTIMATE_BRACKEN.out.feature_table, ESTIMATE_BRACKEN.out.taxonomy, "bracken")
+            qzv_outputs = qzv_outputs.mix(DRAW_TAXA_BARPLOT.out.qzv)
             if (params.taxonomic_classification.fetchArtifact) {
                 FETCH_ARTIFACT_FT(ESTIMATE_BRACKEN.out.feature_table)
                 FETCH_ARTIFACT_BRACKEN_TAXONOMY(ESTIMATE_BRACKEN.out.taxonomy)
@@ -96,6 +105,8 @@ workflow CLASSIFY_READS {
             FETCH_ARTIFACT_REPORTS(reports_all)
             FETCH_ARTIFACT_HITS(hits_all)
         }
+    emit:
+        qzv = qzv_outputs
 }
 
 workflow CLASSIFY_CONTIGS {
@@ -110,11 +121,18 @@ workflow CLASSIFY_CONTIGS {
         hits_all = CLASSIFY_CONTIGS_KRAKEN2.out.hits | collect(flat: false)
         reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
         hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        taxonomy_to_contigs = MAP_KRAKEN2_TAXONOMY_TO_CONTIGS(reports_all, hits_all)
+
+        taxonomy = taxonomy_to_contigs.taxonomy
+        feature_map = taxonomy_to_contigs.feature_map
 
         if (params.taxonomic_classification.kraken2.fetchArtifact) {
             FETCH_ARTIFACT_REPORTS(reports_all)
             FETCH_ARTIFACT_HITS(hits_all)
         }
+    emit:
+        taxonomy
+        feature_map
 }
 
 workflow CLASSIFY_READS_KAIJU {
@@ -123,6 +141,7 @@ workflow CLASSIFY_READS_KAIJU {
         kaiju_db
         q2_cache
     main:
+        qzv_outputs = Channel.empty()
         classification = CLASSIFY_KAIJU_READS(reads, kaiju_db, "reads")
 
         ft_all = CLASSIFY_KAIJU_READS.out.feature_table | collect(flat: false)
@@ -130,11 +149,14 @@ workflow CLASSIFY_READS_KAIJU {
         ft_all = COLLATE_FT(ft_all, "${params.runId}_kaiju_feature_table_reads", "feature-table merge", "--i-tables", "--o-merged-table", true)
         taxonomy_all = COLLATE_TAXONOMY(taxonomy_all, "${params.runId}_kaiju_taxonomy_reads", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
         DRAW_TAXA_BARPLOT_KAIJU_READS(ft_all, taxonomy_all, "kaiju-reads")
+        qzv_outputs = qzv_outputs.mix(DRAW_TAXA_BARPLOT_KAIJU_READS.out.qzv)
 
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_KAIJU_FT_READS(ft_all)
             FETCH_ARTIFACT_KAIJU_TAXONOMY_READS(taxonomy_all)
         }
+    emit:
+        qzv = qzv_outputs
 }
 
 workflow CLASSIFY_CONTIGS_KAIJU {

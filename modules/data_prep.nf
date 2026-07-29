@@ -76,11 +76,12 @@ process SIMULATE_READS_MASON {
     tuple val(sample_id), val(abundance_profile), val(read_count), val(read_length), path(genomes)
 
     output:
-    tuple val(sample_id), path(reads), emit: reads
+    tuple val(sample_id), path(reads), path(table), emit: reads
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     reads = "${params.runId}_reads_${sample_id}"
+    table = "${params.runId}_mason_ft_${sample_id}"
     """
     if [ ! -d "${q2cacheDir}" ]; then
       qiime tools cache-create --cache ${q2cacheDir}
@@ -96,7 +97,9 @@ process SIMULATE_READS_MASON {
       --p-random-seed ${params.read_simulation.seed} \
       --p-threads ${task.cpus} \
       --o-reads ${q2cacheDir}:${reads} \
-    && touch ${reads}
+      --o-table ${q2cacheDir}:${table} \
+    && touch ${reads} \
+    && touch ${table}
     """
 }
 
@@ -197,7 +200,11 @@ process FETCH_SEQS {
       key=${reads_single}
     fi
 
-    uuid=\$(cat ${q2cacheDir}/keys/\$key | grep 'data' | awk '{print \$2}')
+    uuid=\$(awk -F':' '/^[[:space:]]*data[[:space:]]*:/ {val=\$2; gsub(/^[[:space:]]+|[[:space:]]+\$/, "", val); gsub(/^["'"'"']|["'"'"']\$/, "", val); print val; exit}' "${q2cacheDir}/keys/\$key")
+    if [[ -z "\$uuid" ]]; then
+      echo "Failed to parse cache key metadata from ${q2cacheDir}/keys/\$key"
+      exit 1
+    fi
     paths=\$(ls ${q2cacheDir}/data/\$uuid/data | grep 'fastq')
     echo "Samples found: \$paths"
     
@@ -329,9 +336,11 @@ process VISUALIZE_FASTP {
     path q2_cache
 
     output:
-    path "${params.runId}-reads-qc-fastp.qzv"
+    tuple val(viz_label), path("${params.runId}-reads-qc-fastp.qzv"), emit: qzv
 
     script:
+    viz_label = "Reads QC (FastP)"
+
     """
     qiime fastp visualize \
       --verbose \
@@ -509,11 +518,15 @@ process PARTITION_DEREP_MAGS {
     path q2_cache
 
     output:
-    path "${params.runId}_mags_derep_partitioned_*"
+    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*"
 
     script:
     """
-    uuid=\$(cat ${params.q2cacheDir}/keys/${mags_derep} | grep 'data' | awk '{print \$2}')
+    uuid=\$(awk -F':' '/^[[:space:]]*data[[:space:]]*:/ {val=\$2; gsub(/^[[:space:]]+|[[:space:]]+\$/, "", val); gsub(/^["'"'"']|["'"'"']\$/, "", val); print val; exit}' "${params.q2cacheDir}/keys/${mags_derep}")
+    if [[ -z "\$uuid" ]]; then
+      echo "Failed to parse cache key metadata from ${params.q2cacheDir}/keys/${mags_derep}"
+      exit 1
+    fi
     mags=\$(ls ${params.q2cacheDir}/data/\$uuid/data/*.{fa,fasta} 2>/dev/null | xargs -n 1 basename | sed -E 's/\\.(fa|fasta)\$//')
     mkdir -p "${params.q2TemporaryCachesDir}/mags"
 
@@ -539,7 +552,7 @@ process PARTITION_DEREP_MAGS {
       fi
       
       q2cacheDir="${params.q2TemporaryCachesDir}/mags/batch_\${batch_id}"
-      key="${params.runId}_mags_derep_partitioned_\${batch_id}"
+      key="${params.runId}_mags_${params.binning.primary}_derep_partitioned_\${batch_id}"
       
       if [ ! -d \$q2cacheDir ]; then
         echo "Creating cache \$q2cacheDir..."
@@ -555,7 +568,7 @@ process PARTITION_DEREP_MAGS {
       echo "Filtering batch \${batch_id} (\$((end_idx - start_idx)) MAGs)..."
       cat metadata.tsv
 
-      qiime annotate filter-derep-mags \
+      qiime mag filter-derep-mags \
         --verbose \
         --i-mags ${params.q2cacheDir}:${mags_derep} \
         --m-metadata-file metadata.tsv \
@@ -682,6 +695,239 @@ process TABULATE_READ_COUNTS {
     """
 }
 
+process TABULATE_READ_COUNTS_BATCH {
+    cpus 1
+    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    tag "${step}"
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val samples
+    val step
+
+    output:
+    tuple val(step), path("${step}_read_counts.tsv")
+
+    script:
+    def samplesData = samples.collect { item ->
+        [sample_id: item[0].toString(), reads_key: new File(item[1].toString()).getName()]
+    }
+    def samplesJson = groovy.json.JsonOutput.toJson(samplesData)
+    """
+python3 - <<'PY'
+import os, json, gzip
+
+samples = ${samplesJson}
+q2_tmp_dir = "${params.q2TemporaryCachesDir}"
+
+def uuid_from_key(cache_dir, key):
+    key_file = os.path.join(cache_dir, "keys", key)
+    with open(key_file) as fh:
+        for line in fh:
+            if line.strip().startswith("data:"):
+                return line.split(":", 1)[1].strip().strip("'\\\"")
+    raise RuntimeError(f"No 'data:' field found in {key_file}")
+
+def count_reads_fastq(fastq_files):
+    total = 0
+    for fq in fastq_files:
+        opener = gzip.open if fq.endswith(".gz") else open
+        with opener(fq, "rt") as fh:
+            total += sum(1 for _ in fh) // 4
+    return total
+
+print("sample_id\\tcount")
+with open("${step}_read_counts.tsv", "w") as out:
+    out.write("sample_id\\tcount\\n")
+    for s in samples:
+        sample_id = s["sample_id"]
+        reads_key = s["reads_key"]
+        cache_dir = os.path.join(q2_tmp_dir, sample_id)
+        uuid = uuid_from_key(cache_dir, reads_key)
+        data_dir = os.path.join(cache_dir, "data", uuid, "data")
+        fastq_files = sorted(
+            os.path.join(data_dir, f)
+            for f in os.listdir(data_dir)
+            if f.endswith(".fastq.gz") or f.endswith(".fastq")
+        )
+        n = count_reads_fastq(fastq_files)
+        print(f"  {sample_id}: {n} reads", flush=True)
+        out.write(f"{sample_id}\\t{n}\\n")
+
+print("Done")
+PY
+    """
+}
+
+process MAKE_SAMPLE_REPORT {
+    cpus 1
+    memory { 1.GB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val metrics
+
+    output:
+    path "${params.runId}_sample_report_mqc.json"
+
+    script:
+    def metricsJson = groovy.json.JsonOutput.toJson(
+        metrics.collect { item -> [label: item[0].toString(), count: item[1] as int] }
+    )
+    """
+python3 - <<'PY'
+import json
+
+metrics = ${metricsJson}
+data = {m["label"]: {"count": m["count"]} for m in metrics}
+report = {
+    "id": "moshpit_sample_counts",
+    "plot_type": "barplot",
+    "pconfig": {
+        "id": "sample_counts_plot",
+        "title": "Samples Retained",
+        "ylab": "# Samples",
+    },
+    "data": data,
+}
+
+with open("${params.runId}_sample_report_mqc.json", "w") as out:
+    json.dump(report, out, indent=2)
+
+print(f"Written sample report with {len(data)} metrics")
+PY
+    """
+}
+
+process MULTIQC {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    publishDir "${params.publishDir}/multiqc", mode: 'copy'
+
+    input:
+    path sample_report
+    path read_counts_report
+
+    output:
+    path "multiqc_report.html"
+    path "multiqc_report_data"
+
+    script:
+    """
+    multiqc . --filename multiqc_report --force
+    """
+}
+
+process REPORT_READ_COUNTS {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    time { 1.h * task.attempt }
+    publishDir params.traceDir, mode: 'copy'
+
+    input:
+    val step_tsvs
+
+    output:
+    path "${params.runId}_read_counts_mqc.json"
+
+    script:
+    def tsvListJson = groovy.json.JsonOutput.toJson(
+        step_tsvs.collect { item -> [step: item[0].toString(), tsv: item[1].toString()] }
+    )
+    """
+python3 - <<'PY'
+import json
+
+step_order = ["input", "subsampled", "fastp", "host_removed", "filtered"]
+
+entries = ${tsvListJson}
+
+counts = {}
+observed_steps = set()
+
+for entry in entries:
+    step = entry['step']
+    tsv_path = entry['tsv']
+    observed_steps.add(step)
+
+    with open(tsv_path) as tf:
+        lines = [l.rstrip('\\n') for l in tf if l.strip()]
+
+    if not lines:
+        continue
+    header = lines[0].split('\\t')
+    for line in lines[1:]:
+        row = dict(zip(header, line.split('\\t')))
+        sid = row.get('sample_id')
+        cnt = row.get('count')
+        if sid and cnt:
+            counts.setdefault(sid, {})[step] = int(cnt)
+
+active_steps = [s for s in step_order if s in observed_steps]
+
+headers = {}
+for step in active_steps:
+    headers[step] = {
+        "title": step.replace("_", " ").capitalize(),
+        "description": f"Read count after {step} step",
+        "format": "{:,.0f}",
+        "min": 0,
+        "scale": "Blues",
+    }
+    pct_key = f"{step}_pct"
+    headers[pct_key] = {
+        "title": f"{step.replace('_', ' ').capitalize()} %",
+        "description": f"Reads retained after {step} step relative to input",
+        "format": "{:.1f}",
+        "suffix": "%",
+        "min": 0,
+        "max": 100,
+        "scale": "RdYlGn",
+    }
+
+data = {}
+for sample_id, step_counts in sorted(counts.items()):
+    row = {}
+    input_count = step_counts.get("input")
+    for step in active_steps:
+        n = step_counts.get(step)
+        if n is not None:
+            row[step] = n
+            row[f"{step}_pct"] = round(n / input_count * 100, 2) if input_count else None
+    data[sample_id] = row
+
+report = {
+    "id": "moshpit_read_counts",
+    "section_name": "Read Counts per Processing Step",
+    "description": "Number of reads per sample at each read processing stage. Percentages are relative to the initial input.",
+    "plot_type": "table",
+    "pconfig": {
+        "id": "read_counts_table",
+        "title": "Read Counts per Processing Step",
+    },
+    "headers": headers,
+    "data": data,
+}
+
+with open("${params.runId}_read_counts_mqc.json", "w") as out:
+    json.dump(report, out, indent=2)
+
+print(f"Written with {len(data)} samples and {len(active_steps)} steps")
+PY
+    """
+}
+
 process FILTER_SAMPLES {
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
     storeDir params.storeDir
@@ -766,12 +1012,177 @@ process CLEAN_UP_CACHES {
     errorStrategy 'retry'
     
     input:
-    path dependency
+    val dependency
     val path_to_remove
 
     script:
     """
     echo "Removing ${path_to_remove}"
     rm -rf ${path_to_remove}
+    """
+}
+
+process MAKE_REPORT {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    time { 1.h * task.attempt }
+    publishDir params.publishDir, mode: 'copy'
+    scratch true
+
+    input:
+    val visualizations
+
+    output:
+    path "${params.runId}-report.qzv"
+
+    script:
+    def visualization_json = groovy.json.JsonOutput.toJson(
+        visualizations.collect { [label: it[0].toString(), path: it[1].toString()] }
+    )
+    """
+    cat <<'EOF' > visualizations.json
+    ${visualization_json}
+    EOF
+
+    python - <<'PY'
+    import json
+    from qiime2 import Visualization
+    from q2templates.reports import matryoshka_template
+
+    with open('visualizations.json') as handle:
+        entries = json.load(handle)
+
+    visualizations = {
+        entry["label"]: Visualization.load(entry["path"])
+        for entry in entries
+    }
+
+    viz = Visualization.make_report(matryoshka_template, visualizations)
+    viz.save('${params.runId}-report.qzv')
+    print('Visualization saved to "${params.runId}-report.qzv"')
+    PY
+    """
+}
+
+process ARCHIVE_SAMPLE_CACHE {
+    tag "${sample_id}"
+    cpus 1
+    memory { 2.GB * task.attempt }
+    time { 4.h * task.attempt }
+    maxRetries 2
+    errorStrategy 'retry'
+
+    input:
+    val sample_id
+    val ready
+
+    output:
+    val sample_id, emit: archived
+
+    script:
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
+    archivePath = "${params.archiveDir}/${sample_id}.zip"
+    """
+    set -euo pipefail
+    echo "=== Archiving cache for sample ${sample_id} ==="
+
+    if [ ! -d "${q2cacheDir}" ]; then
+        echo "Cache directory not found: ${q2cacheDir} - skipping."
+        exit 0
+    fi
+
+    mkdir -p ${params.archiveDir}
+
+    cd ${params.q2TemporaryCachesDir}
+    zip -rq ${archivePath} ${sample_id}/
+
+    echo "Verifying archive integrity..."
+    if ! unzip -tq ${archivePath}; then
+        echo "ERROR: Archive CRC check failed!"
+        rm -f ${archivePath}
+        exit 1
+    fi
+
+    original_count=\$(find ${q2cacheDir} -type f | wc -l)
+    archive_count=\$(zipinfo -1 ${archivePath} | grep -cv '/\$' || true)
+    echo "Files: original=\${original_count}, archive=\${archive_count}"
+
+    if [ "\${archive_count}" -lt "\${original_count}" ]; then
+        echo "ERROR: Archive has fewer files than original!"
+        rm -f ${archivePath}
+        exit 1
+    fi
+
+    echo "Verification passed - removing original cache."
+    rm -rf ${q2cacheDir}
+    echo "=== Done: ${archivePath} ==="
+    """
+}
+
+process REMOVE_FROM_CACHE {
+    tag "${sample_id}"
+    cpus 1
+    memory { 500.MB * task.attempt }
+    time { 30.min * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    
+    input:
+    tuple val(sample_id), val(artifact_path)
+
+    script:
+    key = new File(artifact_path.toString()).getName()
+    """
+    echo "Removing ${key} from ${sample_id} cache..."
+    qiime tools cache-remove \
+      --cache ${params.q2TemporaryCachesDir}/${sample_id} \
+      --key ${key}
+    """
+}
+
+process FIX_CACHE_PERMISSIONS {
+    tag "${id}"
+    cpus 1
+    memory { 500.MB * task.attempt }
+    time { 1.h * task.attempt }
+    maxRetries 3
+    errorStrategy 'retry'
+    
+    input:
+    tuple val(id), val(path), val(ready_signal)
+
+    output:
+    val id
+
+    script:
+    """
+    CACHE="${path}"
+    # Normalize to avoid surprises with trailing slashes
+    CACHE="\${CACHE%/}"
+    
+    if [ ! -d "\${CACHE}" ]; then
+        echo "Error: cache directory does not exist: \${CACHE}" >&2
+        # We don't exit with error here to avoid failing the pipeline if the cache was already cleaned up or doesn't exist for some reason
+        exit 0
+    fi
+
+    # Top level cache directory needs to be writable by the group
+    echo "Updating top-level permissions on '\${CACHE}' (g+rw)"
+    chmod g+rw "\${CACHE}"
+
+    # Pools and processes need to be writable by the group (if present)
+    echo "Updating permissions on 'pools' and 'processes' within '\${CACHE}' (g+rw)"
+    [[ -d "\${CACHE}/pools" ]]     && chmod -R g+rw "\${CACHE}/pools"
+    [[ -d "\${CACHE}/processes" ]] && chmod -R g+rw "\${CACHE}/processes"
+
+    # Data and keys need to be readable by the group (if present)
+    echo "Updating permissions on the 'keys' within '\${CACHE}' (g+r)"
+    [[ -d "\${CACHE}/keys" ]] && chmod -R g+r "\${CACHE}/keys"
+    echo "Updating permissions on the 'data' within '\${CACHE}' (g+rx)"
+    [[ -d "\${CACHE}/data" ]] && chmod -R g+rx "\${CACHE}/data"
+
+    echo "All done!"
     """
 }

@@ -20,13 +20,13 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     if (input_type == "mags") {
       q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
       if (params.binning.qc.busco.enabled) {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {        
-        hits_key = "${params.runId}_eggnog_orthologs_mags_partitioned_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_partitioned_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_partitioned_${_id}"
       }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -36,13 +36,13 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     } else if (input_type == "mags_derep") {
       q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
       if (params.binning.qc.busco.enabled) {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_derep_partitioned_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_derep_partitioned_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_derep_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_derep_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_derep_partitioned_${_id}"
       }
     }
     """
@@ -83,9 +83,9 @@ process ANNOTATE_EGGNOG {
     if (input_type == "mags") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         if (params.binning.qc.busco.enabled) {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
         } else {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_partitioned_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_partitioned_${_id}"
         }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -93,9 +93,9 @@ process ANNOTATE_EGGNOG {
     } else if (input_type == "mags_derep") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
         if (params.binning.qc.busco.enabled) {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
         } else {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_derep_partitioned_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep_partitioned_${_id}"
         }
     }
     """
@@ -181,14 +181,19 @@ process EXTRACT_ANNOTATIONS {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path(feature_table)
+    tuple val(annotation_type), path(counts_per_genome_key), emit: counts_per_genome
+    tuple val(annotation_type), path(annotation_map_key), emit: annotation_map
+    tuple val(annotation_type), path(counts_per_contig_key), emit: counts_per_contig
 
     script:
+    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
     if (params.binning.qc.busco.enabled) {
-      feature_table = "${params.runId}_${input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}"
+      counts_per_genome_key = "${params.runId}_${key_input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}"
     } else {
-      feature_table = "${params.runId}_${input_type}_${annotation_type}"
+      counts_per_genome_key = "${params.runId}_${key_input_type}_${annotation_type}"
     }
+    annotation_map_key = "${counts_per_genome_key}_map"
+    counts_per_contig_key = "${counts_per_genome_key}_per_contig"
     """
     qiime annotate extract-annotations \
       --verbose \
@@ -196,8 +201,12 @@ process EXTRACT_ANNOTATIONS {
       --p-max-evalue ${params.functional_annotation.annotation.extract.max_evalue} \
       --p-min-score ${params.functional_annotation.annotation.extract.min_score} \
       --i-ortholog-annotations ${params.q2cacheDir}:${annotation_file} \
-      --o-annotation-frequency "${params.q2cacheDir}:${feature_table}" \
-    && touch ${feature_table}
+      --o-annotation-counts-per-genome "${params.q2cacheDir}:${counts_per_genome_key}" \
+      --o-annotation-map "${params.q2cacheDir}:${annotation_map_key}" \
+      --o-annotation-counts-per-contig "${params.q2cacheDir}:${counts_per_contig_key}" \
+    && touch ${counts_per_genome_key} \
+    && touch ${annotation_map_key} \
+    && touch ${counts_per_contig_key}
     """
 }
 
@@ -220,17 +229,49 @@ process MULTIPLY_TABLES {
     tuple val(annotation_type), path(feature_table)
 
     script:
+    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
     if (params.binning.qc.busco.enabled) {
-      feature_table = "${params.runId}_${input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}_ft"
+      feature_table = "${params.runId}_${key_input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}_ft"
     } else {
-      feature_table = "${params.runId}_${input_type}_${annotation_type}_ft"
+      feature_table = "${params.runId}_${key_input_type}_${annotation_type}_ft"
     }
     """
-    qiime annotate multiply-tables \
+    qiime feature-table multiply-tables \
       --verbose \
       --i-table1 ${params.q2cacheDir}:${table1} \
       --i-table2 ${params.q2cacheDir}:${table2} \
       --o-result-table "${params.q2cacheDir}:${feature_table}" \
     && touch ${feature_table}
+    """
+}
+
+process DRAW_ANNOTATION_BARPLOT {
+    time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt }
+    errorStrategy "retry"
+    publishDir params.publishDir, mode: 'copy'
+    scratch true
+
+    input:
+    tuple val(annotation_type), path(feature_table)
+    val input_type
+
+    output:
+    tuple val(viz_label), path("${params.runId}-${tool_name}-annotation-barplot.qzv"), emit: qzv
+
+    script:
+    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
+    if (params.binning.qc.busco.enabled) {
+      tool_name = "${key_input_type}-${annotation_type}-${params.binning.qc.busco.selectLineage}"
+    } else {
+      tool_name = "${key_input_type}-${annotation_type}"
+    }
+    viz_label = "Annotation abundance barplot: ${tool_name}"
+
+    """
+    qiime taxa barplot \
+      --verbose \
+      --i-table ${params.q2cacheDir}:${feature_table} \
+      --o-visualization "${params.runId}-${tool_name}-annotation-barplot.qzv"
     """
 }
