@@ -291,6 +291,20 @@ Profiles are defined in [conf/profiles.config](conf/profiles.config) and are com
 | `quick_test` | Reduced resources for fast test runs (used in CI) |
 | `long_jobs` | Extended time limits for slow processes |
 
+#### Profile compatibility
+
+Profiles within the same category are mutually exclusive; combine one from each category as needed.
+
+| | `low` | `medium` | `high` | `cpu_intensive` | `mem_intensive` | `quick_test` | `long_jobs` |
+|---|---|---|---|---|---|---|---|
+| **`low`** | - | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| **`medium`** | ❌ | - | ❌ | ✅ | ✅ | ❌ | ✅ |
+| **`high`** | ❌ | ❌ | - | ✅ | ✅ | ❌ | ✅ |
+| **`cpu_intensive`** | ✅ | ✅ | ✅ | - | ✅ | ❌ | ✅ |
+| **`mem_intensive`** | ✅ | ✅ | ✅ | ✅ | - | ❌ | ✅ |
+| **`quick_test`** | ❌ | ❌ | ❌ | ❌ | ❌ | - | ❌ |
+| **`long_jobs`** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | - |
+
 ### Executor: conda
 | Parameter | Meaning | Config file |
 | --------- | ------- | ----------- |
