@@ -11,6 +11,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS_FILTERED } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BUSCO_RESULTS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_UNBINNED_CONTIGS } from '../modules/data_prep'
+include { REMOVE_FROM_CACHE as CLEANUP_BUSCO_RESULTS } from '../modules/data_prep'
 
 workflow RUN_BINNER {
     take:
@@ -88,13 +89,11 @@ workflow RUN_BINNER {
             busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
 
             busco_results = COLLATE_BUSCO_RESULTS(
-                busco_results_by_lineage.map { it[0] },
-                busco_results_by_lineage.map { it[1..-1] },
+                busco_results_by_lineage.map { tuple(it[0], it[1..-1]) },
                 "${params.runId}_busco_results_${binner}",
                 "mag collate-busco-results",
                 "--i-results",
-                "--o-collated-results",
-                true
+                "--o-collated-results"
             )
             VISUALIZE_BUSCO(Channel.value(binner), busco_results.collated_results, q2_cache)
             qzv_outputs = qzv_outputs.mix(VISUALIZE_BUSCO.out.qzv)
@@ -105,27 +104,27 @@ workflow RUN_BINNER {
             }
 
             if (params.binning.qc.filtering.enabled) {
-                filtered_busco_results = busco_results.collated_results
-                    .filter { lineage, _results ->
+                filtered_busco_results = busco_results_partitioned
+                    .filter { lineage, _id, _results ->
                         params.binning.qc.busco.selectLineage.split(",").any { selectedLineage ->
                             lineage.toString().contains(selectedLineage.trim())
                         }
                     }
+                    .map { lineage, id, results -> tuple(id, lineage, results) }
 
-                combined = bins.combine(filtered_busco_results)
+                // Keep MAGs and their sample's QC metadata in a single task input.
+                combined = bins.combine(filtered_busco_results, by: 0)
 
                 bins = FILTER_MAGS(
                     Channel.value(binner),
-                    combined.map { _id, _bins, lineage, _busco_results -> [_id, _bins, lineage] },
-                    combined.map { _id, _bins, _lineage, busco_results -> busco_results },
-                    "mag",
-                    q2_cache
-                )
+                    combined,
+                    "mag"
+                ).mags_filtered
                 bins = bins.map { _id, _bins, _lineage -> [_id, _bins] }
                 bins_all = bins | collect(flat: false)
                 bins_all = COLLATE_FILTERED_BINS(
                     bins_all,
-                    "${params.runId}_mags_${binner}_filtered_${params.binning.qc.busco.selectLineage}",
+                    "${params.runId}_mags_${binner}_filtered_sample_busco_${params.binning.qc.busco.selectLineage}",
                     "types collate-sample-data-mags",
                     "--i-mags",
                     "--o-collated-mags",
@@ -134,6 +133,23 @@ workflow RUN_BINNER {
                 if (params.binning.qc.filtering.fetchArtifact) {
                     FETCH_ARTIFACT_MAGS_FILTERED(bins_all)
                 }
+            }
+
+            if (params.binning.qc.busco.cleanUp) {
+                // Collation and sample filtering both read the partitioned keys.
+                busco_consumers = busco_results.collated_results
+                if (params.binning.qc.filtering.enabled) {
+                    busco_consumers = busco_consumers.mix(FILTER_MAGS.out.completed)
+                }
+                cleanup_ready = busco_consumers.toList().map { true }
+                CLEANUP_BUSCO_RESULTS(busco_results_partitioned
+                    .map { lineage, id, results -> tuple(id, results) }
+                    .combine(cleanup_ready)
+                    .map { id, results, _ready -> tuple(id, results) })
+                // Main's final cache-archiving barrier consumes these reports.
+                cleanup_done = CLEANUP_BUSCO_RESULTS.out.removed.toList().map { true }
+                qzv_outputs = qzv_outputs.combine(cleanup_done)
+                    .map { label, visualization, _done -> tuple(label, visualization) }
             }
         }
 

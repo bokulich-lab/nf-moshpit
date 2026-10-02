@@ -433,6 +433,7 @@ workflow {
         if (params.binning.enabled) {
             binning_results = BINNING(contigs.contigs, contigs.mapped_reads, cache)
             qzv_reports = qzv_reports.mix(binning_results.qzv)
+            workflow_barrier = workflow_barrier.mix(binning_results.qzv)
             
             sample_count_metrics = sample_count_metrics.mix(binning_results.bins.count().map { n -> tuple("Samples after binning", n) })
             deepest_signal = binning_results.bins_collated

@@ -1132,6 +1132,9 @@ process REMOVE_FROM_CACHE {
     input:
     tuple val(sample_id), val(artifact_path)
 
+    output:
+    tuple val(sample_id), val(artifact_path), emit: removed
+
     script:
     key = new File(artifact_path.toString()).getName()
     """

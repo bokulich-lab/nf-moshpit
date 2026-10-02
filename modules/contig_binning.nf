@@ -239,17 +239,16 @@ process FILTER_MAGS {
 
     input:
     val binner
-    tuple val(_id), path(bins_file), val(lineage)
-    path metadata_file
+    tuple val(_id), path(bins_file), val(lineage), path(metadata_file)
     val filtering_axis
-    path q2_cache
 
     output:
-    tuple val(_id), path(key_mags_filtered), val(lineage), emit: mags_filtered
+    tuple val(_id), path(key_mags_filtered), val(lineage), emit: mags_filtered, optional: true
+    tuple val(_id), val(lineage), path("${key_mags_filtered}.completed"), emit: completed
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
-    key_mags_filtered = "${params.runId}_mags_${binner}_filtered_${lineage}_${_id}"
+    key_mags_filtered = "${params.runId}_mags_${binner}_filtered_sample_busco_${lineage}_${_id}"
     """
     echo Processing: ${_id}
     set +e
@@ -259,7 +258,7 @@ process FILTER_MAGS {
       --p-where "${params.binning.qc.filtering.condition}" \
       --p-exclude-ids ${params.binning.qc.filtering.exclude_ids} \
       --p-on ${filtering_axis} \
-      --m-metadata-file ${params.q2cacheDir}:${metadata_file} \
+      --m-metadata-file ${q2cacheDir}:${metadata_file} \
       --i-mags ${q2cacheDir}:${bins_file} \
       --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" > output.txt 2> error.txt
 
@@ -270,13 +269,16 @@ process FILTER_MAGS {
     cat output.txt >> .command.out
     cat error.txt >> .command.err
 
-    touch ${key_mags_filtered}
-    
     if grep -q "No MAGs remain after filtering" output.txt || grep -q "No MAGs remain after filtering" error.txt; then
       echo "No MAGs remain after filtering."
-      exit 125
+      touch ${key_mags_filtered}.completed
+      exit 0
     fi
-    
+
+    if [ \$qiime_exit_code -eq 0 ]; then
+      touch ${key_mags_filtered}
+      touch ${key_mags_filtered}.completed
+    fi
     exit \$qiime_exit_code
     """
 }
@@ -321,13 +323,11 @@ process COLLATE_BUSCO_RESULTS {
     tag "${lineage}"
 
     input:
-    val lineage
-    val ids_and_paths
+    tuple val(lineage), val(ids_and_paths)
     val cache_key_out 
     val qiime_action
     val qiime_input_flag
     val qiime_output_flag
-    val clean_up
 
     output:
     tuple val(lineage), path("${cache_key_out}_${lineage}"), emit: collated_results
@@ -351,14 +351,5 @@ process COLLATE_BUSCO_RESULTS {
       ${qiime_output_flag} ${params.q2cacheDir}:${cache_key_out}_${lineage} \
     && touch ${cache_key_out}_${lineage}
 
-    if [ ${params.binning.qc.busco.cleanUp} == true ]; then
-      echo "Cleaning up BUSCO results..."
-      for cache_entry in ${inputString}; do
-        cache_dir=\$(echo \$cache_entry | cut -d: -f1)
-        cache_key=\$(echo \$cache_entry | cut -d: -f2)
-        echo "Removing cache key: \$cache_dir:\$cache_key"
-        qiime tools cache-remove --cache \$cache_dir --key \$cache_key
-      done
-    fi
     """
 }

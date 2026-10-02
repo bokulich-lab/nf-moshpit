@@ -226,6 +226,25 @@ The `retain` settings control whether intermediate per-sample cache keys are rem
 | `retain.fastp` | fastp-processed reads | Host removal, if enabled; otherwise sample filtering (only if one of those steps is enabled) |
 | `retain.host_removal` | Host-filtered reads | Sample filtering (only applies when both host removal and sample filtering are enabled) |
 
+### MAG filtering provenance
+
+MAG quality filtering uses each sample's own BUSCO results for the selected
+lineage, so filtered MAGs retain that sample's QC provenance without inheriting
+the whole cohort's history. BUSCO results are still collated for reporting.
+When `binning.qc.busco.cleanUp` is enabled, partitioned BUSCO keys are removed
+after both collation and filtering finish, including samples with no retained
+MAGs. Filtering conditions should select individual rows (as the default quality
+threshold does); cohort-wide SQL subqueries require a cohort metadata input.
+
+A filter retaining no MAGs completes with a receipt and no MAG output. This
+lets resume reuse that outcome after BUSCO cleanup, and final cache archiving
+waits for BUSCO cleanup to finish.
+
+Filtered MAG keys include `filtered_sample_busco` to prevent existing
+`storeDir` markers from reusing outputs made with cohort-wide BUSCO metadata.
+Use a new `runId` when changing provenance policies for an existing analysis:
+downstream processes also retain their own cache keys and `storeDir` markers.
+
 ### Database Configuration
 
 Database configurations are centralized in their own section in the configuration files. Most of the time, you only need to provide 
