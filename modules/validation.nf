@@ -255,6 +255,9 @@ def validateModuleParams() {
     def errors = []
 
     errors.addAll(validateBinningParams())
+    if (!(params.dereplication.provenanceCheckpoint instanceof Boolean)) {
+        errors.add("ERROR: dereplication.provenanceCheckpoint must be true or false")
+    }
     
     // Validate genome assembly parameters
     if (params.genome_assembly.enabled) {
@@ -427,4 +430,4 @@ def validateParameters() {
 }
 
 // Export the validation function
-return this 
+return this

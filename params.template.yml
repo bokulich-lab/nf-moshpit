@@ -198,6 +198,7 @@ binning:
 
 dereplication:
   enabled: true
+  provenanceCheckpoint: false # archive full provenance, re-import before downstream fan-out
   method: "sourmash" # sourmash, skani
   clusterOptions: ""
   threshold: 0.99
@@ -302,4 +303,4 @@ weblog:
   basicToken: ""
 
 env:
-  NUMBA_DISABLE_INTEL_SVML: 1 
+  NUMBA_DISABLE_INTEL_SVML: 1

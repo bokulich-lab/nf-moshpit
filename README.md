@@ -245,6 +245,28 @@ Filtered MAG keys include `filtered_sample_busco` to prevent existing
 Use a new `runId` when changing provenance policies for an existing analysis:
 downstream processes also retain their own cache keys and `storeDir` markers.
 
+### Dereplicated MAG provenance checkpoint
+
+Set `dereplication.provenanceCheckpoint: true` to archive the original
+dereplicated MAG artifact and export/re-import its payload before abundance
+estimation, classification, and annotation. The new cache key ends in
+`_checkpoint_v1`; downstream results inherit an import and their subsequent
+actions instead of the whole cohort's history. Sample processing stays separate.
+
+`outputDir/provenance/` receives the original `.upstream.qza`, the checkpoint
+`.qza`, and a JSON record linking their UUIDs, cache keys, type, format, and
+SHA-256 checksums of the payload files and archives. Where supported by QIIME,
+the checkpoint also carries an annotation pointing to this record. Payload,
+type, and format are verified before the checkpoint is made available.
+
+QIIME provenance replay from downstream outputs stops at the new import. Load
+the archived upstream artifact to inspect or replay the earlier steps. This
+reduces provenance copied during downstream fan-out; it does not remove the
+existing upstream cache keys or reduce the peak before dereplication. Keep the
+cache and Nextflow work outputs for resume. Use a new `runId` when enabling or
+disabling the checkpoint for an existing analysis, so downstream `storeDir`
+markers cannot reuse results from a different provenance policy.
+
 ### Database Configuration
 
 Database configurations are centralized in their own section in the configuration files. Most of the time, you only need to provide 
