@@ -17,7 +17,7 @@ NEXTFLOW = os.environ.get('NEXTFLOW', shutil.which('nextflow'))
 
 @unittest.skipUnless(NEXTFLOW, 'Nextflow is required for workflow integration checks')
 class BuscoWorkflowTests(unittest.TestCase):
-    def run_workflow(self, rejected):
+    def run_workflow(self, rejected, metadata_mode='artifact'):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             tools = base / 'bin'
@@ -32,7 +32,11 @@ def option(flag):
 if args[:2] == ['mag', 'filter-mags']:
     metadata = option('--m-metadata-file')
     sample = Path(option('--i-mags').split(':')[0]).name
-    assert Path(metadata.split(':')[0]).name == sample, (sample, metadata)
+    if ':' in metadata:
+        assert Path(metadata.split(':')[0]).name == sample, (sample, metadata)
+    else:
+        assert Path(metadata).is_file(), metadata
+        assert metadata.endswith('_' + sample + '.tsv'), (sample, metadata)
     time.sleep(0.2)
     event = {'kind': 'filtered', 'sample': sample, 'metadata': metadata}
 elif args[:2] == ['mag', 'collate-busco-results']:
@@ -55,6 +59,17 @@ if event['kind'] == 'filtered' and event['sample'] in os.environ['REJECTED'].spl
     sys.exit(1)
 ''' % sys.executable)
             (tools / 'qiime').chmod(0o755)
+            (tools / 'export_metadata.py').write_text('''#!%s
+import json, sys
+from pathlib import Path
+args = sys.argv[1:]
+key = args[args.index('--key') + 1]
+sample = args[args.index('--sample-id') + 1]
+Path(key + '.tsv').write_text('id\\tcomplete\\tdataset\\n#q2:types\\tnumeric\\tcategorical\\n' + sample + '_mag\\t75\\tbacteria_odb12\\n')
+Path(key + '.metadata-source.qza').touch()
+Path(key + '.metadata.json').write_text(json.dumps({'sample_id': sample, 'source_key': key}))
+''' % sys.executable)
+            (tools / 'export_metadata.py').chmod(0o755)
             # Only the report renderer imports Python QIIME; the fixture emits its file.
             (tools / 'python').write_text('''#!%s
 import re, sys
@@ -79,6 +94,8 @@ Path(re.search(r"viz.save\\('([^']+)'\\)", script)[1]).touch()
 params.weblog = [enabled: false, url: '', basicToken: '']
 includeConfig '{ROOT}/conf/defaults.config'
 params.runId = 'test'
+params.outputDir = '{base}/results'
+params.metadataProvenance = '{metadata_mode}'
 params.storeDir = '{base}/keys'
 params.publishDir = '{base}/results'
 params.q2cacheDir = '{cache}'
@@ -126,12 +143,20 @@ workflow {{
             self.assertEqual({e['sample'] for e in filtered}, {'A', 'B'})
             self.assertTrue(all('bacteria_odb12' in e['metadata'] for e in filtered))
             self.assertEqual(len([e for e in records if e['kind'] == 'removed']), 4)
+            if metadata_mode == 'tsv':
+                self.assertEqual(len(list((base / 'results/provenance/metadata').glob('*.tsv'))), 2)
 
     def test_sample_pairing_and_cleanup(self):
         self.run_workflow(['B'])
 
     def test_cleanup_when_all_filters_reject_mags(self):
         self.run_workflow(['A', 'B'])
+
+    def test_tsv_sample_pairing_and_cleanup(self):
+        self.run_workflow(['B'], 'tsv')
+
+    def test_tsv_cleanup_when_all_filters_reject_mags(self):
+        self.run_workflow(['A', 'B'], 'tsv')
 
 
 if __name__ == '__main__':

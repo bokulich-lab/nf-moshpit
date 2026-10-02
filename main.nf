@@ -43,6 +43,7 @@ include { FIX_CACHE_PERMISSIONS as FIX_CACHE_PERMISSIONS_MAIN } from './modules/
 include { ASSEMBLE } from './subworkflows/assembly'
 include { BINNING } from './subworkflows/binning'
 include { DEREPLICATE } from './subworkflows/dereplication'
+include { EXPORT_ARTIFACT_METADATA as EXPORT_READ_COUNT_METADATA } from './modules/provenance'
 include { CLASSIFY_READS } from './subworkflows/classification'
 include { CLASSIFY_CONTIGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS } from './subworkflows/classification'
@@ -334,6 +335,11 @@ workflow {
     if (params.sample_filtering.enabled) {
         input_reads_filter = reads_partitioned
         read_counts = TABULATE_READ_COUNTS(reads_partitioned)
+        if (params.metadataProvenance == 'tsv') {
+            read_counts = EXPORT_READ_COUNT_METADATA(read_counts
+                .map { id, counts -> tuple(id, 'read_counts', counts) }).metadata
+                .map { id, _context, tsv -> tuple(id, tsv) }
+        }
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
         reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
         sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after filtering by read count", n) })

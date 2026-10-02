@@ -28,3 +28,33 @@ process CHECKPOINT_DEREP_MAGS {
       --run-id '${params.runId}'
     """
 }
+
+process EXPORT_ARTIFACT_METADATA {
+    cpus 1
+    memory { 2.GB * task.attempt }
+    time { 1.h * task.attempt }
+    scratch true
+    errorStrategy 'retry'
+    maxRetries 3
+    tag "${sample_id}: ${context}"
+    publishDir "${params.outputDir}/provenance/metadata", mode: 'copy'
+
+    input:
+    tuple val(sample_id), val(context), path(metadata_key)
+
+    output:
+    tuple val(sample_id), val(context), path("${metadata_key.getName()}.tsv"), emit: metadata
+    path "${metadata_key.getName()}.metadata-source.qza", emit: source
+    path "${metadata_key.getName()}.metadata.json", emit: record
+
+    script:
+    archive_dir = file("${params.outputDir}/provenance/metadata").toAbsolutePath()
+    """
+    export_metadata.py \
+      --cache '${params.q2TemporaryCachesDir}/${sample_id}' \
+      --key '${metadata_key.getName()}' \
+      --archive-dir '${archive_dir}' \
+      --sample-id '${sample_id}' \
+      --context '${context}'
+    """
+}

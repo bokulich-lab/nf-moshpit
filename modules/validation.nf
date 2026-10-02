@@ -255,6 +255,9 @@ def validateModuleParams() {
     def errors = []
 
     errors.addAll(validateBinningParams())
+    if (!(params.metadataProvenance in ['artifact', 'tsv'])) {
+        errors.add("ERROR: metadataProvenance must be 'artifact' or 'tsv'")
+    }
     if (!(params.dereplication.provenanceCheckpoint instanceof Boolean)) {
         errors.add("ERROR: dereplication.provenanceCheckpoint must be true or false")
     }

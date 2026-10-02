@@ -37,6 +37,9 @@ retain:
   fastp: true
   host_removal: true
 
+# Metadata used for BUSCO and read-count filtering: artifact or tsv
+metadataProvenance: artifact
+
 # ============ INPUT DATA ============
 # Option 1: import reads using a manifest file
 inputReadsManifest: /path/to/manifest

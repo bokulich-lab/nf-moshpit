@@ -248,7 +248,8 @@ process FILTER_MAGS {
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
-    key_mags_filtered = "${params.runId}_mags_${binner}_filtered_sample_busco_${lineage}_${_id}"
+    metadata_input = params.metadataProvenance == 'tsv' ? "${metadata_file}" : "${q2cacheDir}:${metadata_file}"
+    key_mags_filtered = "${params.runId}_mags_${binner}_filtered_sample_busco${params.metadataProvenance == 'tsv' ? '_tsv' : ''}_${lineage}_${_id}"
     """
     echo Processing: ${_id}
     set +e
@@ -258,7 +259,7 @@ process FILTER_MAGS {
       --p-where "${params.binning.qc.filtering.condition}" \
       --p-exclude-ids ${params.binning.qc.filtering.exclude_ids} \
       --p-on ${filtering_axis} \
-      --m-metadata-file ${q2cacheDir}:${metadata_file} \
+      --m-metadata-file '${metadata_input}' \
       --i-mags ${q2cacheDir}:${bins_file} \
       --o-filtered-mags "${q2cacheDir}:${key_mags_filtered}" > output.txt 2> error.txt
 

@@ -267,6 +267,26 @@ cache and Nextflow work outputs for resume. Use a new `runId` when enabling or
 disabling the checkpoint for an existing analysis, so downstream `storeDir`
 markers cannot reuse results from a different provenance policy.
 
+### Metadata provenance
+
+Set `metadataProvenance: tsv` to use plain QIIME metadata TSVs for BUSCO MAG
+filtering and sample read-count filtering. The default, `artifact`, keeps the
+metadata source artifacts in native QIIME provenance. TSV mode records the
+actual metadata values and filtering parameters in each filter's provenance,
+without copying the source artifact's ancestral graph through the metadata
+input. The MAG/read input's own ancestry is still retained.
+
+For each source, `outputDir/provenance/metadata/` receives a typed TSV, a fully
+loadable `.metadata-source.qza` with its original history, and a JSON record
+linking the sample, context, source cache key and UUID, column types, and file
+checksums. Values and column types are checked after reloading the TSV.
+BUSCO cleanup waits until the export and filtering have finished.
+
+This option can be combined with `dereplication.provenanceCheckpoint: true`.
+Use a new `runId` when switching modes on an existing analysis to avoid reusing
+downstream `storeDir` markers. Both modes use per-sample metadata, so the same
+row-wise BUSCO conditions apply.
+
 ### Database Configuration
 
 Database configurations are centralized in their own section in the configuration files. Most of the time, you only need to provide 

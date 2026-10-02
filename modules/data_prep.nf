@@ -953,8 +953,9 @@ process FILTER_SAMPLES {
     } else {
       q2cacheDirIn = "${params.q2TemporaryCachesDir}/${sample_id}"
       q2cacheDirOut = "${params.q2TemporaryCachesDir}/${sample_id}"
-      key = "${params.runId}_reads_filtered_${sample_id}"
+      key = "${params.runId}_reads_filtered${params.metadataProvenance == 'tsv' ? '_tsv' : ''}_${sample_id}"
     }
+    metadata_input = params.metadataProvenance == 'tsv' ? "${metadata}" : "${q2cacheDirIn}:${metadata}"
     if (should_partition) {
       """
       echo Creating partition for sample ${sample_id}
@@ -982,7 +983,7 @@ process FILTER_SAMPLES {
       qiime demux filter-samples \
         --verbose \
         --i-demux ${q2cacheDirIn}:${reads} \
-        --m-metadata-file ${q2cacheDirIn}:${metadata} \
+        --m-metadata-file '${metadata_input}' \
         --p-where ${query} \
         --o-filtered-demux ${q2cacheDirOut}:${key} > output.txt 2> error.txt
       

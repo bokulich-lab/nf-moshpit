@@ -12,6 +12,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAGS_FILTERED } from '../modules/data
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_BUSCO_RESULTS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_UNBINNED_CONTIGS } from '../modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_BUSCO_RESULTS } from '../modules/data_prep'
+include { EXPORT_ARTIFACT_METADATA as EXPORT_BUSCO_METADATA } from '../modules/provenance'
 
 workflow RUN_BINNER {
     take:
@@ -112,6 +113,10 @@ workflow RUN_BINNER {
                     }
                     .map { lineage, id, results -> tuple(id, lineage, results) }
 
+                if (params.metadataProvenance == 'tsv') {
+                    filtered_busco_results = EXPORT_BUSCO_METADATA(filtered_busco_results).metadata
+                }
+
                 // Keep MAGs and their sample's QC metadata in a single task input.
                 combined = bins.combine(filtered_busco_results, by: 0)
 
@@ -124,7 +129,7 @@ workflow RUN_BINNER {
                 bins_all = bins | collect(flat: false)
                 bins_all = COLLATE_FILTERED_BINS(
                     bins_all,
-                    "${params.runId}_mags_${binner}_filtered_sample_busco_${params.binning.qc.busco.selectLineage}",
+                    "${params.runId}_mags_${binner}_filtered_sample_busco${params.metadataProvenance == 'tsv' ? '_tsv' : ''}_${params.binning.qc.busco.selectLineage}",
                     "types collate-sample-data-mags",
                     "--i-mags",
                     "--o-collated-mags",
