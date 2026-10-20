@@ -18,6 +18,7 @@ def getEnabledBinners() {
     def enabled = []
     if (binnerEnabled(params.binning.metabat2)) enabled << 'metabat2'
     if (binnerEnabled(params.binning.semibin2)) enabled << 'semibin2'
+    if (binnerEnabled(params.binning.vamb)) enabled << 'vamb'
     return enabled
 }
 
@@ -27,11 +28,16 @@ def validateBinningParams() {
         return errors
     }
 
-    def validBinners = ['metabat2', 'semibin2']
+    def validBinners = ['metabat2', 'semibin2', 'vamb', 'das_tool']
     def enabledBinners = getEnabledBinners()
 
     if (enabledBinners.isEmpty()) {
-        errors.add("ERROR: Binning is enabled but no binner is enabled (set binning.metabat2.enabled and/or binning.semibin2.enabled)")
+        errors.add("ERROR: Binning is enabled but no binner is enabled (enable binning.metabat2, binning.semibin2, and/or binning.vamb)")
+    }
+
+    if (params.binning.das_tool.enabled) {
+        if (enabledBinners.size() < 2) errors.add('ERROR: DAS Tool requires at least two enabled binners')
+        enabledBinners << 'das_tool'
     }
 
     def primary = params.binning.primary?.toString()?.trim()
@@ -75,6 +81,17 @@ def validateBinningParams() {
         }
     }
 
+    if (binnerEnabled(params.binning.vamb)) {
+        ['min_contig_len', 'minfasta'].each { name ->
+            if ((params.binning.vamb[name] as int) < 1) errors.add("ERROR: binning.vamb.${name} must be positive")
+        }
+        if ((params.binning.vamb.seed as int) < 0) errors.add('ERROR: binning.vamb.seed must be >= 0')
+    }
+    if (params.binning.das_tool.enabled) {
+        if (!(params.binning.das_tool.search_engine in ['diamond', 'blastp'])) errors.add('ERROR: DAS Tool search_engine must be diamond or blastp')
+        def threshold = params.binning.das_tool.score_threshold as double
+        if (threshold < 0 || threshold >= 1) errors.add('ERROR: DAS Tool score_threshold must be >= 0 and < 1')
+    }
     return errors
 }
 
@@ -259,10 +276,27 @@ def validateModuleParams() {
     // Validate genome assembly parameters
     if (params.genome_assembly.enabled) {
         def assembler = params.genome_assembly.assembler.toLowerCase()
-        if (assembler != "megahit" && assembler != "metaspades") {
-            errors.add("ERROR: assembler must be either 'megahit' or 'metaspades', got '${assembler}'")
+        if (!(assembler in ["megahit", "metaspades", "spades"])) {
+            errors.add("ERROR: assembler must be 'megahit', 'metaspades', or 'spades', got '${assembler}'")
         }
     }
+
+    if (params.genome_assembly.assembler.toLowerCase() == 'spades' && !(params.genome_assembly.spades.mode in ['meta', 'isolate', 'standard'])) {
+        errors.add('ERROR: genome_assembly.spades.mode must be meta, isolate, or standard')
+    }
+    def annotationTargets = params.functional_annotation.enabledFor?.split(',')*.trim() ?: []
+    if (params.functional_annotation.transferFromContigs && !annotationTargets.contains('contigs')) {
+        errors.add('ERROR: transferFromContigs requires functional_annotation.enabledFor to include contigs')
+    }
+    if (params.functional_annotation.tfa.enabled) {
+        def abundanceTargetsForTfa = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
+        def taxonomyTargetsForTfa = params.taxonomic_classification.enabledFor?.split(',')*.trim() ?: []
+        if (!annotationTargets.contains('contigs') || !abundanceTargetsForTfa.contains('contigs') || !taxonomyTargetsForTfa.contains('contigs')) {
+            errors.add('ERROR: TFA requires contig annotation, contig abundance, and Kraken2 contig classification')
+        }
+        if (!params.functional_annotation.annotation.extract.types?.trim()) errors.add('ERROR: TFA requires at least one annotation extract type')
+    }
+    if (annotationTargets && !params.genome_assembly.enabled) errors.add('ERROR: Functional annotation requires genome assembly')
 
     def abundanceTargets = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
     def usesAssemblyContainer = params.genome_assembly.enabled ||
@@ -427,4 +461,4 @@ def validateParameters() {
 }
 
 // Export the validation function
-return this 
+return this

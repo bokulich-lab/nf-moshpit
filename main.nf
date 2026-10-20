@@ -48,7 +48,7 @@ include { CLASSIFY_CONTIGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS_DEREP } from './subworkflows/classification'
 include { COLLAPSE_CONTIGS } from './modules/taxonomic_classification'
-include { ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
+include { CONTIG_TFA; TRANSFER_MAG_ANNOTATIONS as TRANSFER_MAG_ANNOTATIONS_MAGS; TRANSFER_MAG_ANNOTATIONS as TRANSFER_MAG_ANNOTATIONS_DEREP; ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_MAGS } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_CONTIGS } from './subworkflows/functional_annotation'
 include { MAG_ABUNDANCE } from './subworkflows/abundance_estimation'
@@ -427,6 +427,11 @@ workflow {
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.qzv)
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.feature_table)
             }
+            if (params.functional_annotation.tfa.enabled) {
+                tfa = CONTIG_TFA(contigs.contig_abundance, contigs_annotated.counts_per_contig, classification.taxonomy, classification.feature_map)
+                qzv_reports = qzv_reports.mix(tfa.qzv)
+                workflow_barrier = workflow_barrier.mix(tfa.tfa).mix(tfa.gene_taxonomy).mix(tfa.qzv)
+            }
         }
 
         // bin contigs into MAGs and evaluate
@@ -436,7 +441,7 @@ workflow {
             
             sample_count_metrics = sample_count_metrics.mix(binning_results.bins.count().map { n -> tuple("Samples after binning", n) })
             deepest_signal = binning_results.bins_collated
-            workflow_barrier = workflow_barrier.mix(binning_results.bins_collated)
+            workflow_barrier = workflow_barrier.mix(binning_results.completion)
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
@@ -446,8 +451,13 @@ workflow {
 
             // annotate MAGs
             if (params.functional_annotation.enabledFor.contains("mags")) {
-                annotation_signal_mags = ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
-                workflow_barrier = workflow_barrier.mix(annotation_signal_mags)
+                if (params.functional_annotation.transferFromContigs) {
+                    transferred_mags = TRANSFER_MAG_ANNOTATIONS_MAGS(contigs_annotated.annotations, binning_results.bins_collated, "mags", cache)
+                    workflow_barrier = workflow_barrier.mix(transferred_mags.completion)
+                } else {
+                    annotation_signal_mags = ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
+                    workflow_barrier = workflow_barrier.mix(annotation_signal_mags.annotations)
+                }
             }
 
 
@@ -472,11 +482,16 @@ workflow {
 
                     // annotate dereplicated MAGs
                     if (params.functional_annotation.enabledFor.contains("derep")) {
-                        mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
-                        mags_derep_extracted = ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
-                        workflow_barrier = workflow_barrier.mix(mags_derep_extracted)
+                        if (params.functional_annotation.transferFromContigs) {
+                            mags_derep_extracted = TRANSFER_MAG_ANNOTATIONS_DEREP(contigs_annotated.annotations, DEREPLICATE.out.bins_derep, "mags_derep", cache)
+                            workflow_barrier = workflow_barrier.mix(mags_derep_extracted.completion)
+                        } else {
+                            mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
+                            mags_derep_extracted = ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
+                            workflow_barrier = workflow_barrier.mix(mags_derep_extracted.extracted_annotations)
+                        }
                         if (params.abundance_estimation.enabledFor.contains("derep") && params.functional_annotation.annotation.extract != "") {
-                            mags_abundance_combined = COMBINE_MAG_ANNOTATION_ABUNDANCE(MAG_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
+                            mags_abundance_combined = COMBINE_MAG_ANNOTATION_ABUNDANCE(MAG_ABUNDANCE.out.feature_table, mags_derep_extracted.extracted_annotations, "mags_derep", cache)
                             qzv_reports = qzv_reports.mix(mags_abundance_combined.qzv)
                             deepest_signal = mags_abundance_combined.feature_table.map { _type, key -> key }
                             workflow_barrier = workflow_barrier.mix(mags_abundance_combined.qzv)

@@ -275,3 +275,71 @@ process DRAW_ANNOTATION_BARPLOT {
       --o-visualization "${params.runId}-${tool_name}-annotation-barplot.qzv"
     """
 }
+
+process TRANSFER_ANNOTATIONS {
+    cpus 1
+    memory 4.GB
+    time 2.h
+    storeDir params.storeDir
+    scratch true
+
+    input:
+    path source_annotations
+    path destination_sequences
+    val input_type
+
+    output:
+    path annotations_key, emit: annotations
+
+    script:
+    annotations_key = "${params.runId}_eggnog_transferred_${input_type}_${params.binning.primary}"
+    """
+    qiime annotate transfer-eggnog-annotations \
+      --verbose \
+      --i-source-annotations ${params.q2cacheDir}:${source_annotations} \
+      --i-destination-sequences ${params.q2cacheDir}:${destination_sequences} \
+      --o-transferred-annotations ${params.q2cacheDir}:${annotations_key}
+    touch ${annotations_key}
+    """
+}
+
+process ESTIMATE_TFA {
+    cpus 1
+    memory 8.GB
+    time 2.h
+    storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
+    scratch true
+    tag "${annotation_type}"
+
+    input:
+    path abundance_table
+    tuple val(annotation_type), path(feature_inventory)
+    path taxonomy
+    path taxon_map
+    path metadata_files
+
+    output:
+    tuple val(annotation_type), path(tfa_key), emit: tfa
+    tuple val(annotation_type), path(taxonomy_key), emit: gene_taxonomy
+    tuple val(viz_label), path("${params.runId}-contigs-${annotation_type}-tfa.qzv"), emit: qzv
+
+    script:
+    tfa_key = "${params.runId}_contigs_${annotation_type}_tfa"
+    taxonomy_key = "${tfa_key}_gene_taxonomy"
+    viz_label = "Taxonomic functional attribution: ${annotation_type}"
+    def metadata_flag = metadata_files ? "--m-metadata-file '${metadata_files}'" : ''
+    """
+    qiime annotate estimate-tfa \
+      --verbose \
+      --i-contig-abundance ${params.q2cacheDir}:${abundance_table} \
+      --i-feature-inventory ${params.q2cacheDir}:${feature_inventory} \
+      --i-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --i-taxon-to-contig-map ${params.q2cacheDir}:${taxon_map} \
+      ${metadata_flag} \
+      --o-tfa ${params.q2cacheDir}:${tfa_key} \
+      --o-gene-taxonomy ${params.q2cacheDir}:${taxonomy_key} \
+      --o-visualization ${params.runId}-contigs-${annotation_type}-tfa.qzv
+    touch ${tfa_key} ${taxonomy_key}
+    """
+}

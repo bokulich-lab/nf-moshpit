@@ -77,6 +77,7 @@ process BIN_CONTIGS_SEMIBIN2 {
     output:
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_contig_map), emit: contig_map
+    tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
 
     script:
     def binner = 'semibin2'
@@ -84,6 +85,7 @@ process BIN_CONTIGS_SEMIBIN2 {
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key_mags = "${params.runId}_mags_${binner}_partitioned_${sample_id}"
     key_contig_map = "${params.runId}_contig_map_${binner}_partitioned_${sample_id}"
+    key_unbinned_contigs = "${params.runId}_unbinned_contigs_${binner}_partitioned_${sample_id}"
     """
     echo Processing sample ${sample_id} with SemiBin2
 
@@ -101,6 +103,7 @@ process BIN_CONTIGS_SEMIBIN2 {
       --i-contigs ${q2cacheDir}:${contigs_file} \
       --i-alignment-maps ${q2cacheDir}:${maps_file} \
       --o-mags "${q2cacheDir}:${key_mags}" \
+      --o-unbinned-contigs "${q2cacheDir}:${key_unbinned_contigs}" \
       --o-contig-map "${q2cacheDir}:${key_contig_map}" > output.txt 2> error.txt
 
     qiime_exit_code=\$?
@@ -112,6 +115,7 @@ process BIN_CONTIGS_SEMIBIN2 {
 
     touch ${key_mags}
     touch ${key_contig_map}
+    touch ${key_unbinned_contigs}
 
     if grep -q "No MAGs were formed during binning" output.txt || grep -q "No MAGs were formed during binning" error.txt; then
       echo "No MAGs were formed during binning."
@@ -196,6 +200,12 @@ process VISUALIZE_BUSCO {
     viz, = mag.visualizers._visualize_busco(results)
     viz.save('${params.runId}-mags-busco-${binner}-${lineage}.qzv')
     print('Visualization saved to "${params.runId}-mags-busco-${binner}-${lineage}.qzv"')
+    """
+
+    stub:
+    viz_label = "Bins QC (BUSCO, ${binner}): ${lineage}"
+    """
+    touch ${params.runId}-mags-busco-${binner}-${lineage}.qzv
     """
 }
 
@@ -360,5 +370,130 @@ process COLLATE_BUSCO_RESULTS {
         qiime tools cache-remove --cache \$cache_dir --key \$cache_key
       done
     fi
+    """
+}
+
+process BIN_CONTIGS_VAMB {
+    label 'contigBinningVamb'
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
+    errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
+    clusterOptions params.binning.vamb.clusterOptions
+
+    input:
+    tuple val(sample_id), path(contigs_file), path(maps_file)
+
+    output:
+    tuple val(sample_id), path(key_mags), emit: bins
+    tuple val(sample_id), path(key_contig_map), emit: contig_map
+
+    script:
+    def vamb = params.binning.vamb
+    q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
+    key_mags = "${params.runId}_mags_vamb_partitioned_${sample_id}"
+    key_contig_map = "${params.runId}_contig_map_vamb_partitioned_${sample_id}"
+    """
+    set +e
+    qiime mag bin-contigs-vamb \
+      --verbose \
+      --i-contigs ${q2cacheDir}:${contigs_file} \
+      --i-alignment-maps ${q2cacheDir}:${maps_file} \
+      --p-threads ${task.cpus} \
+      --p-min-contig-len ${vamb.min_contig_len} \
+      --p-minfasta ${vamb.minfasta} \
+      --p-seed ${vamb.seed} \
+      ${vamb.additionalFlags} \
+      --o-mags ${q2cacheDir}:${key_mags} \
+      --o-contig-map ${q2cacheDir}:${key_contig_map} > output.txt 2> error.txt
+    qiime_exit_code=\$?
+    set -e
+    cat output.txt
+    cat error.txt >&2
+    if grep -q 'No MAGs were formed during binning' output.txt error.txt; then
+      exit 125
+    fi
+    if [ \$qiime_exit_code -ne 0 ]; then exit \$qiime_exit_code; fi
+    touch ${key_mags} ${key_contig_map}
+    """
+}
+
+process REFINE_BINS_DAS_TOOL {
+    publishDir params.publishDir, mode: 'copy', pattern: '*.qza'
+    label 'binRefinement'
+    storeDir params.storeDir
+    scratch true
+    tag "${sample_id}"
+    clusterOptions params.binning.das_tool.clusterOptions
+
+    input:
+    tuple val(sample_id), val(bin_keys), val(labels), path(contigs_file)
+
+    output:
+    tuple val(sample_id), path(key_mags), emit: bins
+    tuple val(sample_id), path(key_summary), emit: summary
+    tuple val(sample_id), path(key_evaluation), emit: input_bins_evaluation
+    path "*.qza", optional: true, emit: reports
+
+    script:
+    def das = params.binning.das_tool
+    def cache = "${params.q2TemporaryCachesDir}/${sample_id}"
+    def bins = bin_keys.collect { "${cache}:${it}" }.join(' ')
+    key_mags = "${params.runId}_mags_das_tool_partitioned_${sample_id}"
+    key_summary = "${params.runId}_das_tool_summary_${sample_id}"
+    key_evaluation = "${params.runId}_das_tool_input_evaluation_${sample_id}"
+    def fetch_reports = params.binning.fetchArtifact ? """
+    qiime tools cache-fetch --cache ${cache} --key ${key_summary} --output-path ${key_summary}.qza
+    qiime tools cache-fetch --cache ${cache} --key ${key_evaluation} --output-path ${key_evaluation}.qza
+    """ : ""
+    """
+    qiime mag refine-bins-das-tool \
+      --verbose \
+      --i-bins ${bins} \
+      --i-contigs ${cache}:${contigs_file} \
+      --p-labels '${labels}' \
+      --p-search-engine ${das.search_engine} \
+      --p-score-threshold ${das.score_threshold} \
+      --p-threads ${task.cpus} \
+      ${das.additionalFlags} \
+      --o-refined-bins ${cache}:${key_mags} \
+      --o-summary ${cache}:${key_summary} \
+      --o-input-bins-evaluation ${cache}:${key_evaluation}
+    ${fetch_reports}
+    touch ${key_mags} ${key_summary} ${key_evaluation}
+    """
+}
+
+process SUMMARIZE_BINNING {
+    cpus 1
+    memory 2.GB
+    time 1.h
+    storeDir params.storeDir
+    scratch true
+    tag "${binner}: ${sample_id}"
+
+    input:
+    val binner
+    tuple val(sample_id), path(contigs_file), path(bins_file)
+
+    output:
+    tuple val(sample_id), path(key_contig_map), emit: contig_map
+    tuple val(sample_id), path(key_unbinned), emit: unbinned_contigs
+
+    script:
+    key_contig_map = "${params.runId}_contig_map_${binner}_derived_${sample_id}"
+    key_unbinned = "${params.runId}_unbinned_contigs_${binner}_partitioned_${sample_id}"
+    """
+    python - '${params.q2TemporaryCachesDir}/${sample_id}' \
+      '${contigs_file}' '${bins_file}' '${key_contig_map}' '${key_unbinned}' <<'PY'
+${file("${moduleDir}/../bin/summarize_bins.py").text}
+PY
+    """
+
+    stub:
+    key_contig_map = "${params.runId}_contig_map_${binner}_derived_${sample_id}"
+    key_unbinned = "${params.runId}_unbinned_contigs_${binner}_partitioned_${sample_id}"
+    """
+    touch ${key_contig_map} ${key_unbinned}
     """
 }

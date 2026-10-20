@@ -142,7 +142,8 @@ genome_assembly:
     k: "auto"
     debug: false
     covCutoff: "off"
-    additionalFlags: "--p-meta"
+    mode: meta # meta, isolate, standard (used with assembler: spades)
+    additionalFlags: ""
   filtering:
     enabled: true
     removeEmpty: true
@@ -157,7 +158,7 @@ assembly_qc:
 
 binning:
   enabled: true
-  primary: metabat2
+  primary: metabat2 # metabat2, semibin2, vamb, das_tool
   fetchArtifact: false
   metabat2:
     enabled: true
@@ -174,6 +175,19 @@ binning:
     epochs: 15
     batch_size: 2048
     random_seed: 100
+    additionalFlags: ""
+  vamb:
+    enabled: false
+    clusterOptions: ""
+    min_contig_len: 2000
+    minfasta: 2000
+    seed: 42
+    additionalFlags: ""
+  das_tool:
+    enabled: false # requires at least two enabled binners
+    clusterOptions: ""
+    search_engine: diamond
+    score_threshold: 0.5
     additionalFlags: ""
   qc:
     busco:
@@ -253,6 +267,10 @@ taxonomic_classification:
     additionalFlags: ""
 
 functional_annotation:
+  transferFromContigs: false # requires contigs in enabledFor; transfers to requested mags/derep
+  tfa:
+    enabled: false # requires contig annotation, abundance and Kraken2 taxonomy
+    fetchArtifact: false
   enabledFor: "" # contigs, mags, derep
   ortholog_search:
     clusterOptions: ""

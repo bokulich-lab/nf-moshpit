@@ -1,0 +1,31 @@
+# Overlay for a configured params.yml. Supply input data, environment/container
+# images, database cache/key addresses and runId in that file.
+# nextflow run main.nf -params-file params.yml -c conf/new-actions.config
+binning:
+  enabled: true
+  primary: das_tool
+  fetchArtifact: true
+  metabat2:
+    enabled: true
+  semibin2:
+    enabled: true
+  vamb:
+    enabled: true
+  das_tool:
+    enabled: true
+functional_annotation:
+  enabledFor: contigs,mags,derep
+  transferFromContigs: true
+  tfa:
+    enabled: true
+    fetchArtifact: true
+taxonomic_classification:
+  enabledFor: contigs
+  bracken:
+    enabled: false
+  kaiju:
+    enabledFor: ''
+abundance_estimation:
+  enabledFor: contigs,derep
+dereplication:
+  enabled: true

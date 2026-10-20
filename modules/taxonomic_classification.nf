@@ -221,6 +221,7 @@ process COLLAPSE_CONTIGS {
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     // scratch true
 
     input:

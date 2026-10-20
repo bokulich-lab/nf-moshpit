@@ -1,6 +1,8 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2026.7`
+For the post-2026.7 action additions (VAMB, DAS Tool, annotation transfer, contig-map collation and TFA), see [the update guide](docs/2026.10-actions.md).
+
+**Required MOSHPIT version:** a post-2026.7 development build containing the actions in the [update guide](docs/2026.10-actions.md).
 
 **Currently supported runtimes:** `conda`, `singularity`, `docker`
 

@@ -15,6 +15,8 @@ process ASSEMBLE_METASPADES {
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
     key = "${params.runId}_contigs_partitioned_${sample_id}"
+    def mode = params.genome_assembly.assembler.toLowerCase() == 'metaspades' ? 'meta' : params.genome_assembly.spades.mode
+    def modeFlag = mode == 'standard' ? '' : "--p-${mode}"
     """
     echo Processing sample ${sample_id}
     qiime assembly assemble-spades \
@@ -24,6 +26,7 @@ process ASSEMBLE_METASPADES {
       --p-k ${params.genome_assembly.spades.k} \
       --p-debug ${params.genome_assembly.spades.debug} \
       --p-cov-cutoff ${params.genome_assembly.spades.covCutoff} \
+      ${modeFlag} \
       --o-contigs "${q2cacheDir}:${key}" \
       ${params.genome_assembly.spades.additionalFlags} \
     && touch ${key}
@@ -118,7 +121,7 @@ process EVALUATE_CONTIGS_QUAST {
       --verbose \
       --p-min-contig 100 \
       --p-threads ${task.cpus} \
-      ${params.assembly_qc.additionalFlags} \
+      ${params.assembly_qc.quast.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --i-alignment-maps ${params.q2cacheDir}:${reads_file} \
       --o-visualization "${params.runId}-contigs-quast.qzv" \
@@ -153,7 +156,7 @@ process EVALUATE_CONTIGS_QUAST_NO_READS {
       --verbose \
       --p-min-contig 500 \
       --p-threads ${task.cpus} \
-      ${params.assembly_qc.additionalFlags} \
+      ${params.assembly_qc.quast.additionalFlags} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --o-visualization "${params.runId}-contigs-quast.qzv" \
       --o-results-table "${params.q2cacheDir}:${params.runId}_quast_results_table" \

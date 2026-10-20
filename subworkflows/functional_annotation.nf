@@ -2,8 +2,8 @@ include { SEARCH_ORTHOLOGS_EGGNOG as SEARCH_ORTHOLOGS_MAGS_DEREP; SEARCH_ORTHOLO
 include { ANNOTATE_EGGNOG as ANNOTATE_MAGS_DEREP; ANNOTATE_EGGNOG as ANNOTATE_CONTIGS; ANNOTATE_EGGNOG as ANNOTATE_MAGS } from '../modules/functional_annotation'
 include { COLLATE_PARTITIONS as COLLATE_ANNOTATIONS_CONTIGS; COLLATE_PARTITIONS as COLLATE_ANNOTATIONS_MAGS; COLLATE_PARTITIONS_DEREP as COLLATE_ANNOTATIONS_MAGS_DEREP} from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_HITS_CONTIGS; COLLATE_PARTITIONS as COLLATE_HITS_MAGS; COLLATE_PARTITIONS_DEREP as COLLATE_HITS_MAGS_DEREP } from '../modules/data_prep'
-include { EXTRACT_ANNOTATIONS; MULTIPLY_TABLES; DRAW_ANNOTATION_BARPLOT } from '../modules/functional_annotation'
-include { FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from '../modules/data_prep'
+include { EXTRACT_ANNOTATIONS; MULTIPLY_TABLES; DRAW_ANNOTATION_BARPLOT; TRANSFER_ANNOTATIONS; ESTIMATE_TFA } from '../modules/functional_annotation'
+include { FETCH_ARTIFACT as FETCH_TFA_TABLE; FETCH_ARTIFACT as FETCH_TFA_TAXONOMY; FETCH_ARTIFACT as FETCH_MULTIPLIED_TABLE } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_ORTHOLOGS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_ANNOTATIONS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS } from '../modules/data_prep'
@@ -40,6 +40,7 @@ workflow ANNOTATE_EGGNOG_MAGS {
         }
     emit:
         collated_orthologs
+        annotations = collated_annotations
 }
 
 workflow ANNOTATE_EGGNOG_MAGS_DEREP {
@@ -85,7 +86,7 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
 
         if (params.functional_annotation.annotation.extract != "") {
             annotation_type = Channel.of(params.functional_annotation.annotation.extract.types.split(","))
-            EXTRACT_ANNOTATIONS(collated_annotations, annotation_type, "mags_derep", q2_cache)
+            EXTRACT_ANNOTATIONS(collated_annotations.first(), annotation_type, "mags_derep", q2_cache.first())
             if (params.functional_annotation.annotation.extract.fetchArtifact) {
                 FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS(EXTRACT_ANNOTATIONS.out.counts_per_genome | map { _type, key -> key })
                 FETCH_ARTIFACT_EXTRACTED_ANNOTATION_MAP(EXTRACT_ANNOTATIONS.out.annotation_map | map { _type, key -> key })
@@ -113,7 +114,7 @@ workflow COMBINE_ANNOTATION_ABUNDANCE {
         q2_cache
     main:
         qzv_outputs = Channel.empty()
-        multiplied = MULTIPLY_TABLES(abundance_table, annotation_counts, input_type, q2_cache)
+        multiplied = MULTIPLY_TABLES(abundance_table.first(), annotation_counts, input_type, q2_cache.first())
         DRAW_ANNOTATION_BARPLOT(multiplied, input_type)
         qzv_outputs = qzv_outputs.mix(DRAW_ANNOTATION_BARPLOT.out.qzv)
         if (params.functional_annotation.annotation.extract.fetchArtifact) {
@@ -139,7 +140,7 @@ workflow ANNOTATE_EGGNOG_CONTIGS {
 
         if (params.functional_annotation.annotation.extract != "") {
             annotation_type = Channel.of(params.functional_annotation.annotation.extract.types.split(","))
-            EXTRACT_ANNOTATIONS(collated_annotations, annotation_type, "contigs", q2_cache)
+            EXTRACT_ANNOTATIONS(collated_annotations.first(), annotation_type, "contigs", q2_cache.first())
             if (params.functional_annotation.annotation.extract.fetchArtifact) {
                 FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS(EXTRACT_ANNOTATIONS.out.counts_per_genome | map { _type, key -> key })
                 FETCH_ARTIFACT_EXTRACTED_ANNOTATION_MAP(EXTRACT_ANNOTATIONS.out.annotation_map | map { _type, key -> key })
@@ -155,6 +156,50 @@ workflow ANNOTATE_EGGNOG_CONTIGS {
         }
     emit:
         collated_orthologs
+        annotations = collated_annotations
         counts_per_contig = EXTRACT_ANNOTATIONS.out.counts_per_contig
         annotation_map = EXTRACT_ANNOTATIONS.out.annotation_map
+}
+
+workflow TRANSFER_MAG_ANNOTATIONS {
+    take:
+        source_annotations
+        destination_sequences
+        input_type
+        q2_cache
+    main:
+        annotations = TRANSFER_ANNOTATIONS(source_annotations.first(), destination_sequences.first(), input_type)
+        annotation_types = Channel.of(params.functional_annotation.annotation.extract.types.split(','))
+        extracted = EXTRACT_ANNOTATIONS(annotations.first(), annotation_types, input_type, q2_cache.first())
+        if (params.functional_annotation.annotation.fetchArtifact) {
+            FETCH_ARTIFACT_ANNOTATIONS(annotations)
+        }
+        if (params.functional_annotation.annotation.extract.fetchArtifact) {
+            FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS(extracted.counts_per_genome.map { type, key -> key })
+            FETCH_ARTIFACT_EXTRACTED_ANNOTATION_MAP(extracted.annotation_map.map { type, key -> key })
+            FETCH_ARTIFACT_EXTRACTED_ANNOTATIONS_PER_CONTIG(extracted.counts_per_contig.map { type, key -> key })
+        }
+    emit:
+        annotations = annotations
+        extracted_annotations = extracted.counts_per_genome
+        completion = annotations.mix(extracted.counts_per_genome).mix(extracted.annotation_map).mix(extracted.counts_per_contig)
+}
+
+workflow CONTIG_TFA {
+    take:
+        abundance
+        inventory
+        taxonomy
+        taxon_map
+    main:
+        metadata = params.metadata ? Channel.value(file(params.metadata, checkIfExists: true)) : Channel.value([])
+        results = ESTIMATE_TFA(abundance.first(), inventory, taxonomy.first(), taxon_map.first(), metadata)
+        if (params.functional_annotation.tfa.fetchArtifact) {
+            FETCH_TFA_TABLE(results.tfa.map { type, key -> key })
+            FETCH_TFA_TAXONOMY(results.gene_taxonomy.map { type, key -> key })
+        }
+    emit:
+        tfa = results.tfa
+        gene_taxonomy = results.gene_taxonomy
+        qzv = results.qzv
 }

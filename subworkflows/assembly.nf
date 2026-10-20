@@ -19,7 +19,7 @@ workflow ASSEMBLE {
 
     main:
         qzv_outputs = Channel.empty()
-        if (params.genome_assembly.assembler.toLowerCase() == 'metaspades') {
+        if (params.genome_assembly.assembler.toLowerCase() in ['metaspades', 'spades']) {
             contigs = ASSEMBLE_METASPADES(reads)
         } else if (params.genome_assembly.assembler.toLowerCase() == 'megahit') {
             contigs = ASSEMBLE_MEGAHIT(reads)
@@ -45,7 +45,7 @@ workflow ASSEMBLE {
         }
 
         if (params.assembly_qc.enabled || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
-            if (params.assembly_qc.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
+            if (params.assembly_qc.quast.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
                 indexed_contigs = INDEX_CONTIGS(contigs)
                 indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
