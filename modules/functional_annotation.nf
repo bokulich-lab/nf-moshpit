@@ -317,7 +317,7 @@ process ESTIMATE_TFA {
     tuple val(annotation_type), path(feature_inventory)
     path taxonomy
     path taxon_map
-    path metadata_files
+    path metadata_files, stageAs: 'tfa-metadata.tsv'
 
     output:
     tuple val(annotation_type), path(tfa_key), emit: tfa

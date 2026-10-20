@@ -187,7 +187,7 @@ Some of the most useful configuration parameters are explained below.
 | params.inputReadsManifest | CSV manifest with `id`, `forward`, and optionally `reverse` columns for FASTQ import. | [params.template.yml](params.template.yml) |
 | params.inputReadsCache | QIIME 2 cache where the input reads are stored. | [params.template.yml](params.template.yml) |
 | params.inputReads | Cache key under which the input reads are stored. | [params.template.yml](params.template.yml) |
-| params.metadata | Metadata file with sample IDs corresponding to the samples from the input cache which should be analyzed. | [params.template.yml](params.template.yml) |
+| params.metadata | Optional sample metadata TSV passed to `assembly evaluate-contigs` and TFA. Also required with cached-read input to select sample IDs. | [params.template.yml](params.template.yml) |
 | params.fondueAccessionIds | Path to a TSV file containing SRA accession IDs for data download. | [params.template.yml](params.template.yml) |
 | params.archive | Whether to archive per-sample caches after the run completes. | [params.template.yml](params.template.yml) |
 

@@ -78,6 +78,7 @@ process EVALUATE_CONTIGS {
     input:
     path contigs_file
     path q2Cache
+    path metadata_files, stageAs: 'contig-metadata.tsv'
 
     output:
     tuple val(viz_label), path("${params.runId}-contigs.qzv"), emit: qzv
@@ -85,10 +86,12 @@ process EVALUATE_CONTIGS {
     
     script:
     viz_label = "Assembly QC"
+    def metadata_flag = metadata_files ? "--m-metadata-file '${metadata_files}'" : ''
     """
     qiime assembly evaluate-contigs \
       --verbose \
       --p-n-cpus ${task.cpus} \
+      ${metadata_flag} \
       --i-contigs ${params.q2cacheDir}:${contigs_file} \
       --o-visualization "${params.runId}-contigs.qzv" \
       --o-results "${params.q2cacheDir}:${params.runId}_contig_qc_results" \

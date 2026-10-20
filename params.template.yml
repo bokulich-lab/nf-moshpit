@@ -38,13 +38,16 @@ retain:
   host_removal: true
 
 # ============ INPUT DATA ============
+# Optional sample metadata TSV for contig QC and grouping in the TFA explorer.
+# Also required when using existing reads from a cache (Option 2).
+metadata: null # /path/to/sample-metadata.tsv
+
 # Option 1: import reads using a manifest file
 inputReadsManifest: /path/to/manifest
 
 # Option 2: provide a key to an existing reads artifact
 inputReads: <reads cache key>
 inputReadsCache: /path/to/reads/
-metadata: /path/to/metadata
 
 # Option 3: provide a file with a list of IDs for fondue to fetch
 fondueAccessionIds: /path/to/tsv
@@ -320,4 +323,4 @@ weblog:
   basicToken: ""
 
 env:
-  NUMBA_DISABLE_INTEL_SVML: 1 
+  NUMBA_DISABLE_INTEL_SVML: 1

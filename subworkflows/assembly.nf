@@ -36,7 +36,8 @@ workflow ASSEMBLE {
 
 
         if (params.assembly_qc.enabled) {
-            EVALUATE_CONTIGS(contigs_all, q2_cache)
+            metadata = params.metadata ? Channel.value(file(params.metadata, checkIfExists: true)) : Channel.value([])
+            EVALUATE_CONTIGS(contigs_all, q2_cache, metadata)
             qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS.out.qzv)
         }
 

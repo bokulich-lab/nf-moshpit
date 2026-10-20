@@ -296,6 +296,11 @@ def validateModuleParams() {
         }
         if (!params.functional_annotation.annotation.extract.types?.trim()) errors.add('ERROR: TFA requires at least one annotation extract type')
     }
+    def usesSampleMetadata = params.functional_annotation.tfa.enabled ||
+        (params.genome_assembly.enabled && params.assembly_qc.enabled)
+    if (usesSampleMetadata && paramIsSet(params.metadata) && !file(params.metadata).isFile()) {
+        errors.add("ERROR: Sample metadata must be an existing TSV file: ${params.metadata}")
+    }
     if (annotationTargets && !params.genome_assembly.enabled) errors.add('ERROR: Functional annotation requires genome assembly')
 
     def abundanceTargets = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
