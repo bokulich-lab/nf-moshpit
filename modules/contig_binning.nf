@@ -419,7 +419,6 @@ process BIN_CONTIGS_VAMB {
 }
 
 process REFINE_BINS_DAS_TOOL {
-    publishDir params.publishDir, mode: 'copy', pattern: '*.qza'
     label 'binRefinement'
     storeDir params.storeDir
     scratch true
@@ -433,7 +432,6 @@ process REFINE_BINS_DAS_TOOL {
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_summary), emit: summary
     tuple val(sample_id), path(key_evaluation), emit: input_bins_evaluation
-    path "*.qza", optional: true, emit: reports
 
     script:
     def das = params.binning.das_tool
@@ -442,10 +440,6 @@ process REFINE_BINS_DAS_TOOL {
     key_mags = "${params.runId}_mags_das_tool_partitioned_${sample_id}"
     key_summary = "${params.runId}_das_tool_summary_${sample_id}"
     key_evaluation = "${params.runId}_das_tool_input_evaluation_${sample_id}"
-    def fetch_reports = params.binning.fetchArtifact ? """
-    qiime tools cache-fetch --cache ${cache} --key ${key_summary} --output-path ${key_summary}.qza
-    qiime tools cache-fetch --cache ${cache} --key ${key_evaluation} --output-path ${key_evaluation}.qza
-    """ : ""
     """
     qiime mag refine-bins-das-tool \
       --verbose \
@@ -459,7 +453,6 @@ process REFINE_BINS_DAS_TOOL {
       --o-refined-bins ${cache}:${key_mags} \
       --o-summary ${cache}:${key_summary} \
       --o-input-bins-evaluation ${cache}:${key_evaluation}
-    ${fetch_reports}
     touch ${key_mags} ${key_summary} ${key_evaluation}
     """
 }

@@ -51,7 +51,7 @@ workflow BINNING_QC {
             true
         )
 
-        if (params.binning.fetchArtifact) {
+        if (binner != 'das_tool' && params.binning.fetchArtifact) {
             FETCH_ARTIFACT_UNBINNED_CONTIGS(unbinned_all)
             FETCH_ARTIFACT_CONTIG_MAP(contig_map_all)
             FETCH_ARTIFACT_MAGS(bins_all)
@@ -88,7 +88,7 @@ workflow BINNING_QC {
             qzv_outputs = qzv_outputs.mix(VISUALIZE_BUSCO.out.qzv)
             busco_results_out = busco_results.collated_results
 
-            if (params.binning.qc.busco.fetchArtifact) {
+            if (binner != 'das_tool' && params.binning.qc.busco.fetchArtifact) {
                 FETCH_ARTIFACT_BUSCO_RESULTS(busco_results.collated_results.map { it[1] })
             }
 
@@ -119,7 +119,7 @@ workflow BINNING_QC {
                     "--o-collated-mags",
                     true
                 )
-                if (params.binning.qc.filtering.fetchArtifact) {
+                if (binner != 'das_tool' && params.binning.qc.filtering.fetchArtifact) {
                     FETCH_ARTIFACT_MAGS_FILTERED(bins_all)
                 }
             }
