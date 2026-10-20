@@ -15,6 +15,7 @@ process CLASSIFY_KRAKEN2 {
     output:
     tuple val(_id), path(reports_key), emit: reports
     tuple val(_id), path(hits_key), emit: hits
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -67,6 +68,7 @@ process CLASSIFY_KRAKEN2_DEREP {
     output:
     path(reports_key), emit: reports
     path(hits_key), emit: hits
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (params.binning.qc.busco.enabled) {
@@ -112,6 +114,7 @@ process ESTIMATE_BRACKEN {
     path "${params.runId}_bracken_reports_reads", emit: reports
     path "${params.runId}_bracken_taxonomy_reads", emit: taxonomy
     path "${params.runId}_bracken_feature_table_reads", emit: feature_table
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -147,6 +150,7 @@ process GET_KRAKEN_FEATURES {
     output:
     path features, emit: taxonomy
     path ft_all, emit: feature_table, optional: true
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     features = "${params.runId}_kraken_features_${input_type}"
@@ -197,6 +201,7 @@ process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
     output:
     path taxonomy, emit: taxonomy
     path feature_map, emit: feature_map
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     taxonomy = "${params.runId}_kraken_taxonomy_contigs"
@@ -232,6 +237,7 @@ process COLLAPSE_CONTIGS {
     output:
     path collapsed_table, emit: collapsed_table
     tuple val(viz_label), path("${params.runId}-contigs-collapsed.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     viz_label = "Collapsed contigs (Kraken2)"
@@ -265,6 +271,7 @@ process CLASSIFY_KAIJU {
     output:
     tuple val(_id), path(ft_key), emit: feature_table
     tuple val(_id), path(taxonomy_key), emit: taxonomy
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -327,6 +334,7 @@ process DRAW_TAXA_BARPLOT {
 
     output:
     tuple val(viz_label), path("${params.runId}-${tool_name}-taxa-barplot.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     viz_label = "Taxa barplot: ${tool_name}"
@@ -352,6 +360,7 @@ process FETCH_KRAKEN2_DB {
     output:
     path params.databases.kraken2.key, emit: kraken2_db
     path params.databases.bracken.key, emit: bracken_db
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -382,6 +391,7 @@ process FETCH_KAIJU_DB {
 
     output:
     path params.databases.kaiju.key, emit: kaiju_db
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """

@@ -10,6 +10,7 @@ process FETCH_CHOCOPHLAN_DB {
 
     output:
     path params.databases.humann3Chocophlan.key, emit: chocophlan_db
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -37,6 +38,7 @@ process FETCH_TRANSLATED_SEARCH_DB {
 
     output:
     path params.databases.humann3TranslatedSearch.key, emit: translated_search_db
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -65,6 +67,7 @@ process FETCH_METAPHLAN_DB {
 
     output:
     path params.databases.humann3Metaphlan.key, emit: metaphlan_db
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -102,6 +105,7 @@ process PROFILE_READS_HUMANN {
     tuple val(_id), path(path_abundance_key), emit: path_abundance
     tuple val(_id), path(metaphlan_profile_key), emit: metaphlan_profile
     tuple val(_id), path(reactions_key), emit: reactions
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -168,7 +172,8 @@ process COLLATE_HUMANN_PARTITIONS {
     val clean_up
 
     output:
-    path "${cache_key_out}"
+    path "${cache_key_out}", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def inputString = id_and_paths.collect { item ->
@@ -202,6 +207,7 @@ process CONVERT_HUMANN_GENE_FAMILIES {
     output:
     path feature_table_key, emit: feature_table
     path taxonomy_key, emit: taxonomy
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     feature_table_key = "${params.runId}_humann_gene_families_reads_ft"
@@ -234,6 +240,7 @@ process CONVERT_HUMANN_PATH_ABUNDANCE {
     output:
     path feature_table_key, emit: feature_table
     path taxonomy_key, emit: taxonomy
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     feature_table_key = "${params.runId}_humann_path_abundance_reads_ft"
@@ -266,6 +273,7 @@ process CONVERT_METAPHLAN_PROFILE {
     output:
     path feature_table_key, emit: feature_table
     path taxonomy_key, emit: taxonomy
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     feature_table_key = "${params.runId}_humann_metaphlan_profiles_reads_ft"
@@ -294,7 +302,8 @@ process FETCH_HUMANN_ARTIFACT {
     val cache_key
 
     output:
-    path artifact_name
+    path artifact_name, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     cache_key = new File(cache_key.toString()).getName()

@@ -13,6 +13,7 @@ process BIN_CONTIGS_METABAT {
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_contig_map), emit: contig_map
     tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def binner = 'metabat2'
@@ -78,6 +79,7 @@ process BIN_CONTIGS_SEMIBIN2 {
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_contig_map), emit: contig_map
     tuple val(sample_id), path(key_unbinned_contigs), emit: unbinned_contigs
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def binner = 'semibin2'
@@ -140,6 +142,7 @@ process EVALUATE_BINS_BUSCO {
 
     output:
     tuple val(lineage), val(_id), path(key), emit: busco_results
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -184,6 +187,7 @@ process VISUALIZE_BUSCO {
 
     output:
     tuple val(viz_label), path("${params.runId}-mags-busco-${binner}-${lineage}.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     viz_label = "Bins QC (BUSCO, ${binner}): ${lineage}"
@@ -221,7 +225,8 @@ process FETCH_BUSCO_DB {
     clusterOptions = "--tmp=200G"
 
     output:
-    path params.databases.busco.key
+    path params.databases.busco.key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -256,6 +261,7 @@ process FILTER_MAGS {
 
     output:
     tuple val(_id), path(key_mags_filtered), val(lineage), emit: mags_filtered
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -303,6 +309,7 @@ process EVALUATE_BINS_CHECKM {
 
     output:
     tuple val(viz_label), path("${params.runId}-mags-checkm-${binner}.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     viz_label = "Bins QC (CheckM, ${binner})"
@@ -341,6 +348,7 @@ process COLLATE_BUSCO_RESULTS {
 
     output:
     tuple val(lineage), path("${cache_key_out}_${lineage}"), emit: collated_results
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def sample_ids = ids_and_paths[0]
@@ -387,6 +395,7 @@ process BIN_CONTIGS_VAMB {
     output:
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_contig_map), emit: contig_map
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def vamb = params.binning.vamb
@@ -432,6 +441,7 @@ process REFINE_BINS_DAS_TOOL {
     tuple val(sample_id), path(key_mags), emit: bins
     tuple val(sample_id), path(key_summary), emit: summary
     tuple val(sample_id), path(key_evaluation), emit: input_bins_evaluation
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def das = params.binning.das_tool
@@ -472,6 +482,7 @@ process SUMMARIZE_BINNING {
     output:
     tuple val(sample_id), path(key_contig_map), emit: contig_map
     tuple val(sample_id), path(key_unbinned), emit: unbinned_contigs
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     key_contig_map = "${params.runId}_contig_map_${binner}_derived_${sample_id}"

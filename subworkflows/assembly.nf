@@ -20,19 +20,19 @@ workflow ASSEMBLE {
     main:
         qzv_outputs = Channel.empty()
         if (params.genome_assembly.assembler.toLowerCase() in ['metaspades', 'spades']) {
-            contigs = ASSEMBLE_METASPADES(reads)
+            contigs = ASSEMBLE_METASPADES(reads).result
         } else if (params.genome_assembly.assembler.toLowerCase() == 'megahit') {
-            contigs = ASSEMBLE_MEGAHIT(reads)
+            contigs = ASSEMBLE_MEGAHIT(reads).result
         } else {
             error "Unknown assembler: ${params.genome_assembly.assembler}"
         }
 
         if (params.genome_assembly.filtering.enabled) {
-            contigs = FILTER_CONTIGS(contigs)
+            contigs = FILTER_CONTIGS(contigs).result
         }
 
         contigs_all = contigs | collect(flat: false)
-        contigs_all = COLLATE_CONTIGS(contigs_all, "${params.runId}_contigs", "types collate-contigs", "--i-contigs", "--o-collated-contigs", true)
+        contigs_all = COLLATE_CONTIGS(contigs_all, "${params.runId}_contigs", "types collate-contigs", "--i-contigs", "--o-collated-contigs", true).result
 
 
         if (params.assembly_qc.enabled) {
@@ -47,12 +47,12 @@ workflow ASSEMBLE {
 
         if (params.assembly_qc.enabled || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
             if (params.assembly_qc.quast.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
-                indexed_contigs = INDEX_CONTIGS(contigs)
+                indexed_contigs = INDEX_CONTIGS(contigs).result
                 indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
-                mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads)
+                mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads).result
                 mapped_reads_all = mapped_reads | collect(flat: false)
-                maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
+                maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true).result
                 if (params.assembly_qc.quast.enabled && params.assembly_qc.quast.useMappedReads) {
                     EVALUATE_CONTIGS_QUAST(contigs_all, maps_all, q2_cache)
                     qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST.out.qzv)

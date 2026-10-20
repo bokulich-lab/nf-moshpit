@@ -10,7 +10,8 @@ process ASSEMBLE_METASPADES {
     tuple val(sample_id), path(reads_file)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -45,7 +46,8 @@ process ASSEMBLE_MEGAHIT {
     tuple val(sample_id), path(reads_file)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -83,7 +85,8 @@ process EVALUATE_CONTIGS {
     output:
     tuple val(viz_label), path("${params.runId}-contigs.qzv"), emit: qzv
     path "${params.runId}_contig_qc_results"
-    
+        val true, emit: completion, topic: 'moshpit_analysis_done'
+
     script:
     viz_label = "Assembly QC"
     def metadata_flag = metadata_files ? "--m-metadata-file '${metadata_files}'" : ''
@@ -116,7 +119,8 @@ process EVALUATE_CONTIGS_QUAST {
     tuple val(viz_label), path("${params.runId}-contigs-quast.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
-    
+        val true, emit: completion, topic: 'moshpit_analysis_done'
+
     script:
     viz_label = "Assembly QC (QUAST)"
     """
@@ -151,7 +155,8 @@ process EVALUATE_CONTIGS_QUAST_NO_READS {
     tuple val(viz_label), path("${params.runId}-contigs-quast.qzv"), emit: qzv
     path "${params.runId}_quast_results_table"
     path "${params.runId}_quast_reference_genomes"
-    
+        val true, emit: completion, topic: 'moshpit_analysis_done'
+
     script:
     viz_label = "Assembly QC (QUAST)"
     """
@@ -181,7 +186,8 @@ process INDEX_CONTIGS {
     tuple val(sample_id), path(contigs_file)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -211,7 +217,8 @@ process MAP_READS_TO_CONTIGS {
     tuple val(sample_id), path(index_file), path(reads_file)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -243,7 +250,8 @@ process FILTER_CONTIGS {
     tuple val(sample_id), path(contigs_file)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"

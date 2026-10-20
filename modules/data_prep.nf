@@ -3,7 +3,8 @@ process FETCH_GENOMES {
     publishDir params.publishDir
 
     output:
-    path params.read_simulation.sampleGenomes
+    path params.read_simulation.sampleGenomes, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -33,6 +34,7 @@ process SIMULATE_READS {
     tuple val(sample_id), path(reads), emit: reads
     tuple val(sample_id), path(output_genomes), emit: genomes
     tuple val(sample_id), path(abundances), emit: abundances
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -77,6 +79,7 @@ process SIMULATE_READS_MASON {
 
     output:
     tuple val(sample_id), path(reads), path(table), emit: reads
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -119,6 +122,7 @@ process FETCH_SEQS {
     tuple val(_id), path(reads_single), emit: single
     tuple val(_id), path(reads_paired), emit: paired
     tuple val(_id), path(failed_runs), emit: failed
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -233,7 +237,8 @@ process SUBSAMPLE_READS {
     tuple val(sample_id), path(reads)
 
     output:
-    tuple val(sample_id), path(reads_subsampled)
+    tuple val(sample_id), path(reads_subsampled), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -273,7 +278,8 @@ process PROCESS_READS_FASTP {
     tuple val(sample_id), path(reads)
 
     output:
-    tuple val(sample_id), path(key_reads), path(key_reports)
+    tuple val(sample_id), path(key_reads), path(key_reports), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -337,6 +343,7 @@ process VISUALIZE_FASTP {
 
     output:
     tuple val(viz_label), path("${params.runId}-reads-qc-fastp.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     viz_label = "Reads QC (FastP)"
@@ -364,6 +371,7 @@ process REMOVE_HOST {
     output:
     tuple val(sample_id), path(key), emit: reads
     path "human_reference_index", emit: reference, optional: true
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -410,7 +418,8 @@ process REMOVE_HOST {
 process INIT_CACHE {
 
     output:
-    path "cache.txt"
+    path "cache.txt", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (params.q2cacheDirExists == "ok"){
@@ -443,7 +452,8 @@ process FETCH_ARTIFACT {
     val cache_key
     
     output:
-    path artifact_name
+    path artifact_name, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     cache_key = new File(cache_key.toString()).getName();
@@ -468,7 +478,8 @@ process IMPORT_READS {
     tuple val(_id), path(reads_fwd), path(reads_rev)
 
     output:
-    tuple val(_id), path(key)
+    tuple val(_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -518,7 +529,8 @@ process PARTITION_DEREP_MAGS {
     path q2_cache
 
     output:
-    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*"
+    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -597,7 +609,8 @@ process COLLATE_PARTITIONS {
     val clean_up
 
     output:
-    path "${cache_key_out}"
+    path "${cache_key_out}", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def inputString = id_and_paths.collect { item ->
@@ -640,7 +653,8 @@ process COLLATE_PARTITIONS_DEREP {
     val clean_up
 
     output:
-    path "${cache_key_out}"
+    path "${cache_key_out}", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def inputString = id_and_paths.collect { item ->
@@ -680,7 +694,8 @@ process TABULATE_READ_COUNTS {
     tuple val(sample_id), path(reads)
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -709,7 +724,8 @@ process TABULATE_READ_COUNTS_BATCH {
     val step
 
     output:
-    tuple val(step), path("${step}_read_counts.tsv")
+    tuple val(step), path("${step}_read_counts.tsv"), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def samplesData = samples.collect { item ->
@@ -774,7 +790,8 @@ process MAKE_SAMPLE_REPORT {
     val metrics
 
     output:
-    path "${params.runId}_sample_report_mqc.json"
+    path "${params.runId}_sample_report_mqc.json", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def metricsJson = groovy.json.JsonOutput.toJson(
@@ -820,6 +837,7 @@ process MULTIQC {
     output:
     path "multiqc_report.html"
     path "multiqc_report_data"
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -839,7 +857,8 @@ process REPORT_READ_COUNTS {
     val step_tsvs
 
     output:
-    path "${params.runId}_read_counts_mqc.json"
+    path "${params.runId}_read_counts_mqc.json", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def tsvListJson = groovy.json.JsonOutput.toJson(
@@ -943,7 +962,8 @@ process FILTER_SAMPLES {
     val should_partition
 
     output:
-    tuple val(sample_id), path(key)
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (should_partition) {
@@ -1015,6 +1035,9 @@ process CLEAN_UP_CACHES {
     val dependency
     val path_to_remove
 
+    output:
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+
     script:
     """
     echo "Removing ${path_to_remove}"
@@ -1035,7 +1058,8 @@ process MAKE_REPORT {
     val visualizations
 
     output:
-    path "${params.runId}-report.qzv"
+    path "${params.runId}-report.qzv", emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def visualization_json = groovy.json.JsonOutput.toJson(
@@ -1080,6 +1104,7 @@ process ARCHIVE_SAMPLE_CACHE {
 
     output:
     val sample_id, emit: archived
+    val true, emit: completion, topic: 'moshpit_finalization_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${sample_id}"
@@ -1132,6 +1157,9 @@ process REMOVE_FROM_CACHE {
     input:
     tuple val(sample_id), val(artifact_path)
 
+    output:
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+
     script:
     key = new File(artifact_path.toString()).getName()
     """
@@ -1154,7 +1182,8 @@ process FIX_CACHE_PERMISSIONS {
     tuple val(id), val(path), val(ready_signal)
 
     output:
-    val id
+    val id, emit: result
+    val true, emit: completion, topic: 'moshpit_finalization_done'
 
     script:
     """

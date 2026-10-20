@@ -30,7 +30,7 @@ workflow ANNOTATE_READS_HUMANN {
             "--i-tables",
             "--o-collated-table",
             true
-        )
+        ).result
         collated_path_abundance = COLLATE_PATH_ABUNDANCE_READS(
             path_abundance_all,
             "${params.runId}_humann_path_abundance_reads",
@@ -38,7 +38,7 @@ workflow ANNOTATE_READS_HUMANN {
             "--i-tables",
             "--o-collated-table",
             true
-        )
+        ).result
         collated_metaphlan_profiles = COLLATE_METAPHLAN_PROFILES_READS(
             metaphlan_profiles_all,
             "${params.runId}_humann_metaphlan_profiles_reads",
@@ -46,7 +46,7 @@ workflow ANNOTATE_READS_HUMANN {
             "--i-tables",
             "--o-collated-table",
             true
-        )
+        ).result
         collated_reactions = COLLATE_REACTIONS_READS(
             reactions_all,
             "${params.runId}_humann_reactions_reads",
@@ -54,7 +54,7 @@ workflow ANNOTATE_READS_HUMANN {
             "--i-tables",
             "--o-collated-table",
             true
-        )
+        ).result
 
         qzv_outputs = Channel.empty()
 

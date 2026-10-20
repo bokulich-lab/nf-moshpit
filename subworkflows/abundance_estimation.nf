@@ -14,17 +14,17 @@ workflow MAG_ABUNDANCE {
         reads
         q2_cache
     main:
-        mags_derep_index = INDEX_DEREP_MAGS(mags_derep, q2_cache)
+        mags_derep_index = INDEX_DEREP_MAGS(mags_derep, q2_cache).result
         combined = reads.combine(mags_derep_index)
-        reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache) | collect(flat: false)
+        reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache).result | collect(flat: false)
         if (params.binning.qc.busco.enabled) {
           reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}"
         } else {
           reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}"
         }
-        maps_all = COLLATE_PARTITIONS(reads_to_mags, reads_to_mags_key, "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true)
-        lengths = GET_MAG_LENGTHS(mags_derep, q2_cache, "mags_derep")
-        abundance = ESTIMATE_MAG_ABUNDANCE(maps_all, lengths, "mags_derep",q2_cache)
+        maps_all = COLLATE_PARTITIONS(reads_to_mags, reads_to_mags_key, "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true).result
+        lengths = GET_MAG_LENGTHS(mags_derep, q2_cache, "mags_derep").result
+        abundance = ESTIMATE_MAG_ABUNDANCE(maps_all, lengths, "mags_derep",q2_cache).result
         if (params.abundance_estimation.fetchArtifact) {
             FETCH_ARTIFACT_MAG_ABUNDANCE(abundance)
         }
@@ -38,8 +38,8 @@ workflow CONTIG_ABUNDANCE {
         maps
         q2_cache
     main:
-        lengths = GET_CONTIG_LENGTHS(contigs, q2_cache, "contigs")
-        abundance = ESTIMATE_CONTIG_ABUNDANCE(maps, lengths, "contigs", q2_cache)
+        lengths = GET_CONTIG_LENGTHS(contigs, q2_cache, "contigs").result
+        abundance = ESTIMATE_CONTIG_ABUNDANCE(maps, lengths, "contigs", q2_cache).result
         if (params.abundance_estimation.fetchArtifact) {
             FETCH_ARTIFACT_CONTIG_ABUNDANCE(abundance)
         }

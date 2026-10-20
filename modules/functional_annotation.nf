@@ -15,6 +15,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     tuple val(_id), path(hits_key), emit: hits
     tuple val(_id), path(table_key), emit: table
     tuple val(_id), path(loci_key), emit: loci
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags") {
@@ -78,6 +79,7 @@ process ANNOTATE_EGGNOG {
 
     output:
     tuple val(_id), path(annotations_key), emit: annotations
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags") {
@@ -122,7 +124,8 @@ process FETCH_DIAMOND_DB {
     scratch true
 
     output:
-    path params.databases.eggnogOrthologs.key
+    path params.databases.eggnogOrthologs.key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -149,7 +152,8 @@ process FETCH_EGGNOG_DB {
     errorStrategy 'retry'
 
     output:
-    path params.databases.eggnogAnnotations.key
+    path params.databases.eggnogAnnotations.key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -184,6 +188,7 @@ process EXTRACT_ANNOTATIONS {
     tuple val(annotation_type), path(counts_per_genome_key), emit: counts_per_genome
     tuple val(annotation_type), path(annotation_map_key), emit: annotation_map
     tuple val(annotation_type), path(counts_per_contig_key), emit: counts_per_contig
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -226,7 +231,8 @@ process MULTIPLY_TABLES {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path(feature_table)
+    tuple val(annotation_type), path(feature_table), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -258,6 +264,7 @@ process DRAW_ANNOTATION_BARPLOT {
 
     output:
     tuple val(viz_label), path("${params.runId}-${tool_name}-annotation-barplot.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -290,6 +297,7 @@ process TRANSFER_ANNOTATIONS {
 
     output:
     path annotations_key, emit: annotations
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     annotations_key = "${params.runId}_eggnog_transferred_${input_type}_${params.binning.primary}"
@@ -323,6 +331,7 @@ process ESTIMATE_TFA {
     tuple val(annotation_type), path(tfa_key), emit: tfa
     tuple val(annotation_type), path(taxonomy_key), emit: gene_taxonomy
     tuple val(viz_label), path("${params.runId}-contigs-${annotation_type}-tfa.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     tfa_key = "${params.runId}_contigs_${annotation_type}_tfa"

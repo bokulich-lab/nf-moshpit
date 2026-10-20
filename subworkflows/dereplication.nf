@@ -9,8 +9,8 @@ workflow DEREPLICATE {
         bins
         q2_cache
     main:
-        minhashes = CALCULATE_MINHASHES(bins, q2_cache)
-        distance_matrix = COMPARE_MINHASHES(minhashes, q2_cache)
+        minhashes = CALCULATE_MINHASHES(bins, q2_cache).result
+        distance_matrix = COMPARE_MINHASHES(minhashes, q2_cache).result
         DEREPLICATE_MAGS(bins, distance_matrix, q2_cache)
 
         if (params.dereplication.fetchArtifact) {

@@ -30,7 +30,7 @@ workflow BINNING_QC {
             contig_map.collect(flat: false),
             "${params.runId}_contig_map_${binner}",
             "types collate-contig-maps", "--i-contig-maps", "--o-collated-contig-maps", true
-        )
+        ).result
         bins_all = bins | collect(flat: false)
         bins_all = COLLATE_BINS(
             bins_all,
@@ -39,7 +39,7 @@ workflow BINNING_QC {
             "--i-mags",
             "--o-collated-mags",
             true
-        )
+        ).result
 
         unbinned_all = unbinned_contigs | collect(flat: false)
         unbinned_all = COLLATE_UNBINNED_CONTIGS(
@@ -49,7 +49,7 @@ workflow BINNING_QC {
             "--i-contigs",
             "--o-collated-contigs",
             true
-        )
+        ).result
 
         if (binner != 'das_tool' && params.binning.fetchArtifact) {
             FETCH_ARTIFACT_UNBINNED_CONTIGS(unbinned_all)
@@ -72,7 +72,7 @@ workflow BINNING_QC {
                 Channel.value(binner),
                 bins_with_lineage,
                 busco_db
-            )
+            ).busco_results
             busco_results_by_lineage = busco_results_partitioned.groupTuple(by: 0)
 
             busco_results = COLLATE_BUSCO_RESULTS(
@@ -108,7 +108,7 @@ workflow BINNING_QC {
                     combined.map { _id, _bins, _lineage, busco_results -> busco_results },
                     "mag",
                     q2_cache
-                )
+                ).mags_filtered
                 bins = bins.map { _id, _bins, _lineage -> [_id, _bins] }
                 bins_all = bins | collect(flat: false)
                 bins_all = COLLATE_FILTERED_BINS(
@@ -118,7 +118,7 @@ workflow BINNING_QC {
                     "--i-mags",
                     "--o-collated-mags",
                     true
-                )
+                ).result
                 if (binner != 'das_tool' && params.binning.qc.filtering.fetchArtifact) {
                     FETCH_ARTIFACT_MAGS_FILTERED(bins_all)
                 }

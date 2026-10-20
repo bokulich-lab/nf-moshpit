@@ -13,7 +13,7 @@ workflow BINNING {
         candidates = Channel.empty()
         results = [:]
         enabled = ['metabat2', 'semibin2', 'vamb'].findAll { params.binning[it].enabled }
-        busco_db = params.binning.qc.busco.enabled ? FETCH_BUSCO_DB() : Channel.empty()
+        busco_db = params.binning.qc.busco.enabled ? FETCH_BUSCO_DB().result : Channel.empty()
 
         if (params.binning.metabat2.enabled) {
             results.metabat2 = RUN_BINNER_METABAT2('metabat2', contigs, maps, q2_cache, params.binning.qc.busco.enabled, busco_db)

@@ -31,6 +31,19 @@ email: user@example.com
 # Archive the per-sample caches upon completion
 archive: true
 
+# Run only after all tasks finish; caches must not be used by another workflow.
+# Archived sample caches have already been removed, so only live caches are scanned.
+provenance_dedup:
+  enabled: false
+  # Time limit = min(baseTime + timePerSample * input sample count, maxTime).
+  # Samples are counted before filtering; match maxTime to your queue's wall-time limit.
+  baseTime: '6h'
+  timePerSample: '1h'
+  maxTime: '72h'
+  maxLinks: 10000
+  ignoreMtime: false
+  ignoreLustreLayout: false
+
 retain:
   input: true
   subsampling: true

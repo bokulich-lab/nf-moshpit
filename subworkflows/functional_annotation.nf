@@ -29,8 +29,8 @@ workflow ANNOTATE_EGGNOG_MAGS {
             annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}"
         }
 
-        collated_orthologs = COLLATE_HITS_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
-        collated_annotations = COLLATE_ANNOTATIONS_MAGS(ANNOTATE_MAGS.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+        collated_orthologs = COLLATE_HITS_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true).result
+        collated_annotations = COLLATE_ANNOTATIONS_MAGS(ANNOTATE_MAGS.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true).result
 
         if (params.functional_annotation.ortholog_search.fetchArtifact) {
             FETCH_ARTIFACT_ORTHOLOGS(collated_orthologs)
@@ -66,8 +66,8 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
             orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep"
             annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep"
         }
-        collated_orthologs = COLLATE_HITS_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
-        collated_annotations = COLLATE_ANNOTATIONS_MAGS_DEREP(ANNOTATE_MAGS_DEREP.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+        collated_orthologs = COLLATE_HITS_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true).result
+        collated_annotations = COLLATE_ANNOTATIONS_MAGS_DEREP(ANNOTATE_MAGS_DEREP.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true).result
 
 
         if (params.functional_annotation.cleanUp) {
@@ -114,7 +114,7 @@ workflow COMBINE_ANNOTATION_ABUNDANCE {
         q2_cache
     main:
         qzv_outputs = Channel.empty()
-        multiplied = MULTIPLY_TABLES(abundance_table.first(), annotation_counts, input_type, q2_cache.first())
+        multiplied = MULTIPLY_TABLES(abundance_table.first(), annotation_counts, input_type, q2_cache.first()).result
         DRAW_ANNOTATION_BARPLOT(multiplied, input_type)
         qzv_outputs = qzv_outputs.mix(DRAW_ANNOTATION_BARPLOT.out.qzv)
         if (params.functional_annotation.annotation.extract.fetchArtifact) {
@@ -135,8 +135,8 @@ workflow ANNOTATE_EGGNOG_CONTIGS {
         SEARCH_ORTHOLOGS_CONTIGS(contigs, diamond_db, "contigs")
         ANNOTATE_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits, eggnog_db, "contigs")
 
-        collated_orthologs = COLLATE_HITS_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits | collect(flat: false), "${params.runId}_eggnog_orthologs_contigs", "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true)
-        collated_annotations = COLLATE_ANNOTATIONS_CONTIGS(ANNOTATE_CONTIGS.out.annotations | collect(flat: false), "${params.runId}_eggnog_annotations_contigs", "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true)
+        collated_orthologs = COLLATE_HITS_CONTIGS(SEARCH_ORTHOLOGS_CONTIGS.out.hits | collect(flat: false), "${params.runId}_eggnog_orthologs_contigs", "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true).result
+        collated_annotations = COLLATE_ANNOTATIONS_CONTIGS(ANNOTATE_CONTIGS.out.annotations | collect(flat: false), "${params.runId}_eggnog_annotations_contigs", "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true).result
 
         if (params.functional_annotation.annotation.extract != "") {
             annotation_type = Channel.of(params.functional_annotation.annotation.extract.types.split(","))
@@ -168,7 +168,7 @@ workflow TRANSFER_MAG_ANNOTATIONS {
         input_type
         q2_cache
     main:
-        annotations = TRANSFER_ANNOTATIONS(source_annotations.first(), destination_sequences.first(), input_type)
+        annotations = TRANSFER_ANNOTATIONS(source_annotations.first(), destination_sequences.first(), input_type).annotations
         annotation_types = Channel.of(params.functional_annotation.annotation.extract.types.split(','))
         extracted = EXTRACT_ANNOTATIONS(annotations.first(), annotation_types, input_type, q2_cache.first())
         if (params.functional_annotation.annotation.fetchArtifact) {
