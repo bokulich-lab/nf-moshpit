@@ -160,7 +160,6 @@ process FETCH_SEQS {
           echo "Success - required config files were created."
         else
           echo "The directory /home/qiime2 does not exist - are you running the pipeline using a Singularity container?"
-          exit 1
         fi
     fi
 
