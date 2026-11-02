@@ -4,7 +4,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory "${params.functional_annotation.ortholog_search.memory ?: 10}.GB"
+    memory { (params.functional_annotation.ortholog_search.memory ?: 10).GB }
 
     input:
     tuple val(_id), path(input_file)
@@ -70,7 +70,7 @@ process ANNOTATE_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory "${params.functional_annotation.annotation.memory ?: 48}.GB"
+    memory { (params.functional_annotation.annotation.memory ?: 48).GB }
 
     input:
     tuple val(_id), path(input_file)
@@ -171,8 +171,8 @@ process FETCH_EGGNOG_DB {
 
 process EXTRACT_ANNOTATIONS {
     cpus 1
-    memory { 2.GB * task.attempt }
-    time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt * (params.time_multiplier as double)}
     maxRetries 3
     storeDir params.storeDir
     scratch true

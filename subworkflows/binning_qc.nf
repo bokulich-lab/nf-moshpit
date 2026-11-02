@@ -105,7 +105,7 @@ workflow BINNING_QC {
                 bins = FILTER_MAGS(
                     Channel.value(binner),
                     combined.map { _id, _bins, lineage, _busco_results -> [_id, _bins, lineage] },
-                    combined.map { _id, _bins, _lineage, busco_results -> busco_results },
+                    combined.map { _id, _bins, _lineage, selected_busco_results -> selected_busco_results },
                     "mag",
                     q2_cache
                 ).mags_filtered

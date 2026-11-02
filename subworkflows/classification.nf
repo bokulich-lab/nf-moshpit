@@ -20,7 +20,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_HITS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT; FETCH_ARTIFACT as FETCH_ARTIFACT_PA } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_READS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_READS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_CONTIGS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_TAXONOMY_KRAKEN2; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
 include { MAP_KRAKEN2_TAXONOMY_TO_CONTIGS } from '../modules/taxonomic_classification'
 
 workflow CLASSIFY_MAGS {
@@ -96,7 +96,7 @@ workflow CLASSIFY_READS {
         } else {
             GET_KRAKEN_FEATURES(reports_all, hits_all, "reads")
             if (params.taxonomic_classification.fetchArtifact) {
-                FETCH_ARTIFACT_TAXONOMY_KRAKEN2(GET_KRAKEN_FEATURES.out.features)
+                FETCH_ARTIFACT_TAXONOMY_KRAKEN2(GET_KRAKEN_FEATURES.out.taxonomy)
                 FETCH_ARTIFACT_PA(GET_KRAKEN_FEATURES.out.feature_table)
             }
         }
@@ -176,4 +176,6 @@ workflow CLASSIFY_CONTIGS_KAIJU {
             FETCH_ARTIFACT_KAIJU_FT_CONTIGS(ft_all)
             FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS(taxonomy_all)
         }
+    emit:
+        kaiju_classification = taxonomy_all
 }

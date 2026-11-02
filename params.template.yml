@@ -330,10 +330,5 @@ humann3:
     metaphlan_level: 7
     additionalFlags: ""
 
-weblog:
-  enabled: false
-  url: ""
-  basicToken: ""
-
 env:
   NUMBA_DISABLE_INTEL_SVML: 1

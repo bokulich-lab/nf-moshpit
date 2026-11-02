@@ -3,7 +3,7 @@ process CLASSIFY_KRAKEN2 {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
-    memory "${params.taxonomic_classification.kraken2.memory ?: 48}.GB"
+    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
     errorStrategy "retry"
     maxRetries 3
 
@@ -58,7 +58,7 @@ process CLASSIFY_KRAKEN2_DEREP {
     tag "mags-derep"
     errorStrategy "retry"
     maxRetries 3
-    memory "${params.taxonomic_classification.kraken2.memory}.GB"
+    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
 
     input:
     path input_file
@@ -259,7 +259,7 @@ process CLASSIFY_KAIJU {
     storeDir params.storeDir
     scratch true
     tag "${_id}"
-    memory "${params.taxonomic_classification.kaiju.memory ?: 48}.GB"
+    memory { (params.taxonomic_classification.kaiju.memory ?: 48).GB }
     errorStrategy "retry"
     maxRetries 3
 

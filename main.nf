@@ -68,15 +68,13 @@ include { ANNOTATE_READS_HUMANN } from './subworkflows/humann_annotation'
 include { validateParameters } from './modules/validation.nf'
 include { getDirectorySizeInGB } from './modules/utils.nf'
 
-nextflow.enable.dsl = 2
-
-validateParameters()
-
-def writeLog = { value ->
+def writeLog(value) {
     log.info value
 }
 
 workflow {
+    validateParameters()
+
     def directoryPaths = [
         "${params.storeDir}",
         "${params.publishDir}",
@@ -181,10 +179,10 @@ workflow {
 
         simulated_reads = SIMULATE_READS_MASON(simulation_data)
 
-        simulated_tables = SIMULATE_READS_MASON.out.reads.map { _id, reads, table -> [_id, table] } | collect(flat: false)
+        simulated_tables = SIMULATE_READS_MASON.out.reads.map { _id, sample_reads, table -> [_id, table] } | collect(flat: false)
         simulated_tables = COLLATE_FT(simulated_tables, "${params.runId}_mason_ft", "feature-table merge", "--i-tables", "--o-merged-table", true).result
 
-        reads = simulated_reads.reads | map { _id, reads, table -> [_id, reads] }
+        reads = simulated_reads.reads | map { _id, sample_reads, table -> [_id, sample_reads] }
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples simulated", n) })
     } else {
         writeLog("Simulating reads from fetched genomes")
@@ -223,14 +221,14 @@ workflow {
             CLEANUP_INPUT(input_reads.join(reads_partitioned)
                 .map { id, i, o -> tuple(id, i) }
                 .combine(input_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
 
     // perform read QC and trimming
     input_reads_fastp = reads_partitioned
     fastp_results = PROCESS_READS_FASTP(reads_partitioned).result
-    reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
+    reads_partitioned = fastp_results | map { _id, processed_reads, report -> [_id, processed_reads] }
     
     if ((params.read_subsampling.enabled && !params.retain.subsampling) || (!params.read_subsampling.enabled && !params.retain.input)) {
         if (params.read_subsampling.enabled) {
@@ -239,20 +237,20 @@ workflow {
             CLEANUP_SUBSAMPLED(input_reads_fastp.join(fastp_results)
                 .map { id, i, o, r -> tuple(id, i) }
                 .combine(subsampled_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         } else {
             // gate on COUNT_BATCH_INPUT — no subsampling, so input reads go straight into fastp
             input_counted = input_count_tsv.map { true }.first()
             CLEANUP_INPUT(input_reads_fastp.join(fastp_results)
                 .map { id, i, o, r -> tuple(id, i) }
                 .combine(input_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
     sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after fastp processing", n) })
     fastp_count_tsv = COUNT_BATCH_FASTP(reads_partitioned.collect(flat: false), "fastp").result
     read_count_tsvs = read_count_tsvs.mix(fastp_count_tsv)
-    fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
+    fastp_reports = fastp_results | map { _id, processed_reads, report -> tuple(_id, report) } | collect(flat: false)
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true).result
     VISUALIZE_FASTP(fastp_reports_all, cache)
 
@@ -278,7 +276,7 @@ workflow {
             CLEANUP_FASTP(input_reads_host.join(filtering_results.reads)
                 .map { id, i, o -> tuple(id, i) }
                 .combine(fastp_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
 
@@ -349,14 +347,14 @@ workflow {
                 CLEANUP_HOST(input_reads_filter.join(reads_partitioned)
                     .map { id, i, o -> tuple(id, i) }
                     .combine(host_counted)
-                    .map { id, reads, _sig -> tuple(id, reads) })
+                    .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
              } else {
                 // gate on COUNT_BATCH_FASTP — no host removal, so fastp reads are what get cleaned here
                 fastp_counted = fastp_count_tsv.map { true }.first()
                 CLEANUP_FASTP(input_reads_filter.join(reads_partitioned)
                     .map { id, i, o -> tuple(id, i) }
                     .combine(fastp_counted)
-                    .map { id, reads, _sig -> tuple(id, reads) })
+                    .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
              }
         }
     }
@@ -542,18 +540,16 @@ workflow {
             file("${projectDir}/bin/deduplicate_provenance.py", checkIfExists: true))
     }
 
-}
-
-// Add final summary section
-workflow.onComplete {
-    writeLog("\n==========================================")
-    writeLog("WORKFLOW SUMMARY")
-    writeLog("==========================================")
-    writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
-    writeLog("Duration    : ${workflow.duration}")
-    writeLog("Success     : ${workflow.success}")
-    writeLog("Exit status : ${workflow.exitStatus}")
-    writeLog("Error report: ${workflow.errorReport ?: 'None'}")
-    writeLog("Working dir : ${workflow.workDir}")
-    writeLog("==========================================")
+    workflow.onComplete {
+        writeLog("\n==========================================")
+        writeLog("WORKFLOW SUMMARY")
+        writeLog("==========================================")
+        writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
+        writeLog("Duration    : ${workflow.duration}")
+        writeLog("Success     : ${workflow.success}")
+        writeLog("Exit status : ${workflow.exitStatus}")
+        writeLog("Error report: ${workflow.errorReport ?: 'None'}")
+        writeLog("Working dir : ${workflow.workDir}")
+        writeLog("==========================================")
+    }
 }

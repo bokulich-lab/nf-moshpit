@@ -143,23 +143,27 @@ process FETCH_SEQS {
       exit 0
     fi
 
-    if [ ! -d "$HOME/.ncbi" ]; then
-        echo 'Directory $HOME/.ncbi does not exist and will be created'
-        mkdir $HOME/.ncbi
-        echo 'Creating SRA Toolkit config file in $HOME/.ncbi/user-settings.mkfg'
-        printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
-    elif [ ! -f "$HOME/.ncbi/user-settings.mkfg" ]; then
-        echo 'Creating SRA Toolkit config file in $HOME/.ncbi/user-settings.mkfg'
-        printf '/LIBS/GUID = "%s"\n' `uuidgen` > $HOME/.ncbi/user-settings.mkfg
+    if [ ! -d "\$HOME/.ncbi" ]; then
+        echo 'Directory \$HOME/.ncbi does not exist and will be created'
+        mkdir \$HOME/.ncbi
+        echo 'Creating SRA Toolkit config file in \$HOME/.ncbi/user-settings.mkfg'
+        printf '/LIBS/GUID = "%s"\n' `uuidgen` > \$HOME/.ncbi/user-settings.mkfg
+    elif [ ! -f "\$HOME/.ncbi/user-settings.mkfg" ]; then
+        echo 'Creating SRA Toolkit config file in \$HOME/.ncbi/user-settings.mkfg'
+        printf '/LIBS/GUID = "%s"\n' `uuidgen` > \$HOME/.ncbi/user-settings.mkfg
     else
-        echo 'NCBI config files exist - we will attempt to copy the config into the QIIME 2 home directory.'
-        if [ -d "/home/qiime2" ]; then
-          mkdir -p /home/qiime2/.ncbi
-          cp $HOME/.ncbi/user-settings.mkfg /home/qiime2/.ncbi/user-settings.mkfg
-          ls /home/qiime2/.ncbi
-          echo "Success - required config files were created."
+        if [ -f "/.dockerenv" ] || [ -n "\${SINGULARITY_CONTAINER:-}" ] || [ -n "\${APPTAINER_CONTAINER:-}" ]; then
+          echo 'NCBI config files exist - copying the config into the QIIME 2 container home directory.'
+          if [ -d "/home/qiime2" ]; then
+            mkdir -p /home/qiime2/.ncbi
+            cp \$HOME/.ncbi/user-settings.mkfg /home/qiime2/.ncbi/user-settings.mkfg
+            ls /home/qiime2/.ncbi
+            echo "Success - required config files were created."
+          else
+            echo "The QIIME 2 container home directory does not exist; skipping NCBI configuration copy."
+          fi
         else
-          echo "The directory /home/qiime2 does not exist - are you running the pipeline using a Singularity container?"
+          echo "Task is not running in a container; skipping NCBI configuration copy."
         fi
     fi
 

@@ -25,10 +25,9 @@ process DEDUPLICATE_PROVENANCE {
     path "${params.runId}-provenance-dedup-summary.json", emit: summary
 
     script:
-    def quote = { value -> "'" + value.toString().replace("'", "'\"'\"'") + "'" }
-    def roots = cache_roots.collect { quote(it) }.join(' ')
-    def report_prefix = quote("${params.runId}-provenance-dedup-")
-    def summary_name = quote("${params.runId}-provenance-dedup-summary.json")
+    def roots = cache_roots.collect { value -> "'" + value.toString().replace("'", "'\"'\"'") + "'" }.join(' ')
+    def report_prefix = "'" + "${params.runId}-provenance-dedup-".replace("'", "'\"'\"'") + "'"
+    def summary_name = "'" + "${params.runId}-provenance-dedup-summary.json".replace("'", "'\"'\"'") + "'"
     def flags = []
     if (params.provenance_dedup.ignoreMtime) flags << '--ignore-mtime'
     if (params.provenance_dedup.ignoreLustreLayout) flags << '--ignore-lustre-layout'

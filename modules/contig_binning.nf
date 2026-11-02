@@ -222,7 +222,7 @@ process FETCH_BUSCO_DB {
     maxRetries 3
     storeDir params.storeDir
     scratch true
-    clusterOptions = "--tmp=200G"
+    clusterOptions "--tmp=200G"
 
     output:
     path params.databases.busco.key, emit: result
