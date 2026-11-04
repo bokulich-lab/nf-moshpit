@@ -10,6 +10,7 @@ include { COLLATE_PARTITIONS as COLLATE_READS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_CONTIGS } from '../modules/data_prep'
 include { COLLATE_PARTITIONS as COLLATE_MAPS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_CONTIGS } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_MAPS } from '../modules/data_prep'
 include { CONTIG_ABUNDANCE } from '../subworkflows/abundance_estimation'
 
 workflow ASSEMBLE {
@@ -45,25 +46,36 @@ workflow ASSEMBLE {
             FETCH_ARTIFACT_CONTIGS(contigs_all)
         }
 
-        if (params.assembly_qc.enabled || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
-            if (params.assembly_qc.quast.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs")) {
+        if (params.assembly_qc.enabled || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs") || params.genome_assembly.fetchAlignmentMaps) {
+            if (params.assembly_qc.quast.useMappedReads || params.binning.enabled || params.abundance_estimation.enabledFor.contains("contigs") || params.genome_assembly.fetchAlignmentMaps) {
                 indexed_contigs = INDEX_CONTIGS(contigs).result
                 indexed_contigs_with_reads = indexed_contigs.combine(reads, by: 0)
 
                 mapped_reads = MAP_READS_TO_CONTIGS(indexed_contigs_with_reads).result
-                mapped_reads_all = mapped_reads | collect(flat: false)
-                maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true).result
-                if (params.assembly_qc.quast.enabled && params.assembly_qc.quast.useMappedReads) {
-                    EVALUATE_CONTIGS_QUAST(contigs_all, maps_all, q2_cache)
-                    qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST.out.qzv)
-                } else if (params.assembly_qc.quast.enabled) {
-                    EVALUATE_CONTIGS_QUAST_NO_READS(contigs_all, q2_cache)
-                    qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST_NO_READS.out.qzv)
-                }
-                if (params.abundance_estimation.enabledFor.contains("contigs")) {
-                    contig_abundance = CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
+                if (params.genome_assembly.fetchAlignmentMaps || (params.assembly_qc.quast.enabled && params.assembly_qc.quast.useMappedReads) || params.abundance_estimation.enabledFor.contains("contigs")) {
+                    mapped_reads_all = mapped_reads | collect(flat: false)
+                    maps_all = COLLATE_MAPS(mapped_reads_all, "${params.runId}_reads_to_contigs", "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true).result
+                    if (params.genome_assembly.fetchAlignmentMaps) {
+                        FETCH_ARTIFACT_MAPS(maps_all)
+                    }
+                    if (params.assembly_qc.quast.enabled && params.assembly_qc.quast.useMappedReads) {
+                        EVALUATE_CONTIGS_QUAST(contigs_all, maps_all, q2_cache)
+                        qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST.out.qzv)
+                    } else if (params.assembly_qc.quast.enabled) {
+                        EVALUATE_CONTIGS_QUAST_NO_READS(contigs_all, q2_cache)
+                        qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST_NO_READS.out.qzv)
+                    }
+                    if (params.abundance_estimation.enabledFor.contains("contigs")) {
+                        contig_abundance = CONTIG_ABUNDANCE(contigs_all, maps_all, q2_cache)
+                    } else {
+                        contig_abundance = ""
+                    }
                 } else {
                     contig_abundance = ""
+                    if (params.assembly_qc.quast.enabled) {
+                        EVALUATE_CONTIGS_QUAST_NO_READS(contigs_all, q2_cache)
+                        qzv_outputs = qzv_outputs.mix(EVALUATE_CONTIGS_QUAST_NO_READS.out.qzv)
+                    }
                 }
             } else {
                 mapped_reads = ""
