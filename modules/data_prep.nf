@@ -474,7 +474,7 @@ process IMPORT_READS {
     scratch true
     errorStrategy 'retry'
     maxRetries 3
-    memory { 2.GB * task.attempt }
+    memory { 4.GB * task.attempt }
     time { 2.h * task.attempt }
 
     input:
@@ -715,8 +715,8 @@ process TABULATE_READ_COUNTS {
 
 process TABULATE_READ_COUNTS_BATCH {
     cpus 1
-    time { 4.h * task.attempt }
-    memory { 2.GB * task.attempt }
+    time { 4.h * task.attempt * (params.time_multiplier as double) }
+    memory { 2.GB * task.attempt * (params.mem_multiplier as double)}
     maxRetries 3
     errorStrategy 'retry'
     tag "${step}"
@@ -1096,8 +1096,8 @@ process MAKE_REPORT {
 process ARCHIVE_SAMPLE_CACHE {
     tag "${sample_id}"
     cpus 1
-    memory { 2.GB * task.attempt }
-    time { 4.h * task.attempt }
+    memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 4.h * task.attempt * (params.time_multiplier as double) }
     maxRetries 2
     errorStrategy 'retry'
 

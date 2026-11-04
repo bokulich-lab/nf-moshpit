@@ -99,7 +99,7 @@ process ESTIMATE_BRACKEN {
     label "bracken"
     cpus 1
     time { 12.h * task.attempt }
-    memory { 4.GB * task.attempt }
+    memory { 4.GB * task.attempt * (params.mem_multiplier as double)}
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
@@ -188,7 +188,7 @@ process GET_KRAKEN_FEATURES {
 
 process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
     time { 4.h * task.attempt }
-    memory { 2.GB * task.attempt }
+    memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
@@ -222,7 +222,7 @@ process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
 
 process COLLAPSE_CONTIGS {
     time { 4.h * task.attempt }
-    memory { 4.GB * task.attempt }
+    memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
     storeDir params.storeDir
@@ -352,7 +352,7 @@ process FETCH_KRAKEN2_DB {
     label "needsInternet"
     cpus 1
     memory 2.GB
-    time { 1.h * task.attempt }
+    time { 4.h * task.attempt }
     maxRetries 3
     storeDir params.storeDir
     scratch true

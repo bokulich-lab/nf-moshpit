@@ -217,8 +217,8 @@ process EXTRACT_ANNOTATIONS {
 
 process MULTIPLY_TABLES {
     cpus 1
-    memory { 2.GB * task.attempt }
-    time { 30.min * task.attempt }
+    memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 1.h * task.attempt * (params.time_multiplier as double) }
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -285,8 +285,8 @@ process DRAW_ANNOTATION_BARPLOT {
 
 process TRANSFER_ANNOTATIONS {
     cpus 1
-    memory 4.GB
-    time 2.h
+    memory { 4.GB  * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt }
     storeDir params.storeDir
     scratch true
 
@@ -313,8 +313,8 @@ process TRANSFER_ANNOTATIONS {
 
 process ESTIMATE_TFA {
     cpus 1
-    memory 8.GB
-    time 2.h
+    memory { 8.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt }
     storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     scratch true
