@@ -1,12 +1,10 @@
 # nf-moshpit
 
-For the post-2026.7 action additions (VAMB, DAS Tool, annotation transfer, contig-map collation and TFA), see [the update guide](docs/2026.10-actions.md).
-
-**Required MOSHPIT version:** a post-2026.7 development build containing the actions in the [update guide](docs/2026.10-actions.md).
+**Required MOSHPIT version:** 2026.10
 
 **Currently supported runtimes:** `conda`, `singularity`, `docker`
 
-This repository contains the Nextflow workflow for shotgun metagenome analysis using QIIME 2 (MOSHPIT). A working MOSHPIT conda environment, Singularity image, or Docker image
+This repository contains the Nextflow workflow for shotgun metagenome analysis using MOSHPIT. A working MOSHPIT conda environment, Singularity image, or Docker image
 is required to execute the actions included in this workflow. Please follow the [MOSHPIT installation instructions](https://library.qiime2.org/quickstart/moshpit) to learn how to create one.
 
 Workflow configuration happens through several config files:
