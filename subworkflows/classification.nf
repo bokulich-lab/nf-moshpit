@@ -20,7 +20,7 @@ include { FETCH_ARTIFACT as FETCH_ARTIFACT_HITS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_FT; FETCH_ARTIFACT as FETCH_ARTIFACT_PA } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_READS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_READS } from '../modules/data_prep'
 include { FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_FT_CONTIGS; FETCH_ARTIFACT as FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS } from '../modules/data_prep'
-include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
+include { FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_KRAKEN2_TAXONOMY; FETCH_ARTIFACT as FETCH_ARTIFACT_TAXONOMY_KRAKEN2; FETCH_ARTIFACT as FETCH_ARTIFACT_BRACKEN_REPORTS } from '../modules/data_prep'
 include { MAP_KRAKEN2_TAXONOMY_TO_CONTIGS } from '../modules/taxonomic_classification'
 
 workflow CLASSIFY_MAGS {
@@ -34,8 +34,8 @@ workflow CLASSIFY_MAGS {
         // collate reports and hits
         reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
-        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
-        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true).result
+        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true).result
         
         GET_KRAKEN_MAG_FEATURES(collated_reports, collated_hits, "mags")
         if (params.taxonomic_classification.kraken2.fetchArtifact) {
@@ -79,8 +79,8 @@ workflow CLASSIFY_READS {
 
         reports_all = CLASSIFY_READS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_READS_KRAKEN2.out.hits | collect(flat: false)
-        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_reads", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
-        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_reads", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_reads", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true).result
+        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_reads", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true).result
 
         if (params.taxonomic_classification.bracken.enabled) {
             ESTIMATE_BRACKEN(reports_all, bracken_db, q2_cache)
@@ -96,7 +96,7 @@ workflow CLASSIFY_READS {
         } else {
             GET_KRAKEN_FEATURES(reports_all, hits_all, "reads")
             if (params.taxonomic_classification.fetchArtifact) {
-                FETCH_ARTIFACT_TAXONOMY_KRAKEN2(GET_KRAKEN_FEATURES.out.features)
+                FETCH_ARTIFACT_TAXONOMY_KRAKEN2(GET_KRAKEN_FEATURES.out.taxonomy)
                 FETCH_ARTIFACT_PA(GET_KRAKEN_FEATURES.out.feature_table)
             }
         }
@@ -119,8 +119,8 @@ workflow CLASSIFY_CONTIGS {
 
         reports_all = CLASSIFY_CONTIGS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_CONTIGS_KRAKEN2.out.hits | collect(flat: false)
-        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true)
-        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true)
+        reports_all = COLLATE_REPORTS_READS(reports_all, "${params.runId}_kraken_reports_contigs", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true).result
+        hits_all = COLLATE_HITS_READS(hits_all, "${params.runId}_kraken_outputs_contigs", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true).result
         taxonomy_to_contigs = MAP_KRAKEN2_TAXONOMY_TO_CONTIGS(reports_all, hits_all)
 
         taxonomy = taxonomy_to_contigs.taxonomy
@@ -146,8 +146,8 @@ workflow CLASSIFY_READS_KAIJU {
 
         ft_all = CLASSIFY_KAIJU_READS.out.feature_table | collect(flat: false)
         taxonomy_all = CLASSIFY_KAIJU_READS.out.taxonomy | collect(flat: false)
-        ft_all = COLLATE_FT(ft_all, "${params.runId}_kaiju_feature_table_reads", "feature-table merge", "--i-tables", "--o-merged-table", true)
-        taxonomy_all = COLLATE_TAXONOMY(taxonomy_all, "${params.runId}_kaiju_taxonomy_reads", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
+        ft_all = COLLATE_FT(ft_all, "${params.runId}_kaiju_feature_table_reads", "feature-table merge", "--i-tables", "--o-merged-table", true).result
+        taxonomy_all = COLLATE_TAXONOMY(taxonomy_all, "${params.runId}_kaiju_taxonomy_reads", "feature-table merge-taxa", "--i-data", "--o-merged-data", true).result
         DRAW_TAXA_BARPLOT_KAIJU_READS(ft_all, taxonomy_all, "kaiju-reads")
         qzv_outputs = qzv_outputs.mix(DRAW_TAXA_BARPLOT_KAIJU_READS.out.qzv)
 
@@ -169,11 +169,13 @@ workflow CLASSIFY_CONTIGS_KAIJU {
 
         ft_all = CLASSIFY_KAIJU_CONTIGS.out.feature_table | collect(flat: false)
         taxonomy_all = CLASSIFY_KAIJU_CONTIGS.out.taxonomy | collect(flat: false)
-        ft_all = COLLATE_FT_CONTIGS(ft_all, "${params.runId}_kaiju_feature_table_contigs", "feature-table merge", "--i-tables", "--o-merged-table", true)
-        taxonomy_all = COLLATE_TAXONOMY_CONTIGS(taxonomy_all, "${params.runId}_kaiju_taxonomy_contigs", "feature-table merge-taxa", "--i-data", "--o-merged-data", true)
+        ft_all = COLLATE_FT_CONTIGS(ft_all, "${params.runId}_kaiju_feature_table_contigs", "feature-table merge", "--i-tables", "--o-merged-table", true).result
+        taxonomy_all = COLLATE_TAXONOMY_CONTIGS(taxonomy_all, "${params.runId}_kaiju_taxonomy_contigs", "feature-table merge-taxa", "--i-data", "--o-merged-data", true).result
 
         if (params.taxonomic_classification.fetchArtifact) {
             FETCH_ARTIFACT_KAIJU_FT_CONTIGS(ft_all)
             FETCH_ARTIFACT_KAIJU_TAXONOMY_CONTIGS(taxonomy_all)
         }
+    emit:
+        kaiju_classification = taxonomy_all
 }

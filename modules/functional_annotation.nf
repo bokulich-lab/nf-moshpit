@@ -4,7 +4,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory "${params.functional_annotation.ortholog_search.memory ?: 10}.GB"
+    memory { (params.functional_annotation.ortholog_search.memory ?: 10).GB }
 
     input:
     tuple val(_id), path(input_file)
@@ -15,6 +15,7 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     tuple val(_id), path(hits_key), emit: hits
     tuple val(_id), path(table_key), emit: table
     tuple val(_id), path(loci_key), emit: loci
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags") {
@@ -69,7 +70,7 @@ process ANNOTATE_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory "${params.functional_annotation.annotation.memory ?: 48}.GB"
+    memory { (params.functional_annotation.annotation.memory ?: 48).GB }
 
     input:
     tuple val(_id), path(input_file)
@@ -78,6 +79,7 @@ process ANNOTATE_EGGNOG {
 
     output:
     tuple val(_id), path(annotations_key), emit: annotations
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags") {
@@ -122,7 +124,8 @@ process FETCH_DIAMOND_DB {
     scratch true
 
     output:
-    path params.databases.eggnogOrthologs.key
+    path params.databases.eggnogOrthologs.key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -149,7 +152,8 @@ process FETCH_EGGNOG_DB {
     errorStrategy 'retry'
 
     output:
-    path params.databases.eggnogAnnotations.key
+    path params.databases.eggnogAnnotations.key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     """
@@ -167,8 +171,8 @@ process FETCH_EGGNOG_DB {
 
 process EXTRACT_ANNOTATIONS {
     cpus 1
-    memory { 2.GB * task.attempt }
-    time { 2.h * task.attempt }
+    memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt * (params.time_multiplier as double)}
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -184,6 +188,7 @@ process EXTRACT_ANNOTATIONS {
     tuple val(annotation_type), path(counts_per_genome_key), emit: counts_per_genome
     tuple val(annotation_type), path(annotation_map_key), emit: annotation_map
     tuple val(annotation_type), path(counts_per_contig_key), emit: counts_per_contig
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -212,8 +217,8 @@ process EXTRACT_ANNOTATIONS {
 
 process MULTIPLY_TABLES {
     cpus 1
-    memory { 2.GB * task.attempt }
-    time { 30.min * task.attempt }
+    memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 1.h * task.attempt * (params.time_multiplier as double) }
     maxRetries 3
     storeDir params.storeDir
     scratch true
@@ -226,7 +231,8 @@ process MULTIPLY_TABLES {
     path q2_cache
 
     output:
-    tuple val(annotation_type), path(feature_table)
+    tuple val(annotation_type), path(feature_table), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -258,6 +264,7 @@ process DRAW_ANNOTATION_BARPLOT {
 
     output:
     tuple val(viz_label), path("${params.runId}-${tool_name}-annotation-barplot.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
@@ -273,5 +280,75 @@ process DRAW_ANNOTATION_BARPLOT {
       --verbose \
       --i-table ${params.q2cacheDir}:${feature_table} \
       --o-visualization "${params.runId}-${tool_name}-annotation-barplot.qzv"
+    """
+}
+
+process TRANSFER_ANNOTATIONS {
+    cpus 1
+    memory { 4.GB  * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt }
+    storeDir params.storeDir
+    scratch true
+
+    input:
+    path source_annotations
+    path destination_sequences
+    val input_type
+
+    output:
+    path annotations_key, emit: annotations
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+
+    script:
+    annotations_key = "${params.runId}_eggnog_transferred_${input_type}_${params.binning.primary}"
+    """
+    qiime annotate transfer-eggnog-annotations \
+      --verbose \
+      --i-source-annotations ${params.q2cacheDir}:${source_annotations} \
+      --i-destination-sequences ${params.q2cacheDir}:${destination_sequences} \
+      --o-transferred-annotations ${params.q2cacheDir}:${annotations_key}
+    touch ${annotations_key}
+    """
+}
+
+process ESTIMATE_TFA {
+    cpus 1
+    memory { 8.GB * task.attempt * (params.mem_multiplier as double) }
+    time { 2.h * task.attempt }
+    storeDir params.storeDir
+    publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
+    scratch true
+    tag "${annotation_type}"
+
+    input:
+    path abundance_table
+    tuple val(annotation_type), path(feature_inventory)
+    path taxonomy
+    path taxon_map
+    path metadata_files, stageAs: 'tfa-metadata.tsv'
+
+    output:
+    tuple val(annotation_type), path(tfa_key), emit: tfa
+    tuple val(annotation_type), path(taxonomy_key), emit: gene_taxonomy
+    tuple val(viz_label), path("${params.runId}-contigs-${annotation_type}-tfa.qzv"), emit: qzv
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+
+    script:
+    tfa_key = "${params.runId}_contigs_${annotation_type}_tfa"
+    taxonomy_key = "${tfa_key}_gene_taxonomy"
+    viz_label = "Taxonomic functional attribution: ${annotation_type}"
+    def metadata_flag = metadata_files ? "--m-metadata-file '${metadata_files}'" : ''
+    """
+    qiime annotate estimate-tfa \
+      --verbose \
+      --i-contig-abundance ${params.q2cacheDir}:${abundance_table} \
+      --i-feature-inventory ${params.q2cacheDir}:${feature_inventory} \
+      --i-taxonomy ${params.q2cacheDir}:${taxonomy} \
+      --i-taxon-to-contig-map ${params.q2cacheDir}:${taxon_map} \
+      ${metadata_flag} \
+      --o-tfa ${params.q2cacheDir}:${tfa_key} \
+      --o-gene-taxonomy ${params.q2cacheDir}:${taxonomy_key} \
+      --o-visualization ${params.runId}-contigs-${annotation_type}-tfa.qzv
+    touch ${tfa_key} ${taxonomy_key}
     """
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 
+include { DEDUPLICATE_PROVENANCE } from './modules/provenance'
 include { INIT_CACHE } from './modules/data_prep'
 include { IMPORT_READS } from './modules/data_prep'
 include { FETCH_SEQS } from './modules/data_prep'
@@ -48,7 +49,7 @@ include { CLASSIFY_CONTIGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS } from './subworkflows/classification'
 include { CLASSIFY_MAGS_DEREP } from './subworkflows/classification'
 include { COLLAPSE_CONTIGS } from './modules/taxonomic_classification'
-include { ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
+include { CONTIG_TFA; TRANSFER_MAG_ANNOTATIONS as TRANSFER_MAG_ANNOTATIONS_MAGS; TRANSFER_MAG_ANNOTATIONS as TRANSFER_MAG_ANNOTATIONS_DEREP; ANNOTATE_EGGNOG_MAGS_DEREP } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_MAGS } from './subworkflows/functional_annotation'
 include { ANNOTATE_EGGNOG_CONTIGS } from './subworkflows/functional_annotation'
 include { MAG_ABUNDANCE } from './subworkflows/abundance_estimation'
@@ -67,15 +68,13 @@ include { ANNOTATE_READS_HUMANN } from './subworkflows/humann_annotation'
 include { validateParameters } from './modules/validation.nf'
 include { getDirectorySizeInGB } from './modules/utils.nf'
 
-nextflow.enable.dsl = 2
-
-validateParameters()
-
-def writeLog = { value ->
+def writeLog(value) {
     log.info value
 }
 
 workflow {
+    validateParameters()
+
     def directoryPaths = [
         "${params.storeDir}",
         "${params.publishDir}",
@@ -91,7 +90,7 @@ workflow {
         }
     }
 
-    cache = INIT_CACHE()
+    cache = INIT_CACHE().result
     qzv_reports = Channel.empty()
     workflow_barrier = Channel.empty()
     read_count_tsvs = Channel.empty()
@@ -144,7 +143,7 @@ workflow {
             .map { row -> tuple(row.id, row.forward, row.reverse) }
 
         writeLog("Reading reads from manifest: ${params.inputReadsManifest}")
-        reads = IMPORT_READS(ids)
+        reads = IMPORT_READS(ids).result
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples imported from manifest", n) })
     } else if (params.inputReads && params.inputReadsCache && params.metadata) {
         reads = Channel.fromPath(params.inputReads)
@@ -157,7 +156,7 @@ workflow {
             .combine(metadata)
 
         writeLog("Using existing reads '${params.inputReads}' from ${params.inputReadsCache} cache")
-        reads = PARTITION_READS(reads_with_ids, "", true)
+        reads = PARTITION_READS(reads_with_ids, "", true).result
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples partitioned from an input artifact", n) })
     } else if (params.fondueAccessionIds) {
         ids = Channel
@@ -180,10 +179,10 @@ workflow {
 
         simulated_reads = SIMULATE_READS_MASON(simulation_data)
 
-        simulated_tables = SIMULATE_READS_MASON.out.reads.map { _id, reads, table -> [_id, table] } | collect(flat: false)
-        simulated_tables = COLLATE_FT(simulated_tables, "${params.runId}_mason_ft", "feature-table merge", "--i-tables", "--o-merged-table", true)
+        simulated_tables = SIMULATE_READS_MASON.out.reads.map { _id, sample_reads, table -> [_id, table] } | collect(flat: false)
+        simulated_tables = COLLATE_FT(simulated_tables, "${params.runId}_mason_ft", "feature-table merge", "--i-tables", "--o-merged-table", true).result
 
-        reads = simulated_reads.reads | map { _id, reads, table -> [_id, reads] }
+        reads = simulated_reads.reads | map { _id, sample_reads, table -> [_id, sample_reads] }
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples simulated", n) })
     } else {
         writeLog("Simulating reads from fetched genomes")
@@ -191,7 +190,7 @@ workflow {
         writeLog("Number of samples to simulate: ${params.read_simulation.sampleNames.split(',').size()}")
         writeLog("Reads per sample: ${params.read_simulation.readCount}")
         
-        genomes = FETCH_GENOMES()
+        genomes = FETCH_GENOMES().result
         ids = Channel.of(params.read_simulation.sampleNames.split(','))
         ids_with_genomes = ids.combine(genomes)
         simulated_reads = SIMULATE_READS(ids_with_genomes)
@@ -199,8 +198,10 @@ workflow {
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples simulated", n) })
     }
 
+    // Count before filtering: discarded samples may still have retained caches.
+    input_sample_count = reads.count()
     reads_partitioned = reads
-    input_count_tsv = COUNT_BATCH_INPUT(reads_partitioned.collect(flat: false), "input")
+    input_count_tsv = COUNT_BATCH_INPUT(reads_partitioned.collect(flat: false), "input").result
     read_count_tsvs = read_count_tsvs.mix(input_count_tsv)
 
     // initialise to empty so the variable is always in scope for the cleanup gate below
@@ -209,9 +210,9 @@ workflow {
     // subsample reads
     if (params.read_subsampling.enabled) {
         input_reads = reads_partitioned
-        reads_partitioned = SUBSAMPLE_READS(reads_partitioned)
+        reads_partitioned = SUBSAMPLE_READS(reads_partitioned).result
         sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after subsampling", n) })
-        subsampled_count_tsv = COUNT_BATCH_SUBSAMPLED(reads_partitioned.collect(flat: false), "subsampled")
+        subsampled_count_tsv = COUNT_BATCH_SUBSAMPLED(reads_partitioned.collect(flat: false), "subsampled").result
         read_count_tsvs = read_count_tsvs.mix(subsampled_count_tsv)
 
         // gate on COUNT_BATCH_INPUT — it needs the same input reads
@@ -220,14 +221,14 @@ workflow {
             CLEANUP_INPUT(input_reads.join(reads_partitioned)
                 .map { id, i, o -> tuple(id, i) }
                 .combine(input_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
 
     // perform read QC and trimming
     input_reads_fastp = reads_partitioned
-    fastp_results = PROCESS_READS_FASTP(reads_partitioned)
-    reads_partitioned = fastp_results | map { _id, reads, report -> [_id, reads] }
+    fastp_results = PROCESS_READS_FASTP(reads_partitioned).result
+    reads_partitioned = fastp_results | map { _id, processed_reads, report -> [_id, processed_reads] }
     
     if ((params.read_subsampling.enabled && !params.retain.subsampling) || (!params.read_subsampling.enabled && !params.retain.input)) {
         if (params.read_subsampling.enabled) {
@@ -236,26 +237,26 @@ workflow {
             CLEANUP_SUBSAMPLED(input_reads_fastp.join(fastp_results)
                 .map { id, i, o, r -> tuple(id, i) }
                 .combine(subsampled_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         } else {
             // gate on COUNT_BATCH_INPUT — no subsampling, so input reads go straight into fastp
             input_counted = input_count_tsv.map { true }.first()
             CLEANUP_INPUT(input_reads_fastp.join(fastp_results)
                 .map { id, i, o, r -> tuple(id, i) }
                 .combine(input_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
     sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after fastp processing", n) })
-    fastp_count_tsv = COUNT_BATCH_FASTP(reads_partitioned.collect(flat: false), "fastp")
+    fastp_count_tsv = COUNT_BATCH_FASTP(reads_partitioned.collect(flat: false), "fastp").result
     read_count_tsvs = read_count_tsvs.mix(fastp_count_tsv)
-    fastp_reports = fastp_results | map { _id, reads, report -> tuple(_id, report) } | collect(flat: false)
-    fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true)
+    fastp_reports = fastp_results | map { _id, processed_reads, report -> tuple(_id, report) } | collect(flat: false)
+    fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true).result
     VISUALIZE_FASTP(fastp_reports_all, cache)
 
     qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv)
     workflow_barrier = workflow_barrier.mix(VISUALIZE_FASTP.out.qzv)
-    deepest_signal = VISUALIZE_FASTP.out
+    deepest_signal = VISUALIZE_FASTP.out.qzv
 
     // initialise to empty so the variable is always in scope for the cleanup gates below
     host_count_tsv = Channel.empty()
@@ -266,7 +267,7 @@ workflow {
         filtering_results = REMOVE_HOST(reads_partitioned)
         reads_partitioned = filtering_results.reads
         sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after host removal", n) })
-        host_count_tsv = COUNT_BATCH_HOST(reads_partitioned.collect(flat: false), "host_removed")
+        host_count_tsv = COUNT_BATCH_HOST(reads_partitioned.collect(flat: false), "host_removed").result
         read_count_tsvs = read_count_tsvs.mix(host_count_tsv)
 
         // gate cleanup on COUNT_BATCH_FASTP finishing — it needs the same fastp reads
@@ -275,7 +276,7 @@ workflow {
             CLEANUP_FASTP(input_reads_host.join(filtering_results.reads)
                 .map { id, i, o -> tuple(id, i) }
                 .combine(fastp_counted)
-                .map { id, reads, _sig -> tuple(id, reads) })
+                .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
         }
     }
 
@@ -333,11 +334,11 @@ workflow {
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
         input_reads_filter = reads_partitioned
-        read_counts = TABULATE_READ_COUNTS(reads_partitioned)
+        read_counts = TABULATE_READ_COUNTS(reads_partitioned).result
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
-        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false)
+        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false).result
         sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after filtering by read count", n) })
-        read_count_tsvs = read_count_tsvs.mix(COUNT_BATCH_FILTERED(reads_partitioned.collect(flat: false), "filtered"))
+        read_count_tsvs = read_count_tsvs.mix(COUNT_BATCH_FILTERED(reads_partitioned.collect(flat: false), "filtered").result)
         
         if ((params.host_removal.enabled && !params.retain.host_removal) || (!params.host_removal.enabled && !params.retain.fastp)) {
              if (params.host_removal.enabled) {
@@ -346,14 +347,14 @@ workflow {
                 CLEANUP_HOST(input_reads_filter.join(reads_partitioned)
                     .map { id, i, o -> tuple(id, i) }
                     .combine(host_counted)
-                    .map { id, reads, _sig -> tuple(id, reads) })
+                    .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
              } else {
                 // gate on COUNT_BATCH_FASTP — no host removal, so fastp reads are what get cleaned here
                 fastp_counted = fastp_count_tsv.map { true }.first()
                 CLEANUP_FASTP(input_reads_filter.join(reads_partitioned)
                     .map { id, i, o -> tuple(id, i) }
                     .combine(fastp_counted)
-                    .map { id, reads, _sig -> tuple(id, reads) })
+                    .map { id, reads_to_cleanup, _sig -> tuple(id, reads_to_cleanup) })
              }
         }
     }
@@ -396,8 +397,8 @@ workflow {
         sample_count_metrics = sample_count_metrics.mix(contigs.contigs.count().map { n -> tuple("Samples after contig assembly and filtering", n) })
 
         if (params.functional_annotation.enabledFor != "") {
-            diamond_db = FETCH_DIAMOND_DB()
-            eggnog_db = FETCH_EGGNOG_DB()
+            diamond_db = FETCH_DIAMOND_DB().result
+            eggnog_db = FETCH_EGGNOG_DB().result
         }
 
         // classify contigs
@@ -427,6 +428,11 @@ workflow {
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.qzv)
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.feature_table)
             }
+            if (params.functional_annotation.tfa.enabled) {
+                tfa = CONTIG_TFA(contigs.contig_abundance, contigs_annotated.counts_per_contig, classification.taxonomy, classification.feature_map)
+                qzv_reports = qzv_reports.mix(tfa.qzv)
+                workflow_barrier = workflow_barrier.mix(tfa.tfa).mix(tfa.gene_taxonomy).mix(tfa.qzv)
+            }
         }
 
         // bin contigs into MAGs and evaluate
@@ -436,7 +442,7 @@ workflow {
             
             sample_count_metrics = sample_count_metrics.mix(binning_results.bins.count().map { n -> tuple("Samples after binning", n) })
             deepest_signal = binning_results.bins_collated
-            workflow_barrier = workflow_barrier.mix(binning_results.bins_collated)
+            workflow_barrier = workflow_barrier.mix(binning_results.completion)
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
@@ -446,8 +452,13 @@ workflow {
 
             // annotate MAGs
             if (params.functional_annotation.enabledFor.contains("mags")) {
-                annotation_signal_mags = ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
-                workflow_barrier = workflow_barrier.mix(annotation_signal_mags)
+                if (params.functional_annotation.transferFromContigs) {
+                    transferred_mags = TRANSFER_MAG_ANNOTATIONS_MAGS(contigs_annotated.annotations, binning_results.bins_collated, "mags", cache)
+                    workflow_barrier = workflow_barrier.mix(transferred_mags.completion)
+                } else {
+                    annotation_signal_mags = ANNOTATE_EGGNOG_MAGS(binning_results.bins, diamond_db, eggnog_db)
+                    workflow_barrier = workflow_barrier.mix(annotation_signal_mags.annotations)
+                }
             }
 
 
@@ -472,11 +483,16 @@ workflow {
 
                     // annotate dereplicated MAGs
                     if (params.functional_annotation.enabledFor.contains("derep")) {
-                        mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache) | flatten
-                        mags_derep_extracted = ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
-                        workflow_barrier = workflow_barrier.mix(mags_derep_extracted)
+                        if (params.functional_annotation.transferFromContigs) {
+                            mags_derep_extracted = TRANSFER_MAG_ANNOTATIONS_DEREP(contigs_annotated.annotations, DEREPLICATE.out.bins_derep, "mags_derep", cache)
+                            workflow_barrier = workflow_barrier.mix(mags_derep_extracted.completion)
+                        } else {
+                            mags_derep_partitioned = PARTITION_DEREP_MAGS(DEREPLICATE.out.bins_derep, cache).result | flatten
+                            mags_derep_extracted = ANNOTATE_EGGNOG_MAGS_DEREP(mags_derep_partitioned, diamond_db, eggnog_db, cache)
+                            workflow_barrier = workflow_barrier.mix(mags_derep_extracted.extracted_annotations)
+                        }
                         if (params.abundance_estimation.enabledFor.contains("derep") && params.functional_annotation.annotation.extract != "") {
-                            mags_abundance_combined = COMBINE_MAG_ANNOTATION_ABUNDANCE(MAG_ABUNDANCE.out.feature_table, ANNOTATE_EGGNOG_MAGS_DEREP.out.extracted_annotations, "mags_derep", cache)
+                            mags_abundance_combined = COMBINE_MAG_ANNOTATION_ABUNDANCE(MAG_ABUNDANCE.out.feature_table, mags_derep_extracted.extracted_annotations, "mags_derep", cache)
                             qzv_reports = qzv_reports.mix(mags_abundance_combined.qzv)
                             deepest_signal = mags_abundance_combined.feature_table.map { _type, key -> key }
                             workflow_barrier = workflow_barrier.mix(mags_abundance_combined.qzv)
@@ -491,58 +507,49 @@ workflow {
     qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it[1].size() > 0 }
     MAKE_REPORT(qzv_reports_all)
 
-    read_counts_mqc = REPORT_READ_COUNTS(read_count_tsvs.collect(flat: false))
-    sample_report_mqc = MAKE_SAMPLE_REPORT(sample_count_metrics.collect(flat: false))
+    read_counts_mqc = REPORT_READ_COUNTS(read_count_tsvs.collect(flat: false)).result
+    sample_report_mqc = MAKE_SAMPLE_REPORT(sample_count_metrics.collect(flat: false)).result
     MULTIQC(sample_report_mqc, read_counts_mqc)
 
-    // Fix sample cache permissions
-    // We use workflow_barrier to wait for EVERYTHING
-    final_signal = workflow_barrier.collect().map { true }
+    // Dedicated completion outputs leave data channels unchanged and cover
+    // exports, reports and side-effect-only cleanup tasks. toList also handles
+    // a branch with no emitted outputs.
+    analysis_done = Channel.topic('moshpit_analysis_done').toList().map { true }
 
-    // Collect all valid read IDs into a single list to prevent eager streaming
-    sample_ids_list = reads_partitioned
-        .map { id, _reads -> tuple(id, "${params.q2TemporaryCachesDir}/${id}") }
-        .collect(flat: false)
-    
-    // Combine the collected list with the final signal, then unpack it back into a queue
-    sample_ids_for_fix = sample_ids_list
-        .combine(final_signal)
-        .flatMap { rec ->
-            def signal = rec[-1]       // last item
-            def items  = rec[0..-2]    // all sample tuples
-            items.collect { item -> tuple(item[0], item[1], signal) }
-        }
+    sample_ids_for_fix = reads_partitioned.combine(analysis_done)
+        .map { id, reads_key, ready -> tuple(id, "${params.q2TemporaryCachesDir}/${id}", ready) }
+    fixed_sample_caches = FIX_CACHE_PERMISSIONS(sample_ids_for_fix).result
 
-    // logic:
-    // 1. Always fix permissions when done
-    // 2. Archive acts on the result (if enabled)
-    fixed_sample_caches = FIX_CACHE_PERMISSIONS(sample_ids_for_fix)
-
-    // Archive per-sample caches to reduce inode usage on Lustre
     if (params.archive) {
         ARCHIVE_SAMPLE_CACHE(fixed_sample_caches, true)
     }
 
-    // Fix main cache permissions at the very end
-    // We use the result of sample cache fixing (or deeper signal) to trigger this
-    // Wait for fixed_sample_caches before fixing the main cache
-    main_cache_input = Channel.of(tuple("main", "${params.q2cacheDir}"))
-        .combine(fixed_sample_caches.collect().map { true })
-        .map { rec -> tuple(rec[0], rec[1], rec[2]) }
-        
+    main_cache_input = analysis_done.combine(fixed_sample_caches.toList())
+        .map { tuple('main', "${params.q2cacheDir}", true) }
     FIX_CACHE_PERMISSIONS_MAIN(main_cache_input)
-}
 
-// Add final summary section
-workflow.onComplete {
-    writeLog("\n==========================================")
-    writeLog("WORKFLOW SUMMARY")
-    writeLog("==========================================")
-    writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
-    writeLog("Duration    : ${workflow.duration}")
-    writeLog("Success     : ${workflow.success}")
-    writeLog("Exit status : ${workflow.exitStatus}")
-    writeLog("Error report: ${workflow.errorReport ?: 'None'}")
-    writeLog("Working dir : ${workflow.workDir}")
-    writeLog("==========================================")
+    if (params.provenance_dedup.enabled) {
+        // Permission fixes (including annotation batches) and optional archive
+        // tasks use a separate topic to avoid a dependency cycle. Deduplication
+        // itself must never publish to either completion topic.
+        finalization_done = Channel.topic('moshpit_finalization_done').toList()
+            .combine(analysis_done).map { true }
+        cache_roots = [params.q2TemporaryCachesDir, params.q2cacheDir]
+            .collect { file(it).toAbsolutePath().normalize().toString() }.unique()
+        DEDUPLICATE_PROVENANCE(finalization_done, input_sample_count, cache_roots,
+            file("${projectDir}/bin/deduplicate_provenance.py", checkIfExists: true))
+    }
+
+    workflow.onComplete {
+        writeLog("\n==========================================")
+        writeLog("WORKFLOW SUMMARY")
+        writeLog("==========================================")
+        writeLog("Completed at: " + new Date().format('yyyy-MM-dd HH:mm:ss'))
+        writeLog("Duration    : ${workflow.duration}")
+        writeLog("Success     : ${workflow.success}")
+        writeLog("Exit status : ${workflow.exitStatus}")
+        writeLog("Error report: ${workflow.errorReport ?: 'None'}")
+        writeLog("Working dir : ${workflow.workDir}")
+        writeLog("==========================================")
+    }
 }

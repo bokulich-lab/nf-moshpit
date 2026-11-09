@@ -9,7 +9,8 @@ process INDEX_DEREP_MAGS {
     path q2Cache
 
     output:
-    path(key)
+    path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (params.binning.qc.busco.enabled) {
@@ -41,7 +42,8 @@ process MAP_READS_TO_DEREP_MAGS {
     path q2Cache
 
     output:
-    tuple val(_id), path(key)
+    tuple val(_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -78,7 +80,8 @@ process GET_GENOME_LENGTHS {
     val input_type
 
     output:
-    path key
+    path key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags_derep") {
@@ -114,7 +117,8 @@ process ESTIMATE_ABUNDANCE {
     path q2Cache
 
     output:
-    path key
+    path key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (input_type == "mags_derep") {

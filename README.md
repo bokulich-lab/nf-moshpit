@@ -1,10 +1,10 @@
 # nf-moshpit
 
-**Currently supported QIIME 2 version:** `2026.7`
+**Required MOSHPIT version:** 2026.10
 
 **Currently supported runtimes:** `conda`, `singularity`, `docker`
 
-This repository contains the Nextflow workflow for shotgun metagenome analysis using QIIME 2 (MOSHPIT). A working MOSHPIT conda environment, Singularity image, or Docker image
+This repository contains the Nextflow workflow for shotgun metagenome analysis using MOSHPIT. A working MOSHPIT conda environment, Singularity image, or Docker image
 is required to execute the actions included in this workflow. Please follow the [MOSHPIT installation instructions](https://library.qiime2.org/quickstart/moshpit) to learn how to create one.
 
 Workflow configuration happens through several config files:
@@ -185,7 +185,7 @@ Some of the most useful configuration parameters are explained below.
 | params.inputReadsManifest | CSV manifest with `id`, `forward`, and optionally `reverse` columns for FASTQ import. | [params.template.yml](params.template.yml) |
 | params.inputReadsCache | QIIME 2 cache where the input reads are stored. | [params.template.yml](params.template.yml) |
 | params.inputReads | Cache key under which the input reads are stored. | [params.template.yml](params.template.yml) |
-| params.metadata | Metadata file with sample IDs corresponding to the samples from the input cache which should be analyzed. | [params.template.yml](params.template.yml) |
+| params.metadata | Optional sample metadata TSV passed to `assembly evaluate-contigs` and TFA. Also required with cached-read input to select sample IDs. | [params.template.yml](params.template.yml) |
 | params.fondueAccessionIds | Path to a TSV file containing SRA accession IDs for data download. | [params.template.yml](params.template.yml) |
 | params.archive | Whether to archive per-sample caches after the run completes. | [params.template.yml](params.template.yml) |
 
@@ -291,6 +291,10 @@ Profiles are defined in [conf/profiles.config](conf/profiles.config) and are com
 | `quick_test` | Reduced resources for fast test runs (used in CI) |
 | `long_jobs` | Extended time limits for slow processes |
 
+#### Resource multipliers
+
+If the profiles are not granular enough, three extra parameters (default `1.0`) multiply the CPU, memory and time of **all** processes on top of whatever profiles are selected: `cpu_multiplier`, `mem_multiplier` and `time_multiplier`. Set them in your params file or on the command line, e.g. `--mem_multiplier 1.5 --time_multiplier 2`. CPU counts are rounded and never go below 1.
+
 #### Profile compatibility
 
 Profiles within the same category are mutually exclusive; combine one from each category as needed.
@@ -352,14 +356,7 @@ This guide will help you get started with the nf-moshpit workflow if you're not 
 
 ### Prerequisites
 
-1. **Install Nextflow**: Follow the [Nextflow installation instructions](https://www.nextflow.io/docs/latest/getstarted.html#installation) or load the appropriate HPC module.
-   ```bash
-   curl -s https://get.nextflow.io | bash
-   ```
-   or
-   ```bash
-   module load stack/.2024-06-silent gcc/12.2.0 openjdk/17.0.8.1_1 nextflow/23.10.0
-   ```
+1. **Install Nextflow**: Follow the [Nextflow installation instructions](https://www.nextflow.io/docs/latest/getstarted.html#installation) or load the appropriate HPC module. This workflow requires Nextflow 25.04.0 or later.
    
 2. **Install MOSHPIT**: Follow the [MOSHPIT installation instructions](https://library.qiime2.org/quickstart/moshpit) to create a conda environment, Docker image, or Singularity image.
 

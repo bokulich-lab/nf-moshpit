@@ -8,7 +8,8 @@ process CALCULATE_MINHASHES {
     path q2_cache
 
     output:
-    path minhash_key
+    path minhash_key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (params.binning.qc.busco.enabled) {
@@ -38,7 +39,8 @@ process COMPARE_MINHASHES {
     path q2_cache
 
     output:
-    path dist_matrix_key
+    path dist_matrix_key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     ignore_abundance = params.dereplication.sourmash.trackAbundance ? false : true
@@ -70,7 +72,8 @@ process COMPARE_GENOMES_SKANI {
     path q2_cache
 
     output:
-    path dist_matrix_key
+    path dist_matrix_key, emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     robust_flag = params.dereplication.skani.robust ? "--p-robust True" : ""
@@ -109,6 +112,7 @@ process DEREPLICATE_MAGS {
     output:
     path bins_derep_key, emit: bins_derep
     path feature_table_key, emit: feature_table
+    val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
     if (params.binning.qc.busco.enabled) {

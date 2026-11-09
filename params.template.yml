@@ -31,6 +31,19 @@ email: user@example.com
 # Archive the per-sample caches upon completion
 archive: true
 
+# Run only after all tasks finish; caches must not be used by another workflow.
+# Archived sample caches have already been removed, so only live caches are scanned.
+provenance_dedup:
+  enabled: false
+  # Time limit = min(baseTime + timePerSample * input sample count, maxTime).
+  # Samples are counted before filtering; match maxTime to your queue's wall-time limit.
+  baseTime: '6h'
+  timePerSample: '1h'
+  maxTime: '72h'
+  maxLinks: 10000
+  ignoreMtime: false
+  ignoreLustreLayout: false
+
 retain:
   input: true
   subsampling: true
@@ -38,13 +51,16 @@ retain:
   host_removal: true
 
 # ============ INPUT DATA ============
+# Optional sample metadata TSV for contig QC and grouping in the TFA explorer.
+# Also required when using existing reads from a cache (Option 2).
+metadata: null # /path/to/sample-metadata.tsv
+
 # Option 1: import reads using a manifest file
 inputReadsManifest: /path/to/manifest
 
 # Option 2: provide a key to an existing reads artifact
 inputReads: <reads cache key>
 inputReadsCache: /path/to/reads/
-metadata: /path/to/metadata
 
 # Option 3: provide a file with a list of IDs for fondue to fetch
 fondueAccessionIds: /path/to/tsv
@@ -133,6 +149,7 @@ genome_assembly:
   clusterOptions: ""
   assembler: "megahit"
   fetchArtifact: false
+  fetchAlignmentMaps: false
   megahit:
     presets: "meta-large"
     kList: "21 29 39 59 79 99 119 141"
@@ -142,7 +159,8 @@ genome_assembly:
     k: "auto"
     debug: false
     covCutoff: "off"
-    additionalFlags: "--p-meta"
+    mode: meta # meta, isolate, standard (used with assembler: spades)
+    additionalFlags: ""
   filtering:
     enabled: true
     removeEmpty: true
@@ -157,7 +175,7 @@ assembly_qc:
 
 binning:
   enabled: true
-  primary: metabat2
+  primary: metabat2 # metabat2, semibin2, vamb, das_tool
   fetchArtifact: false
   metabat2:
     enabled: true
@@ -174,6 +192,19 @@ binning:
     epochs: 15
     batch_size: 2048
     random_seed: 100
+    additionalFlags: ""
+  vamb:
+    enabled: false
+    clusterOptions: ""
+    min_contig_len: 2000
+    minfasta: 200000
+    seed: 100
+    additionalFlags: ""
+  das_tool:
+    enabled: false # requires at least two enabled binners
+    clusterOptions: ""
+    search_engine: diamond
+    score_threshold: 0.5
     additionalFlags: ""
   qc:
     busco:
@@ -253,6 +284,10 @@ taxonomic_classification:
     additionalFlags: ""
 
 functional_annotation:
+  transferFromContigs: false # requires contigs in enabledFor; transfers to requested mags/derep
+  tfa:
+    enabled: false # requires contig annotation, abundance and Kraken2 taxonomy
+    fetchArtifact: false
   enabledFor: "" # contigs, mags, derep
   ortholog_search:
     clusterOptions: ""
@@ -296,10 +331,5 @@ humann3:
     metaphlan_level: 7
     additionalFlags: ""
 
-weblog:
-  enabled: false
-  url: ""
-  basicToken: ""
-
 env:
-  NUMBA_DISABLE_INTEL_SVML: 1 
+  NUMBA_DISABLE_INTEL_SVML: 1
