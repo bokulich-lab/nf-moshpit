@@ -197,8 +197,8 @@ binning:
     enabled: false
     clusterOptions: ""
     min_contig_len: 2000
-    minfasta: 2000
-    seed: 42
+    minfasta: 200000
+    seed: 100
     additionalFlags: ""
   das_tool:
     enabled: false # requires at least two enabled binners
