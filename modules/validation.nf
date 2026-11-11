@@ -105,6 +105,10 @@ def validateInputTable(path, required, separator, label) {
     }
 }
 
+def sampleReadQuery(minimum) {
+    "'\"Demultiplexed sequence count\">=${minimum}'"
+}
+
 def manifestReads(row) {
     if (!row.id?.trim() || !row.forward?.trim()) throw new IllegalArgumentException('Reads manifest requires nonempty id and forward values')
     def paths = [file(row.forward, checkIfExists: true)]
@@ -307,6 +311,12 @@ def validateModuleParams() {
     def errors = []
 
     errors.addAll(validateBinningParams())
+    if (params.sample_filtering.containsKey('min_reads')) {
+        errors.add("ERROR: Obsolete sample_filtering.min_reads is unsupported; use minReads (minimum is inclusive). Remove min_reads, including when minReads is also set, to avoid conflicting values.")
+    }
+    if (params.sample_filtering.minReads == null || !(params.sample_filtering.minReads.toString() ==~ /[0-9]+/)) {
+        errors.add('ERROR: sample_filtering.minReads must be a nonnegative integer')
+    }
     
     // Validate genome assembly parameters
     if (params.genome_assembly.enabled) {

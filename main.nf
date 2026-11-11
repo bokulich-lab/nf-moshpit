@@ -65,7 +65,7 @@ include { FETCH_TRANSLATED_SEARCH_DB } from './modules/humann_annotation'
 include { FETCH_METAPHLAN_DB } from './modules/humann_annotation'
 include { ANNOTATE_READS_HUMANN } from './subworkflows/humann_annotation'
 
-include { validateParameters; manifestReads } from './modules/validation.nf'
+include { validateParameters; manifestReads; sampleReadQuery } from './modules/validation.nf'
 include { getDirectorySizeInGB } from './modules/utils.nf'
 
 def writeLog(value) {
@@ -333,7 +333,7 @@ workflow {
         input_reads_filter = reads_partitioned
         read_counts = TABULATE_READ_COUNTS(reads_partitioned).result
         reads_with_counts = reads_partitioned.combine(read_counts, by: 0)
-        reads_partitioned = FILTER_SAMPLES(reads_with_counts, "'\"Demultiplexed sequence count\">${params.sample_filtering.minReads}'", false).result
+        reads_partitioned = FILTER_SAMPLES(reads_with_counts, sampleReadQuery(params.sample_filtering.minReads), false).result
         sample_count_metrics = sample_count_metrics.mix(reads_partitioned.count().map { n -> tuple("Samples after filtering by read count", n) })
         read_count_tsvs = read_count_tsvs.mix(COUNT_BATCH_FILTERED(reads_partitioned.collect(flat: false), "filtered").result)
         

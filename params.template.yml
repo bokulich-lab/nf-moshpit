@@ -142,7 +142,7 @@ host_removal:
 
 sample_filtering:
   enabled: false
-  min_reads: 4200000
+  minReads: 4200000
 
 genome_assembly:
   enabled: true
