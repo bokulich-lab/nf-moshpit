@@ -518,6 +518,11 @@ def validateParameters() {
         log.error 'The conda profile requires condaEnv to identify the runtime environment'
         exit 1
     }
+    def scaleProfiles = (workflow.profile ?: '').split(',').findAll { it in ['low', 'medium', 'high', 'quick_test'] }
+    if (scaleProfiles.size() > 1) {
+        log.error "Choose only one general scaling profile: ${scaleProfiles.join(', ')}"
+        exit 1
+    }
     // Collect all validation errors
     def allErrors = []
     allErrors.addAll(validateMandatoryParams())
