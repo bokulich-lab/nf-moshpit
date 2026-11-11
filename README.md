@@ -160,7 +160,6 @@ nextflow run main.nf -params-file params.yml -profile slurm,singularity -work-di
 
 This approach is recommended as it provides a cleaner way to manage all configuration parameters in a single file, rather than modifying multiple config files.
 
-Alternatively, you can use the browser-based configurator in the [`ui/`](ui/) directory. Open `ui/index.html` in a browser to step through all options from `params.template.yml` and download a ready-to-run `params.yml`. See [`ui/README.md`](ui/README.md) for details.
 
 ## Configuration details
 Some of the most useful configuration parameters are explained below.
@@ -330,7 +329,7 @@ Profiles within the same category are mutually exclusive; combine one from each 
 | params.container | Docker image tag (e.g. `moshpit-ci:local`). | [params.template.yml](params.template.yml) |
 | params.tmpDir | Temporary directory for Docker (optional). | [params.template.yml](params.template.yml) |
 
-A [Dockerfile](Dockerfile) is provided for building a pipeline container. CI uses `-profile docker,quick_test`.
+Configure the workflow by editing `params.yml` copied from `params.template.yml`. For container execution, supply compatible QIIME 2 MOSHPIT plugin images through `container` or the plugin-specific overrides, using Docker tags with `-profile docker` or SIF image paths with `-profile singularity`. Obtain the images from your MOSHPIT installation or build them using the relevant QIIME 2 plugin repositories and installation instructions. This workflow repository does not provide a container build recipe.
 
 Currently, the workflow is optimized for the `slurm` executor with `conda`, `singularity`, or `docker`. Processes that require internet access (e.g. database fetching, q2-fondue) need the `params.internetModule` HPC module to be set so those jobs can load it.
 
@@ -383,7 +382,6 @@ cd nf-moshpit
    nano params.yml
    ```
 
-   Alternatively, open [`ui/index.html`](ui/index.html) in a browser to configure parameters interactively and download the resulting YAML.
 
 2. **Configure basic parameters**:
    - `runId`: Set a unique identifier for your run (e.g., `Analysis1`)
@@ -619,7 +617,7 @@ ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication
 
 ### Recommended Configuration Process
 
-1. Start with the template parameters file: `cp params.template.yml params.yml` (or use the [configurator UI](ui/))
+1. Start with the template parameters file: `cp params.template.yml params.yml`
 2. Set the mandatory parameters (runId, outputDir, container/condaEnv, and email if using fondue)
 3. Configure your input data method
 4. Enable the workflow modules you want to use
