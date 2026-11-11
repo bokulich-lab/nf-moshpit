@@ -76,7 +76,6 @@ workflow {
     validateParameters()
 
     def directoryPaths = [
-        "${params.storeDir}",
         "${params.publishDir}",
         "${params.traceDir}",
         "${params.containerCacheDir}",

@@ -194,7 +194,6 @@ The workflow uses several directories to store various outputs and intermediate 
 | Directory parameter | Description | Default value |
 | ------------------- | ----------- | ------------- |
 | params.outputDir | Base output directory for all results and intermediate files. | `$launchDir/results` |
-| params.storeDir | Legacy directory created for compatibility; task reuse uses the Nextflow work directory and QIIME caches. | `${params.outputDir}/keys` |
 | params.publishDir | Directory where final results (qza and qzv) will be stored. | `${params.outputDir}/results` |
 | params.traceDir | Directory where Nextflow trace/report files will be saved. | `${params.outputDir}/pipeline_info` |
 | params.tmpDir | Temporary directory to be used by Singularity/Docker (uses system default if not specified). | `null` (system default) |

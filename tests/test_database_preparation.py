@@ -34,7 +34,6 @@ class DatabasePreparationTests(unittest.TestCase):
                 (work / "test.config").write_text(f'''
 includeConfig '{ROOT}/conf/defaults.config'
 params {{
-    storeDir = '{work}/markers'
     q2TemporaryCachesDir = '{work}/sample-caches'
     runId = 'fixture'
     databases.kraken2 = [cache: '{cache}', key: 'db']
