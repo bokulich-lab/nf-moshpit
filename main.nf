@@ -68,7 +68,7 @@ include { FETCH_METAPHLAN_DB } from './modules/humann_annotation'
 include { ANNOTATE_READS_HUMANN } from './subworkflows/humann_annotation'
 
 include { validateParameters; manifestReads; sampleReadQuery } from './modules/validation.nf'
-include { getDirectorySizeInGB } from './modules/utils.nf'
+include { prepareDatabase } from './modules/utils.nf'
 
 def writeLog(value) {
     log.info value
@@ -280,29 +280,18 @@ workflow {
         }
     }
 
+    // Size databases only after their preparation channel emits. Value channels
+    // broadcast the immutable marker/memory tuple to every sample and stage.
     if (params.taxonomic_classification.enabledFor != "") {
-        FETCH_KRAKEN2_DB()
-
-        def dirInfo = getDirectorySizeInGB("${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}", "${params.databases.kraken2.cache}/data")
-        params.taxonomic_classification = params.taxonomic_classification ?: [:]
-        params.taxonomic_classification.kraken2 = params.taxonomic_classification.kraken2 ?: [:]
-        params.taxonomic_classification.kraken2.memory = dirInfo.sizeInGBRoundedUp
+        kraken2_db = FETCH_KRAKEN2_DB().kraken2_db.map { marker ->
+            prepareDatabase(marker, params.databases.kraken2, true)
+        }.first()
     }
 
     if (params.taxonomic_classification.kaiju.enabledFor != "") {
-        FETCH_KAIJU_DB()
-        
-        FETCH_KAIJU_DB.out.kaiju_db
-            .subscribe {
-                try {
-                    def dirInfo = getDirectorySizeInGB("${params.databases.kaiju.cache}/keys/${params.databases.kaiju.key}", "${params.databases.kaiju.cache}/data")
-                    params.taxonomic_classification = params.taxonomic_classification ?: [:]
-                    params.taxonomic_classification.kaiju = params.taxonomic_classification.kaiju ?: [:]
-                    params.taxonomic_classification.kaiju.memory = dirInfo.sizeInGBRoundedUp
-                } catch (Exception e) {
-                    log.warn "Unable to auto-size Kaiju memory from cache key `${params.databases.kaiju.key}`. Keeping configured value. Cause: ${e.message}"
-                }
-            }
+        kaiju_db = FETCH_KAIJU_DB().kaiju_db.map { marker ->
+            prepareDatabase(marker, params.databases.kaiju, true)
+        }.first()
     }
 
     if (params.humann3.enabled) {
@@ -311,26 +300,6 @@ workflow {
         FETCH_METAPHLAN_DB()
     }
 
-    if (params.functional_annotation.enabledFor != "") {
-        params.functional_annotation = params.functional_annotation ?: [:]
-        params.functional_annotation.ortholog_search = params.functional_annotation.ortholog_search ?: [:]
-        params.functional_annotation.annotation = params.functional_annotation.annotation ?: [:]
-
-        if (params.functional_annotation.ortholog_search.dbInMemory) {
-            def orthologDBInfo = getDirectorySizeInGB("${params.databases.eggnogOrthologs.cache}/keys/${params.databases.eggnogOrthologs.key}", "${params.databases.eggnogOrthologs.cache}/data")
-            params.functional_annotation.ortholog_search.memory = orthologDBInfo.sizeInGBRoundedUp
-        } else {
-            params.functional_annotation.ortholog_search.memory = 2
-        }
-
-        if (params.functional_annotation.annotation.dbInMemory) {
-            def annotationDBInfo = getDirectorySizeInGB("${params.databases.eggnogAnnotations.cache}/keys/${params.databases.eggnogAnnotations.key}", "${params.databases.eggnogAnnotations.cache}/data")
-            params.functional_annotation.annotation.memory = annotationDBInfo.sizeInGBRoundedUp
-        } else {
-            params.functional_annotation.annotation.memory = 2
-        }
-        
-    }
     // remove samples with low read counts
     if (params.sample_filtering.enabled) {
         input_reads_filter = reads_partitioned
@@ -361,13 +330,13 @@ workflow {
 
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
-        reads_classification = CLASSIFY_READS(reads_partitioned, FETCH_KRAKEN2_DB.out.kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
+        reads_classification = CLASSIFY_READS(reads_partitioned, kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
         qzv_reports = qzv_reports.mix(reads_classification.qzv)
         workflow_barrier = workflow_barrier.mix(reads_classification.qzv)
     }
 
     if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
-        reads_kaiju_classification = CLASSIFY_READS_KAIJU(reads_partitioned, FETCH_KAIJU_DB.out.kaiju_db, cache)
+        reads_kaiju_classification = CLASSIFY_READS_KAIJU(reads_partitioned, kaiju_db, cache)
         qzv_reports = qzv_reports.mix(reads_kaiju_classification.qzv)
         workflow_barrier = workflow_barrier.mix(reads_kaiju_classification.qzv)
     }
@@ -397,13 +366,19 @@ workflow {
         sample_count_metrics = sample_count_metrics.mix(contigs.contigs.count().map { n -> tuple("Samples after contig assembly and filtering", n) })
 
         if (params.functional_annotation.enabledFor != "") {
-            diamond_db = FETCH_DIAMOND_DB().result
-            eggnog_db = FETCH_EGGNOG_DB().result
+            diamond_db = FETCH_DIAMOND_DB().result.map { marker ->
+                prepareDatabase(marker, params.databases.eggnogOrthologs,
+                    params.functional_annotation.ortholog_search.dbInMemory)
+            }.first()
+            eggnog_db = FETCH_EGGNOG_DB().result.map { marker ->
+                prepareDatabase(marker, params.databases.eggnogAnnotations,
+                    params.functional_annotation.annotation.dbInMemory)
+            }.first()
         }
 
         // classify contigs
         if (params.taxonomic_classification.enabledFor.contains("contigs")) {
-            classification = CLASSIFY_CONTIGS(contigs.contigs, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+            classification = CLASSIFY_CONTIGS(contigs.contigs, kraken2_db, cache)
 
             workflow_barrier = workflow_barrier.mix(classification.taxonomy)
 
@@ -414,7 +389,7 @@ workflow {
             }
         }
         if (params.taxonomic_classification.kaiju.enabledFor.contains("contigs")) {
-            CLASSIFY_CONTIGS_KAIJU(contigs.contigs, FETCH_KAIJU_DB.out.kaiju_db, cache)
+            CLASSIFY_CONTIGS_KAIJU(contigs.contigs, kaiju_db, cache)
             workflow_barrier = workflow_barrier.mix(CLASSIFY_CONTIGS_KAIJU.out.kaiju_classification)
         }
 
@@ -446,7 +421,7 @@ workflow {
             
             // classify MAGs
             if (params.taxonomic_classification.enabledFor.contains("mags")) {
-                CLASSIFY_MAGS(binning_results.bins, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+                CLASSIFY_MAGS(binning_results.bins, kraken2_db, cache)
                 workflow_barrier = workflow_barrier.mix(CLASSIFY_MAGS.out.taxonomy)
             }
 
@@ -477,7 +452,7 @@ workflow {
                 if (params.taxonomic_classification.enabledFor.contains("derep") || params.functional_annotation.enabledFor.contains("derep")) {
                     // classify dereplicated MAGs
                     if (params.taxonomic_classification.enabledFor.contains("derep")) {
-                        CLASSIFY_MAGS_DEREP(DEREPLICATE.out.bins_derep, FETCH_KRAKEN2_DB.out.kraken2_db, cache)
+                        CLASSIFY_MAGS_DEREP(DEREPLICATE.out.bins_derep, kraken2_db, cache)
                         workflow_barrier = workflow_barrier.mix(CLASSIFY_MAGS_DEREP.out.taxonomy)
                     }
 

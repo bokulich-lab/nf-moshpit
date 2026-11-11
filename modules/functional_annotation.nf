@@ -3,11 +3,11 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory { (params.functional_annotation.ortholog_search.memory ?: 10).GB }
+    memory { db_memory_gb.GB }
 
     input:
     tuple val(_id), path(input_file)
-    val diamond_db
+    tuple path(diamond_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -68,11 +68,11 @@ process ANNOTATE_EGGNOG {
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory { (params.functional_annotation.annotation.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
 
     input:
     tuple val(_id), path(input_file)
-    val eggnog_db
+    tuple path(eggnog_db), val(db_memory_gb)
     val input_type
 
     output:

@@ -2,13 +2,13 @@ process CLASSIFY_KRAKEN2 {
     label "taxonomicClassificationKraken2"
     scratch true
     tag "${_id}"
-    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
     errorStrategy "retry"
     maxRetries 3
 
     input:
     tuple val(_id), path(input_file)
-    path kraken2_db
+    tuple path(kraken2_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -56,11 +56,11 @@ process CLASSIFY_KRAKEN2_DEREP {
     tag "mags-derep"
     errorStrategy "retry"
     maxRetries 3
-    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
 
     input:
     path input_file
-    path kraken2_db
+    tuple path(kraken2_db), val(db_memory_gb)
     path q2cacheDir
 
     output:
@@ -252,13 +252,13 @@ process CLASSIFY_KAIJU {
     label "taxonomicClassificationKaiju"
     scratch true
     tag "${_id}"
-    memory { (params.taxonomic_classification.kaiju.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
     errorStrategy "retry"
     maxRetries 3
 
     input:
     tuple val(_id), path(input_file)
-    path kaiju_db
+    tuple path(kaiju_db), val(db_memory_gb)
     val input_type
 
     output:
