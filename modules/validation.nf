@@ -6,6 +6,12 @@ def paramIsSet(value) {
     value != null && value.toString().trim() != '' && value.toString().toLowerCase() != 'null'
 }
 
+def usingCondaRuntime() {
+    workflow.session.config.conda?.enabled == true &&
+        workflow.session.config.docker?.enabled != true &&
+        workflow.session.config.singularity?.enabled != true
+}
+
 def effectiveContainer(paramValue) {
     paramIsSet(paramValue) ? paramValue : null
 }
@@ -126,7 +132,7 @@ def validateMandatoryParams() {
     
     // Either a default/annotate container or condaEnv must be specified
     def annotateContainer = effectiveContainer(params.containerAnnotate) ?: effectiveContainer(params.container)
-    if (!annotateContainer && !paramIsSet(params.condaEnv)) {
+    if (!annotateContainer && !usingCondaRuntime()) {
         errors.add("ERROR: Either container, containerAnnotate, or condaEnv must be specified")
     }
     
@@ -271,7 +277,7 @@ def validateDatabaseParams() {
             errors.add("ERROR: CheckM is enabled but no database path is specified")
         }
         
-        if (!paramIsSet(params.containerCheckM) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerCheckM) && !paramIsSet(params.container)) {
             errors.add("ERROR: CheckM is enabled but no CheckM container is specified (set containerCheckM or container)")
         }
     }
@@ -298,7 +304,7 @@ def validateDatabaseParams() {
         if (!params.databases.humann3Metaphlan.cache && !params.databases.humann3Metaphlan.key) {
             errors.add("ERROR: HUMAnN 3 is enabled but no MetaPhlAn database cache or key is specified")
         }
-        if (!paramIsSet(params.containerHumann3) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerHumann3) && !paramIsSet(params.container)) {
             errors.add("ERROR: HUMAnN 3 is enabled but no HUMAnN 3 container is specified (set containerHumann3 or container)")
         }
     }
@@ -358,7 +364,7 @@ def validateModuleParams() {
         params.binning.enabled ||
         paramIsSet(params.read_simulation.samples) ||
         abundanceTargets.any { it in ['contigs', 'derep'] }
-    if (!paramIsSet(params.condaEnv) && usesAssemblyContainer) {
+    if (!usingCondaRuntime() && usesAssemblyContainer) {
         def assemblyContainer = effectiveContainer(params.containerAssembly) ?: effectiveContainer(params.container)
         if (!assemblyContainer) {
             errors.add("ERROR: Assembly plugin processes are required but no assembly container is specified (set containerAssembly or container)")
@@ -369,7 +375,7 @@ def validateModuleParams() {
         params.dereplication.enabled ||
         abundanceTargets.any { it in ['contigs', 'derep'] } ||
         params.functional_annotation.enabledFor?.contains('derep')
-    if (!paramIsSet(params.condaEnv) && usesMagContainer) {
+    if (!usingCondaRuntime() && usesMagContainer) {
         def magContainer = effectiveContainer(params.containerMag) ?:
             effectiveContainer(params.containerAnnotate) ?:
             effectiveContainer(params.container)
@@ -473,7 +479,7 @@ def validateWorkflowDependencies() {
     }
 
     if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'sourmash') {
-        if (!paramIsSet(params.containerSourmash) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerSourmash) && !paramIsSet(params.container)) {
             errors.add("ERROR: Sourmash dereplication is enabled but no Sourmash container is specified (set containerSourmash or container)")
         }
     }
@@ -481,14 +487,44 @@ def validateWorkflowDependencies() {
     return errors
 }
 
+// Probe the selected environment itself: an unused container cannot satisfy conda.
+def validateOptionalCondaTools() {
+    def errors = []
+    if (!usingCondaRuntime()) return errors
+    def plugins = []
+    if (params.binning.enabled && params.binning.qc.checkm.enabled) plugins << 'checkm'
+    if (params.humann3.enabled) plugins << 'humann3'
+    if (params.dereplication.enabled && params.dereplication.method == 'sourmash') plugins << 'sourmash'
+    plugins.each { plugin ->
+        def env = params.condaEnv.toString()
+        def command = [System.getenv('CONDA_EXE') ?: 'conda', 'run', '--no-capture-output', env.contains('/') ? '-p' : '-n', env, 'qiime']
+        try {
+            def probe = new ProcessBuilder(command + [plugin, '--help']).redirectErrorStream(true).start()
+            // Consume output to avoid blocking on a full pipe.
+            def output = new StringBuffer()
+            probe.consumeProcessOutput(output, output)
+            probe.waitForOrKill(60000)
+            if (probe.exitValue() != 0) errors.add("ERROR: Selected condaEnv lacks a working qiime ${plugin} plugin: ${env}")
+        } catch (Exception e) {
+            errors.add("ERROR: Cannot validate qiime ${plugin} in condaEnv ${env}: ${e.message}")
+        }
+    }
+    return errors
+}
+
 // Main validation function
 def validateParameters() {
+    if (usingCondaRuntime() && !paramIsSet(params.condaEnv)) {
+        log.error 'The conda profile requires condaEnv to identify the runtime environment'
+        exit 1
+    }
     // Collect all validation errors
     def allErrors = []
     allErrors.addAll(validateMandatoryParams())
     allErrors.addAll(validateDatabaseParams())
     allErrors.addAll(validateModuleParams())
     allErrors.addAll(validateWorkflowDependencies())
+    allErrors.addAll(validateOptionalCondaTools())
     
     // Print warnings and errors
     def warnings = allErrors.findAll { it.startsWith("WARNING:") }
