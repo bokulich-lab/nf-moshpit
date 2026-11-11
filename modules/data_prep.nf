@@ -478,13 +478,15 @@ process IMPORT_READS {
     time { 2.h * task.attempt }
 
     input:
-    tuple val(_id), path(reads_fwd), path(reads_rev)
+    tuple val(_id), path(read_files, stageAs: 'reads??/*', arity: '1..2'), val(paired)
 
     output:
     tuple val(_id), path(key), emit: result
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
+    reads_fwd = read_files[0]
+    reads_rev = paired ? read_files[1] : ""
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     key = "${params.runId}_reads_${_id}"
     """
@@ -494,13 +496,13 @@ process IMPORT_READS {
     fi
 
     echo "Creating manifest file..."
-    if [ -n "${reads_rev}" ]; then
+    if [ "${paired}" = "true" ]; then
         echo -e "sample-id\tforward-absolute-filepath\treverse-absolute-filepath" > manifest.tsv
         echo -e "${_id}\t\$(readlink -f ${reads_fwd})\t\$(readlink -f ${reads_rev})" >> manifest.tsv
         semanticType="PairedEndSequencesWithQuality"
         dataFormat="PairedEndFastqManifestPhred33V2"
     else
-        echo -e "sample-id\tforward-absolute-filepath" > manifest.tsv
+        echo -e "sample-id\tabsolute-filepath" > manifest.tsv
         echo -e "${_id}\t\$(readlink -f ${reads_fwd})" >> manifest.tsv
         semanticType="SequencesWithQuality"
         dataFormat="SingleEndFastqManifestPhred33V2"

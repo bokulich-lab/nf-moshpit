@@ -65,7 +65,7 @@ include { FETCH_TRANSLATED_SEARCH_DB } from './modules/humann_annotation'
 include { FETCH_METAPHLAN_DB } from './modules/humann_annotation'
 include { ANNOTATE_READS_HUMANN } from './subworkflows/humann_annotation'
 
-include { validateParameters } from './modules/validation.nf'
+include { validateParameters; manifestReads } from './modules/validation.nf'
 include { getDirectorySizeInGB } from './modules/utils.nf'
 
 def writeLog(value) {
@@ -140,7 +140,7 @@ workflow {
         ids = Channel
             .fromPath(params.inputReadsManifest)
             .splitCsv(header: true, sep: ',')
-            .map { row -> tuple(row.id, row.forward, row.reverse) }
+            .map { row -> manifestReads(row) }
 
         writeLog("Reading reads from manifest: ${params.inputReadsManifest}")
         reads = IMPORT_READS(ids).result

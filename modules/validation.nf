@@ -95,6 +95,23 @@ def validateBinningParams() {
     return errors
 }
 
+// Validate delimited inputs before Nextflow creates path inputs or schedules tasks.
+def validateInputTable(path, required, separator, label) {
+    def lines = file(path).readLines().findAll { it.trim() }
+    if (!lines) throw new IllegalArgumentException("${label} is empty: ${path}")
+    def headers = lines[0].split(separator, -1)*.trim()
+    if (!headers.containsAll(required)) {
+        throw new IllegalArgumentException("${label} must use ${separator == ',' ? 'CSV (comma)' : 'TSV (tab)'} delimiters with columns: ${required.join(', ')}")
+    }
+}
+
+def manifestReads(row) {
+    if (!row.id?.trim() || !row.forward?.trim()) throw new IllegalArgumentException('Reads manifest requires nonempty id and forward values')
+    def paths = [file(row.forward, checkIfExists: true)]
+    if (row.reverse?.trim()) paths << file(row.reverse, checkIfExists: true)
+    return tuple(row.id, paths, paths.size() == 2)
+}
+
 // Function to validate mandatory parameters
 def validateMandatoryParams() {
     def errors = []
@@ -167,6 +184,9 @@ def validateMandatoryParams() {
     }
     
     // Validate specific parameters for each method
+    if (hasManifestInput && file(params.inputReadsManifest).exists()) {
+        validateInputTable(params.inputReadsManifest, ['id', 'forward'], ',', 'Reads manifest')
+    }
     if (hasManifestInput && !file(params.inputReadsManifest).exists()) {
         errors.add("ERROR: inputReadsManifest file does not exist: ${params.inputReadsManifest}")
     }
