@@ -250,8 +250,8 @@ def validateDatabaseParams() {
             errors.add("ERROR: Taxonomic classification is enabled but no Kraken2 database cache, key, or fetchCollection is specified")
         }
         
-        if (params.taxonomic_classification.bracken.enabled) {
-            if (!params.databases.bracken.cache && !params.databases.bracken.key) {
+        if (params.taxonomic_classification.bracken.enabled && params.taxonomic_classification.enabledFor.contains('reads')) {
+            if (!params.databases.bracken.cache || !params.databases.bracken.key) {
                 errors.add("ERROR: Bracken is enabled but no database cache or key is specified")
             }
         }

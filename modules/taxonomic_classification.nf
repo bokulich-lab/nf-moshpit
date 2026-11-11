@@ -359,24 +359,37 @@ process FETCH_KRAKEN2_DB {
 
     output:
     path params.databases.kraken2.key, emit: kraken2_db
-    path params.databases.bracken.key, emit: bracken_db
+    path "bracken.ready", emit: bracken_db
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
+    needsBracken = params.taxonomic_classification.bracken.enabled && params.taxonomic_classification.enabledFor.contains('reads')
+    brackenTarget = needsBracken ? "${params.databases.bracken.cache}:${params.databases.bracken.key}" : 'unused-bracken.qza'
     """
-    if [ -f ${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key} ]; then
-      echo 'Found an existing Kraken 2 database - fetching will be skipped.'
-      touch ${params.databases.kraken2.key}
-      touch ${params.databases.bracken.key}
-      exit 0
+    kraken_exists=false
+    bracken_exists=false
+    if [ -f '${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}' ]; then kraken_exists=true; fi
+    if [ '${needsBracken}' = 'true' ] && [ -f '${params.databases.bracken.cache}/keys/${params.databases.bracken.key}' ]; then bracken_exists=true; fi
+    if \$kraken_exists && { [ '${needsBracken}' = 'false' ] || \$bracken_exists; }; then
+        touch '${params.databases.kraken2.key}' bracken.ready
+        exit 0
     fi
+    if [ -z '${params.databases.kraken2.fetchCollection}' ]; then
+        echo 'Missing Kraken2 or required Bracken artifact. Supply both cache entries or set databases.kraken2.fetchCollection to prepare missing databases.' >&2
+        exit 1
+    fi
+    kraken_target='${params.databases.kraken2.cache}:${params.databases.kraken2.key}'
+    if \$kraken_exists; then kraken_target='unused-kraken2.qza'; fi
+    bracken_target='${brackenTarget}'
+    if \$bracken_exists; then bracken_target='unused-bracken.qza'; fi
     qiime annotate build-kraken-db \
       --verbose \
-      --p-collection ${params.databases.kraken2.fetchCollection} \
-      --o-kraken2-db "${params.databases.kraken2.cache}:${params.databases.kraken2.key}" \
-      --o-bracken-db "${params.databases.bracken.cache}:${params.databases.bracken.key}" \
-    && touch ${params.databases.kraken2.key} \
-    && touch ${params.databases.bracken.key}
+      --p-collection '${params.databases.kraken2.fetchCollection}' \
+      --o-kraken2-db "\$kraken_target" \
+      --o-bracken-db "\$bracken_target"
+    test -f '${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}'
+    if [ '${needsBracken}' = 'true' ]; then test -f '${params.databases.bracken.cache}/keys/${params.databases.bracken.key}'; fi
+    touch '${params.databases.kraken2.key}' bracken.ready
     """
 }
 
