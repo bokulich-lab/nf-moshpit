@@ -183,6 +183,9 @@ def validateMandatoryParams() {
         errors.add("WARNING: Multiple input methods specified. The workflow will prioritize them in this order: inputReadsManifest, (inputReads+inputReadsCache+metadata), fondueAccessionIds, read_simulation")
     }
     
+    if (paramIsSet(params.read_simulation.samples) && file(params.read_simulation.samples).isFile()) {
+        validateInputTable(params.read_simulation.samples, ['id', 'profile', 'readCount', 'readLength', 'genomesPath'], ',', 'MASON samples')
+    }
     // Validate specific parameters for each method
     if (hasManifestInput && file(params.inputReadsManifest).exists()) {
         validateInputTable(params.inputReadsManifest, ['id', 'forward'], ',', 'Reads manifest')

@@ -19,7 +19,7 @@ There are multiple ways to provide data to the workflow. The workflow checks the
 1. **Import from a FASTQ manifest** (`params.inputReadsManifest`) — a CSV with columns `id`, `forward`, and optionally `reverse`. Reads are imported via `IMPORT_READS` into per-sample QIIME 2 caches.
 2. **Use existing reads from a QIIME 2 cache** (`params.inputReads`, `params.inputReadsCache`, and `params.metadata`) — provide the cache key name, path to the cache directory, and a TSV metadata file listing sample IDs to extract. Samples are partitioned from the collated artifact into per-sample caches.
 3. **Download from SRA via [q2-fondue](https://github.com/bokulich-lab/q2-fondue)** (`params.fondueAccessionIds`) — a TSV file with accession IDs. Requires `params.email`.
-4. **Simulate reads with MASON** (`params.read_simulation.samples`) — a TSV specifying per-sample simulation parameters and reference genomes. Uses `SIMULATE_READS_MASON`. This is the simulation input recognized by parameter validation.
+4. **Simulate reads with MASON** (`params.read_simulation.samples`) — a CSV specifying per-sample simulation parameters and reference genomes. Uses `SIMULATE_READS_MASON`. This is the simulation input recognized by parameter validation.
 
 > **Note:** A legacy fallback path (`FETCH_GENOMES` + `SIMULATE_READS`, using parameters such as `read_simulation.nGenomes` and `read_simulation.sampleNames`) still exists in the workflow code, but it is not accepted by parameter validation on its own. For new runs, use one of the four validated input methods above.
 
@@ -252,7 +252,7 @@ The workflow is divided into several modules, each with its own parameters defin
 
 1. **Read Acquisition**:
    - `fondue`: Parameters for downloading reads from SRA using q2-fondue
-   - `read_simulation`: Parameters for MASON read simulation (`samples` TSV) and legacy genome simulation
+   - `read_simulation`: Parameters for MASON read simulation (`samples` CSV) and legacy genome simulation
 
 2. **Read Processing**:
    - `read_subsampling`: Parameters for subsampling reads
@@ -395,7 +395,7 @@ cd nf-moshpit
    - To import FASTQ files: Set `inputReadsManifest` to a CSV with `id`, `forward`, and optionally `reverse` columns
    - To use existing reads from a cache: Set `inputReads`, `inputReadsCache`, and `metadata`
    - To download from SRA: Set `fondueAccessionIds` and `email`
-   - To simulate reads: Set `read_simulation.samples` to a TSV with simulation parameters
+   - To simulate reads: Set `read_simulation.samples` to a CSV with simulation parameters
 
 4. **Configure modules**:
    For each analysis step, decide whether to enable it by setting `enabled: true` or `enabled: false`. Some modules use the `enabledFor` parameter (which accepts a comma-separated list of inputs):
@@ -559,7 +559,7 @@ functional_annotation:
 # containerHumann3: /path/to/humann3.sif
 ```
 
-This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a TSV and leave `inputReadsManifest` unset.
+This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a CSV and leave `inputReadsManifest` unset.
 
 For more detailed information about all available parameters, refer to the [params.template.yml](params.template.yml) file.
 
@@ -581,7 +581,7 @@ The validation checks for:
    - Manifest file: `inputReadsManifest`
    - Existing reads: `inputReads`, `inputReadsCache`, and `metadata`
    - Accession IDs: `fondueAccessionIds`
-   - Read simulation: `read_simulation.samples` (MASON simulation TSV)
+   - Read simulation: `read_simulation.samples` (MASON simulation CSV)
 
    If multiple input methods are configured, the workflow uses the priority order described at the top of this README and emits a warning.
 

@@ -68,7 +68,7 @@ fondueAccessionIds: /path/to/tsv
 # Option 4: provide a path to genomes from which the reads should be simulated
 # If the path is not specified, a random selection of genomes will be fetched from NCBI
 read_simulation:
-  samples: /path/to/samples.tsv
+  samples: /path/to/samples.csv
   seed: 100
   clusterOptions: ""
 
