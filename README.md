@@ -194,7 +194,7 @@ The workflow uses several directories to store various outputs and intermediate 
 | Directory parameter | Description | Default value |
 | ------------------- | ----------- | ------------- |
 | params.outputDir | Base output directory for all results and intermediate files. | `$launchDir/results` |
-| params.storeDir | Directory where all temporary results will be stored (important for resumption). | `${params.outputDir}/keys` |
+| params.storeDir | Legacy directory created for compatibility; task reuse uses the Nextflow work directory and QIIME caches. | `${params.outputDir}/keys` |
 | params.publishDir | Directory where final results (qza and qzv) will be stored. | `${params.outputDir}/results` |
 | params.traceDir | Directory where Nextflow trace/report files will be saved. | `${params.outputDir}/pipeline_info` |
 | params.tmpDir | Temporary directory to be used by Singularity/Docker (uses system default if not specified). | `null` (system default) |
@@ -627,14 +627,13 @@ ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication
 
 Base defaults perform read QC and assembly without database analyses. Use `-profile reads_only` for QC alone or `-profile mags` for binning, dereplication and abundance estimation. Explicit requests with disabled prerequisite stages fail validation; the resolved stages are printed at launch.
 
-Persistent results are protected by `.moshpit-cache-identity.json` in `outputDir`.
-Resuming requires unchanged input bytes, effective analysis settings, and workflow
-source, together with intact QIIME cache artifacts. Changed inputs or options
-require a new empty output directory and new cache/store paths. Existing outputs
-created before this guard was introduced cannot be reused automatically. Keep the
-guard file with the caches; deleting it does not make old markers trustworthy.
-Python 3 must be available on the Nextflow launch host for this preflight check.
-The check reads input files to calculate SHA256 signatures, which adds launch
-time proportional to the amount of input data.
-Use Nextflow `-resume` to reuse identical tasks; marker files alone no longer skip
-analysis. Restore archived sample caches before resuming.
+Use Nextflow `-resume` to reuse unchanged tasks and run newly enabled stages.
+Keep the launch directory's `.nextflow` task cache, the Nextflow work directory,
+and the actual QIIME 2 caches used by those tasks. Restore archived sample caches
+before resuming. Nextflow determines task reuse from its normal task hashes;
+changes to inputs or task settings can cause affected tasks to run again.
+
+Many tasks return marker files that refer to artifacts stored in external QIIME
+caches. Nextflow does not validate those external artifacts when reusing a cached
+task: a surviving marker does not prove that its QIIME artifact still exists or
+is unchanged. Preserve those caches and avoid modifying their artifacts in place.
