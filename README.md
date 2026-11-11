@@ -626,3 +626,5 @@ ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication
 5. For each enabled module, set the required database paths
 6. Set `internetModule` on HPC clusters if any enabled step requires internet access (database fetching, fondue, etc.)
 7. Run the workflow — validation will automatically check your parameters
+
+Base defaults perform read QC and assembly without database analyses. Use `-profile reads_only` for QC alone or `-profile mags` for binning, dereplication and abundance estimation. Explicit requests with disabled prerequisite stages fail validation; the resolved stages are printed at launch.

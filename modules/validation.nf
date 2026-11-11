@@ -329,7 +329,7 @@ def validateModuleParams() {
     if (params.genome_assembly.assembler.toLowerCase() == 'spades' && !(params.genome_assembly.spades.mode in ['meta', 'isolate', 'standard'])) {
         errors.add('ERROR: genome_assembly.spades.mode must be meta, isolate, or standard')
     }
-    def annotationTargets = params.functional_annotation.enabledFor?.split(',')*.trim() ?: []
+    def annotationTargets = (params.functional_annotation.enabledFor?.split(',')*.trim() ?: []).findAll { it }
     if (params.functional_annotation.transferFromContigs && !annotationTargets.contains('contigs')) {
         errors.add('ERROR: transferFromContigs requires functional_annotation.enabledFor to include contigs')
     }
@@ -337,7 +337,7 @@ def validateModuleParams() {
         def abundanceTargetsForTfa = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
         def taxonomyTargetsForTfa = params.taxonomic_classification.enabledFor?.split(',')*.trim() ?: []
         if (!annotationTargets.contains('contigs') || !abundanceTargetsForTfa.contains('contigs') || !taxonomyTargetsForTfa.contains('contigs')) {
-            errors.add('WARNING: TFA requires contig annotation, contig abundance, and Kraken2 contig classification')
+            errors.add('ERROR: TFA requires contig annotation, contig abundance, and Kraken2 contig classification')
         }
         if (!params.functional_annotation.annotation.extract.types?.trim()) errors.add('ERROR: TFA requires at least one annotation extract type')
     }
@@ -346,8 +346,13 @@ def validateModuleParams() {
     if (usesSampleMetadata && paramIsSet(params.metadata) && !file(params.metadata).isFile()) {
         errors.add("ERROR: Sample metadata must be an existing TSV file: ${params.metadata}")
     }
-    if (annotationTargets && !params.genome_assembly.enabled) errors.add('WARNING: Functional annotation is enabled but genome assembly is disabled')
+    if (annotationTargets && !params.genome_assembly.enabled) errors.add('ERROR: Functional annotation is enabled but genome assembly is disabled')
 
+    [params.taxonomic_classification.enabledFor, params.functional_annotation.enabledFor, params.abundance_estimation.enabledFor].each { requested ->
+        if (requested?.split(',')*.trim()?.any { it in ['contigs', 'mags', 'derep'] } && !params.genome_assembly.enabled) {
+            errors.add('ERROR: Requested contig/MAG analyses require genome_assembly.enabled')
+        }
+    }
     def abundanceTargets = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
     def usesAssemblyContainer = params.genome_assembly.enabled ||
         params.binning.enabled ||
@@ -385,12 +390,12 @@ def validateModuleParams() {
         
         // If "mags" or "derep" is enabled, ensure binning is also enabled
         if ((targets.contains("mags") || targets.contains("derep")) && !params.binning.enabled) {
-            errors.add("WARNING: Taxonomic classification for MAGs or dereplicated MAGs is enabled, but binning is disabled")
+            errors.add("ERROR: Taxonomic classification for MAGs or dereplicated MAGs is enabled, but binning is disabled")
         }
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Taxonomic classification for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Taxonomic classification for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -405,7 +410,7 @@ def validateModuleParams() {
         }
         
         if (targets.contains("contigs") && !params.genome_assembly.enabled) {
-            errors.add("WARNING: Kaiju classification for contigs is enabled, but genome assembly is disabled")
+            errors.add("ERROR: Kaiju classification for contigs is enabled, but genome assembly is disabled")
         }
     }
     
@@ -421,12 +426,12 @@ def validateModuleParams() {
         
         // If "mags" or "derep" is enabled, ensure binning is also enabled
         if ((targets.contains("mags") || targets.contains("derep")) && !params.binning.enabled) {
-            errors.add("WARNING: Functional annotation for MAGs or dereplicated MAGs is enabled, but binning is disabled")
+            errors.add("ERROR: Functional annotation for MAGs or dereplicated MAGs is enabled, but binning is disabled")
         }
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -442,7 +447,7 @@ def validateModuleParams() {
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Abundance estimation for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Abundance estimation for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -455,12 +460,12 @@ def validateWorkflowDependencies() {
     
     // Dependency: If binning is enabled, assembly must be enabled
     if (params.binning.enabled && !params.genome_assembly.enabled) {
-        errors.add("WARNING: Binning is enabled, but genome assembly is disabled")
+        errors.add("ERROR: Binning is enabled, but genome assembly is disabled")
     }
     
     // Dependency: If dereplication is enabled, binning must be enabled
     if (params.dereplication.enabled && !params.binning.enabled) {
-        errors.add("WARNING: Dereplication is enabled, but binning is disabled")
+        errors.add("ERROR: Dereplication is enabled, but binning is disabled")
     }
 
     if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'skani') {
@@ -505,6 +510,7 @@ def validateParameters() {
     // Log validation success if no errors
     if (!errors) {
         log.info "Parameter validation successful"
+        log.info "Resolved stages: assembly=${params.genome_assembly.enabled}, binning=${params.binning.enabled}, dereplication=${params.dereplication.enabled}, abundance=${params.abundance_estimation.enabledFor}, taxonomy=${params.taxonomic_classification.enabledFor}, kaiju=${params.taxonomic_classification.kaiju.enabledFor}, annotation=${params.functional_annotation.enabledFor}, humann3=${params.humann3.enabled}"
     }
     
     return !errors
