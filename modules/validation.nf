@@ -468,10 +468,8 @@ def validateWorkflowDependencies() {
         errors.add("ERROR: Dereplication is enabled, but binning is disabled")
     }
 
-    if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'skani') {
-        if (!paramIsSet(params.containerSkani) && !paramIsSet(params.container)) {
-            errors.add("ERROR: Skani dereplication is enabled but no Skani container is specified (set containerSkani or container)")
-        }
+    if (params.dereplication.enabled && params.dereplication.method != 'sourmash') {
+        errors.add('ERROR: dereplication.method currently supports only sourmash; skani is not implemented')
     }
 
     if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'sourmash') {
