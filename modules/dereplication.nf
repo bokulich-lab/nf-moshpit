@@ -1,6 +1,5 @@
 process CALCULATE_MINHASHES {
     label "dereplication"
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -31,7 +30,6 @@ process CALCULATE_MINHASHES {
 
 process COMPARE_MINHASHES {
     label "dereplication"
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -64,7 +62,6 @@ process COMPARE_GENOMES_SKANI {
     label "dereplication"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     clusterOptions params.dereplication.skani.clusterOptions
 
     input:
@@ -101,7 +98,6 @@ process COMPARE_GENOMES_SKANI {
 
 process DEREPLICATE_MAGS {
     label "dereplication"
-    storeDir params.storeDir
     scratch true
 
     input:

@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 
+include { protectPersistentCaches } from './modules/cache_guard'
+
 include { DEDUPLICATE_PROVENANCE } from './modules/provenance'
 include { INIT_CACHE } from './modules/data_prep'
 include { IMPORT_READS } from './modules/data_prep'
@@ -74,6 +76,7 @@ def writeLog(value) {
 
 workflow {
     validateParameters()
+    protectPersistentCaches()
 
     def directoryPaths = [
         "${params.storeDir}",
@@ -538,6 +541,7 @@ workflow {
     }
 
     workflow.onComplete {
+        protectPersistentCaches(true)
         writeLog("\n==========================================")
         writeLog("WORKFLOW SUMMARY")
         writeLog("==========================================")

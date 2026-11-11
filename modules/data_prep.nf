@@ -71,7 +71,6 @@ process SIMULATE_READS_MASON {
     tag "${sample_id}"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     clusterOptions params.read_simulation.clusterOptions
 
     input:
@@ -231,7 +230,6 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     label "readSubsampling"
-    storeDir params.storeDir
     cpus 1
     scratch true
     tag "${sample_id}"
@@ -271,7 +269,6 @@ process SUBSAMPLE_READS {
 
 process PROCESS_READS_FASTP {
     label "fastp"
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     errorStrategy { task.exitStatus in [125, 126] ? 'ignore' : 'retry' }
@@ -364,7 +361,6 @@ process REMOVE_HOST {
     label "needsInternet"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     
@@ -522,7 +518,6 @@ process IMPORT_READS {
 
 process PARTITION_DEREP_MAGS {
     cpus 1
-    storeDir params.storeDir
     time { 2.h * task.attempt }
     memory { 4.GB * task.attempt }
     maxRetries 3
@@ -602,7 +597,6 @@ process COLLATE_PARTITIONS {
     time { 2.h * task.attempt }
     memory { 2.GB * task.attempt }
     errorStrategy 'retry'
-    storeDir params.storeDir
     maxRetries 3
  
     input:
@@ -687,7 +681,6 @@ process COLLATE_PARTITIONS_DEREP {
 }
 
 process TABULATE_READ_COUNTS {
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }
@@ -954,7 +947,6 @@ PY
 
 process FILTER_SAMPLES {
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }

@@ -626,3 +626,15 @@ ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication
 7. Run the workflow — validation will automatically check your parameters
 
 Base defaults perform read QC and assembly without database analyses. Use `-profile reads_only` for QC alone or `-profile mags` for binning, dereplication and abundance estimation. Explicit requests with disabled prerequisite stages fail validation; the resolved stages are printed at launch.
+
+Persistent results are protected by `.moshpit-cache-identity.json` in `outputDir`.
+Resuming requires unchanged input bytes, effective analysis settings, and workflow
+source, together with intact QIIME cache artifacts. Changed inputs or options
+require a new empty output directory and new cache/store paths. Existing outputs
+created before this guard was introduced cannot be reused automatically. Keep the
+guard file with the caches; deleting it does not make old markers trustworthy.
+Python 3 must be available on the Nextflow launch host for this preflight check.
+The check reads input files to calculate SHA256 signatures, which adds launch
+time proportional to the amount of input data.
+Use Nextflow `-resume` to reuse identical tasks; marker files alone no longer skip
+analysis. Restore archived sample caches before resuming.

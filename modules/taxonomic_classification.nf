@@ -1,6 +1,5 @@
 process CLASSIFY_KRAKEN2 {
     label "taxonomicClassificationKraken2"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
@@ -53,7 +52,6 @@ process CLASSIFY_KRAKEN2 {
 
 process CLASSIFY_KRAKEN2_DEREP {
     label "taxonomicClassificationKraken2"
-    storeDir params.storeDir
     scratch true
     tag "mags-derep"
     errorStrategy "retry"
@@ -102,7 +100,6 @@ process ESTIMATE_BRACKEN {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double)}
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -139,7 +136,6 @@ process GET_KRAKEN_FEATURES {
     memory { 2.GB * task.attempt }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -191,7 +187,6 @@ process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
     memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     // scratch true
 
     input:
@@ -225,7 +220,6 @@ process COLLAPSE_CONTIGS {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     // scratch true
 
@@ -256,7 +250,6 @@ process COLLAPSE_CONTIGS {
 
 process CLASSIFY_KAIJU {
     label "taxonomicClassificationKaiju"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     memory { (params.taxonomic_classification.kaiju.memory ?: 48).GB }
@@ -354,7 +347,6 @@ process FETCH_KRAKEN2_DB {
     memory 2.GB
     time { 4.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     output:
@@ -399,7 +391,6 @@ process FETCH_KAIJU_DB {
     memory 2.GB
     time { 4.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     output:

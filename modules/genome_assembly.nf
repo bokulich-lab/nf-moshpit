@@ -2,7 +2,6 @@ process ASSEMBLE_METASPADES {
     label "genomeAssembly"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     
@@ -38,7 +37,6 @@ process ASSEMBLE_MEGAHIT {
     label "genomeAssembly"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     
@@ -178,7 +176,6 @@ process INDEX_CONTIGS {
     label "indexing"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     
@@ -209,7 +206,6 @@ process MAP_READS_TO_CONTIGS {
     // errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' } 
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
 
@@ -242,7 +238,6 @@ process FILTER_CONTIGS {
     memory { 2.GB * task.attempt }
     time { 2.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     

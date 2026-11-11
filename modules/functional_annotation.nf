@@ -1,6 +1,5 @@
 process SEARCH_ORTHOLOGS_EGGNOG {
     label "orthologSearch"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
@@ -66,7 +65,6 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
 process ANNOTATE_EGGNOG {
     label "functionalAnnotation"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
@@ -120,7 +118,6 @@ process FETCH_DIAMOND_DB {
     cpus 1
     maxRetries 3
     errorStrategy 'retry'
-    storeDir params.storeDir
     scratch true
 
     output:
@@ -147,7 +144,6 @@ process FETCH_EGGNOG_DB {
     memory 1.GB
     time { 2.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -174,7 +170,6 @@ process EXTRACT_ANNOTATIONS {
     memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt * (params.time_multiplier as double)}
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -220,7 +215,6 @@ process MULTIPLY_TABLES {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
     time { 1.h * task.attempt * (params.time_multiplier as double) }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -287,7 +281,6 @@ process TRANSFER_ANNOTATIONS {
     cpus 1
     memory { 4.GB  * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt }
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -315,7 +308,6 @@ process ESTIMATE_TFA {
     cpus 1
     memory { 8.GB * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt }
-    storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     scratch true
     tag "${annotation_type}"
