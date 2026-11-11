@@ -191,6 +191,18 @@ def validateMandatoryParams() {
         errors.add("ERROR: inputReadsManifest file does not exist: ${params.inputReadsManifest}")
     }
     
+    if (hasExistingReadsInput) {
+        if (!file("${params.inputReadsCache}/keys/${params.inputReads}").isFile()) {
+            errors.add("ERROR: Input cache key does not exist: ${params.inputReadsCache}/keys/${params.inputReads}")
+        }
+        if (file(params.metadata).isFile()) {
+            validateInputTable(params.metadata, ['id'], '\t', 'Cached-read metadata')
+            def lines = file(params.metadata).readLines()
+            def idColumn = lines[0].split('\t', -1).findIndexOf { it == 'id' }
+            def ids = lines.drop(1).findAll { it.trim() && !it.startsWith('#') }.collect { it.split('\t', -1)[idColumn] }
+            if (ids.any { !it.trim() } || ids.size() != ids.unique(false).size()) errors.add('ERROR: Cached-read metadata requires unique nonempty sample IDs')
+        }
+    }
     if (hasExistingReadsInput && !file(params.metadata).exists()) {
         errors.add("ERROR: metadata file does not exist: ${params.metadata}")
     }

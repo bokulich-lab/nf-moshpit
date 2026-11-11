@@ -1220,3 +1220,31 @@ process FIX_CACHE_PERMISSIONS {
     echo "All done!"
     """
 }
+
+// Cache keys are identifiers, never launch-directory paths.
+process PARTITION_CACHED_READS {
+    tag "${sample_id}"
+    scratch true
+    memory 2.GB
+    time 2.h
+    input:
+    tuple val(sample_id), val(reads_key)
+    output:
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+    script:
+    key = "${params.runId}_reads_partitioned_${sample_id}"
+    out_cache = "${params.q2TemporaryCachesDir}/${sample_id}"
+    """
+    test -f '${params.inputReadsCache}/keys/${reads_key}' || { echo 'Input cache key does not exist'; exit 1; }
+    printf 'id\n%s\n' '${sample_id}' > _metadata.tsv
+    if [ ! -d '${out_cache}' ]; then
+        qiime tools cache-create --cache '${out_cache}'
+    fi
+    qiime demux filter-samples --verbose \
+        --i-demux '${params.inputReadsCache}:${reads_key}' \
+        --m-metadata-file _metadata.tsv \
+        --o-filtered-demux '${out_cache}:${key}'
+    touch '${key}'
+    """
+}

@@ -32,7 +32,7 @@ include { REPORT_READ_COUNTS } from './modules/data_prep'
 include { MAKE_SAMPLE_REPORT } from './modules/data_prep'
 include { MULTIQC } from './modules/data_prep'
 include { FILTER_SAMPLES } from './modules/data_prep'
-include { FILTER_SAMPLES as PARTITION_READS } from './modules/data_prep'
+include { PARTITION_CACHED_READS as PARTITION_READS } from './modules/data_prep'
 include { ARCHIVE_SAMPLE_CACHE } from './modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_INPUT } from './modules/data_prep'
 include { REMOVE_FROM_CACHE as CLEANUP_SUBSAMPLED } from './modules/data_prep'
@@ -146,17 +146,14 @@ workflow {
         reads = IMPORT_READS(ids).result
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples imported from manifest", n) })
     } else if (params.inputReads && params.inputReadsCache && params.metadata) {
-        reads = Channel.fromPath(params.inputReads)
-        metadata = Channel.fromPath(params.metadata)
         reads_with_ids = Channel
             .fromPath(params.metadata)
             .splitCsv(header: true, sep: '\t')
-            .map { row -> row.id }
-            .combine(reads)
-            .combine(metadata)
+            .filter { row -> !row.id.startsWith('#') }
+            .map { row -> tuple(row.id, params.inputReads) }
 
         writeLog("Using existing reads '${params.inputReads}' from ${params.inputReadsCache} cache")
-        reads = PARTITION_READS(reads_with_ids, "", true).result
+        reads = PARTITION_READS(reads_with_ids).result
         sample_count_metrics = sample_count_metrics.mix(reads.count().map { n -> tuple("Samples partitioned from an input artifact", n) })
     } else if (params.fondueAccessionIds) {
         ids = Channel
