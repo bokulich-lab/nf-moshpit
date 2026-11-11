@@ -29,7 +29,8 @@ condaEnv: /path/to/conda/env
 email: user@example.com
 
 # Archive the per-sample caches upon completion
-archive: true
+# Opt in to archiving only after planning cache restoration for resumes.
+archive: false
 
 # Run only after all tasks finish; caches must not be used by another workflow.
 # Archived sample caches have already been removed, so only live caches are scanned.
