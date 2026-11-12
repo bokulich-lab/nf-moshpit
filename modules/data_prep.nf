@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process FETCH_GENOMES {
     label "needsInternet"
     publishDir params.publishDir
@@ -529,7 +530,7 @@ process PARTITION_DEREP_MAGS {
     path q2_cache
 
     output:
-    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*", emit: result
+    path "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_*", emit: result
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
@@ -564,7 +565,7 @@ process PARTITION_DEREP_MAGS {
       fi
       
       q2cacheDir="${params.q2TemporaryCachesDir}/mags/batch_\${batch_id}"
-      key="${params.runId}_mags_${params.binning.primary}_derep_partitioned_\${batch_id}"
+      key="${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_\${batch_id}"
       
       if [ ! -d \$q2cacheDir ]; then
         echo "Creating cache \$q2cacheDir..."

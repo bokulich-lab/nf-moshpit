@@ -1,5 +1,7 @@
 #!/usr/bin/env nextflow
 
+include { effectivePrimaryBinner } from './binning_policy'
+
 // Parameter validation script
 
 def paramIsSet(value) {
@@ -46,7 +48,7 @@ def validateBinningParams() {
         enabledBinners << 'das_tool'
     }
 
-    def primary = params.binning.primary?.toString()?.trim()
+    def primary = effectivePrimaryBinner(params.binning)
     if (!primary || !(primary in validBinners)) {
         errors.add("ERROR: binning.primary must be one of: ${validBinners.join(', ')}")
     } else if (!enabledBinners.isEmpty() && !(primary in enabledBinners)) {
@@ -549,6 +551,9 @@ def validateParameters() {
     // Log validation success if no errors
     if (!errors) {
         log.info "Parameter validation successful"
+        if (params.binning.enabled && params.binning.das_tool.enabled) {
+            log.info "DAS Tool enabled: effective primary binner is das_tool; configured binning.primary '${params.binning.primary}' is ignored. Enabled BUSCO QC and filtering apply only to refined DAS Tool bins."
+        }
         log.info "Resolved stages: assembly=${params.genome_assembly.enabled}, binning=${params.binning.enabled}, dereplication=${params.dereplication.enabled}, abundance=${params.abundance_estimation.enabledFor}, taxonomy=${params.taxonomic_classification.enabledFor}, kaiju=${params.taxonomic_classification.kaiju.enabledFor}, annotation=${params.functional_annotation.enabledFor}, humann3=${params.humann3.enabled}"
     }
     

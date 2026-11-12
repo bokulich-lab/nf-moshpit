@@ -636,3 +636,18 @@ Many tasks return marker files that refer to artifacts stored in external QIIME
 caches. Nextflow does not validate those external artifacts when reusing a cached
 task: a surviving marker does not prove that its QIIME artifact still exists or
 is unchanged. Preserve those caches and avoid modifying their artifacts in place.
+
+### Primary bins and BUSCO quality control
+
+With `binning.das_tool.enabled: false`, BUSCO evaluates every enabled binner when
+`binning.qc.busco.enabled: true`; BUSCO-based filtering likewise applies to each
+binner when enabled. `binning.primary` selects an enabled binner for downstream
+analysis.
+
+With DAS Tool enabled (requiring at least two enabled binners), refined DAS Tool
+bins automatically become the primary bins for all downstream analyses and cache
+keys. The configured `binning.primary` is ignored, as reported at startup. Enabled
+BUSCO evaluation and BUSCO-based filtering run only on the refined bins; individual
+binner results are not evaluated or filtered with BUSCO. BUSCO remains optional
+through `binning.qc.busco.enabled`. CheckM follows its separate setting and continues to evaluate each enabled binner
+and the refined DAS Tool bins.

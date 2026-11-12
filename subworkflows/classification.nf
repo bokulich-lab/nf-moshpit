@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from '../modules/binning_policy'
 include { CLASSIFY_KRAKEN2 as CLASSIFY_READS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_CONTIGS_KRAKEN2; CLASSIFY_KRAKEN2 as CLASSIFY_MAGS_KRAKEN2 } from '../modules/taxonomic_classification'
 include { CLASSIFY_KRAKEN2_DEREP as CLASSIFY_MAGS_DEREP_KRAKEN2 } from '../modules/taxonomic_classification'
 include { CLASSIFY_KAIJU as CLASSIFY_KAIJU_READS } from '../modules/taxonomic_classification'
@@ -34,8 +35,8 @@ workflow CLASSIFY_MAGS {
         // collate reports and hits
         reports_all = CLASSIFY_MAGS_KRAKEN2.out.reports | collect(flat: false)
         hits_all = CLASSIFY_MAGS_KRAKEN2.out.hits | collect(flat: false)
-        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true).result
-        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true).result
+        collated_reports = COLLATE_REPORTS_MAGS(reports_all, "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-reports", "--i-reports", "--o-collated-reports", true).result
+        collated_hits = COLLATE_HITS_MAGS(hits_all, "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_${params.binning.qc.busco.selectLineage}", "annotate collate-kraken2-outputs", "--i-outputs", "--o-collated-outputs", true).result
         
         GET_KRAKEN_MAG_FEATURES(collated_reports, collated_hits, "mags")
         if (params.taxonomic_classification.kraken2.fetchArtifact) {

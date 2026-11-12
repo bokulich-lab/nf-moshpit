@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process CLASSIFY_KRAKEN2 {
     label "taxonomicClassificationKraken2"
     scratch true
@@ -20,11 +21,11 @@ process CLASSIFY_KRAKEN2 {
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (input_type == "mags") {
       if (params.binning.qc.busco.enabled) {
-        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {
-        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
       }
     } else if (input_type == "reads") {
         reports_key = "${params.runId}_kraken_reports_reads_partitioned_${_id}"
@@ -70,11 +71,11 @@ process CLASSIFY_KRAKEN2_DEREP {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
-      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
+      reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
+      hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
     } else {
-      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep"
-      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep"
+      reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_derep"
+      hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_derep"
     }
     threads = 4 * task.cpus
     """
@@ -152,8 +153,8 @@ process GET_KRAKEN_FEATURES {
     features = "${params.runId}_kraken_features_${input_type}"
     ft_all = "${params.runId}_kraken_presence_absence_${input_type}"
     if (input_type == "mags") {
-      features = "${params.runId}_kraken_features_mags_${params.binning.primary}"
-      ft_all = "${params.runId}_kraken_presence_absence_mags_${params.binning.primary}"
+      features = "${params.runId}_kraken_features_mags_${effectivePrimaryBinner(params.binning)}"
+      ft_all = "${params.runId}_kraken_presence_absence_mags_${effectivePrimaryBinner(params.binning)}"
     }
     if (input_type == "reads" || input_type == "mags") {
       """

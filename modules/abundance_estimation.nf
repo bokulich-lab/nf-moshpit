@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process INDEX_DEREP_MAGS {
     label "indexing"
     scratch true
@@ -13,9 +14,9 @@ process INDEX_DEREP_MAGS {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      key = "${params.runId}_mags_${params.binning.primary}_derep_index_${params.binning.qc.busco.selectLineage}"
+      key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_index_${params.binning.qc.busco.selectLineage}"
     } else {
-      key = "${params.runId}_mags_${params.binning.primary}_derep_index"
+      key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_index"
     }
     """
     qiime assembly index-derep-mags \
@@ -46,9 +47,9 @@ process MAP_READS_TO_DEREP_MAGS {
     script:
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (params.binning.qc.busco.enabled) {
-      key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+      key = "${params.runId}_reads_to_derep_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
     } else {
-      key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}_partitioned_${_id}"
+      key = "${params.runId}_reads_to_derep_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
     }
     """
     echo Processing sample ${_id}
@@ -83,9 +84,9 @@ process GET_GENOME_LENGTHS {
     script:
     if (input_type == "mags_derep") {
       if (params.binning.qc.busco.enabled) {
-        key = "${params.runId}_mags_${params.binning.primary}_derep_lengths_${params.binning.qc.busco.selectLineage}"
+        key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_lengths_${params.binning.qc.busco.selectLineage}"
       } else {
-        key = "${params.runId}_mags_${params.binning.primary}_derep_lengths"
+        key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_lengths"
       }
     } else if (params.binning.qc.busco.enabled) {
       key = "${params.runId}_${input_type}_lengths_${params.binning.qc.busco.selectLineage}"
@@ -119,9 +120,9 @@ process ESTIMATE_ABUNDANCE {
     script:
     if (input_type == "mags_derep") {
       if (params.binning.qc.busco.enabled) {
-        key = "${params.runId}_mags_${params.binning.primary}_derep_ft_${params.binning.qc.busco.selectLineage}"
+        key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_ft_${params.binning.qc.busco.selectLineage}"
       } else {
-        key = "${params.runId}_mags_${params.binning.primary}_derep_ft"
+        key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_ft"
       }
     } else {
       key = "${params.runId}_${input_type}_ft"

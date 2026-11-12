@@ -176,7 +176,7 @@ assembly_qc:
 
 binning:
   enabled: true
-  primary: metabat2 # metabat2, semibin2, vamb, das_tool
+  primary: metabat2 # enabled binner: metabat2, semibin2, vamb; ignored when DAS Tool is enabled
   fetchArtifact: false
   metabat2:
     enabled: true
@@ -202,7 +202,7 @@ binning:
     seed: 100
     additionalFlags: ""
   das_tool:
-    enabled: false # requires at least two enabled binners
+    enabled: false # requires >=2 binners; refined bins become primary; BUSCO/filtering run only on refined bins
     clusterOptions: ""
     search_engine: diamond
     score_threshold: 0.5

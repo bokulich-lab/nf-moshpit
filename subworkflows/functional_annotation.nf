@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from '../modules/binning_policy'
 include { SEARCH_ORTHOLOGS_EGGNOG as SEARCH_ORTHOLOGS_MAGS_DEREP; SEARCH_ORTHOLOGS_EGGNOG as SEARCH_ORTHOLOGS_CONTIGS; SEARCH_ORTHOLOGS_EGGNOG as SEARCH_ORTHOLOGS_MAGS } from '../modules/functional_annotation'
 include { ANNOTATE_EGGNOG as ANNOTATE_MAGS_DEREP; ANNOTATE_EGGNOG as ANNOTATE_CONTIGS; ANNOTATE_EGGNOG as ANNOTATE_MAGS } from '../modules/functional_annotation'
 include { COLLATE_PARTITIONS as COLLATE_ANNOTATIONS_CONTIGS; COLLATE_PARTITIONS as COLLATE_ANNOTATIONS_MAGS; COLLATE_PARTITIONS_DEREP as COLLATE_ANNOTATIONS_MAGS_DEREP} from '../modules/data_prep'
@@ -22,11 +23,11 @@ workflow ANNOTATE_EGGNOG_MAGS {
         ANNOTATE_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits, eggnog_db, "mags")
 
         if (params.binning.qc.busco.enabled) {
-            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}"
-            annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}"
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_${params.binning.qc.busco.selectLineage}"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_${params.binning.qc.busco.selectLineage}"
         } else {
-            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}"
-            annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}"
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}"
         }
 
         collated_orthologs = COLLATE_HITS_MAGS(SEARCH_ORTHOLOGS_MAGS.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true).result
@@ -53,18 +54,18 @@ workflow ANNOTATE_EGGNOG_MAGS_DEREP {
         mags_derep = mags_derep.map { partition ->
             def path = java.nio.file.Paths.get(partition.toString())
             def filename = path.getFileName().toString()
-            def batchId = filename.substring("${params.runId}_mags_${params.binning.primary}_derep_partitioned_".length())
+            def batchId = filename.substring("${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_".length())
             tuple("batch_${batchId}", partition)
         }
         SEARCH_ORTHOLOGS_MAGS_DEREP(mags_derep, diamond_db, "mags_derep")
         ANNOTATE_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits, eggnog_db, "mags_derep")
 
         if (params.binning.qc.busco.enabled) {
-            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
-            annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
         } else {
-            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep"
-            annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep"
+            orthologs_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_derep"
+            annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_derep"
         }
         collated_orthologs = COLLATE_HITS_MAGS_DEREP(SEARCH_ORTHOLOGS_MAGS_DEREP.out.hits | collect(flat: false), orthologs_key, "types collate-orthologs", "--i-orthologs", "--o-collated-orthologs", true).result
         collated_annotations = COLLATE_ANNOTATIONS_MAGS_DEREP(ANNOTATE_MAGS_DEREP.out.annotations | collect(flat: false), annotations_key, "types collate-ortholog-annotations", "--i-ortholog-annotations", "--o-collated-annotations", true).result
