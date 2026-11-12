@@ -178,7 +178,7 @@ Some of the most useful configuration parameters are explained below.
 | params.containerHumann3 | Optional override for q2-humann3 processes (required when HUMAnN 3 is enabled unless `container` is set). | [params.template.yml](params.template.yml) |
 | params.containerSourmash | Optional override for q2-sourmash processes. | [params.template.yml](params.template.yml) |
 | params.containerCheckM | Path to the CheckM container image (required when CheckM QC is enabled). | [params.template.yml](params.template.yml) |
-| params.containerSkani | Path to the Skani container image (reserved for future Skani dereplication support). | [params.template.yml](params.template.yml) |
+| params.containerSkani | Optional override for q2-skani processes. | [params.template.yml](params.template.yml) |
 | params.internetModule | Name of the HPC module that provides internet access (required for processes that download data). | [params.template.yml](params.template.yml) |
 | params.email | Your e-mail address — required only when using q2-fondue. | [params.template.yml](params.template.yml) |
 | params.inputReadsManifest | CSV manifest with `id`, `forward`, and optionally `reverse` columns for FASTQ import. | [params.template.yml](params.template.yml) |
@@ -262,7 +262,7 @@ The workflow is divided into several modules, each with its own parameters defin
    - `genome_assembly`: Parameters for metagenomic assembly (`megahit` or `metaspades`)
    - `assembly_qc`: Assembly quality control, including optional QUAST evaluation
    - `binning`: Genome binning with optional BUSCO and CheckM QC and MAG filtering
-   - `dereplication`: MAG dereplication (currently uses sourmash; skani parameters exist but are not yet wired)
+   - `dereplication`: MAG dereplication using `method: sourmash` (default) or `method: skani`. Skani compares MAGs directly and skips Sourmash sketching. Configure its options under `dereplication.skani`, and supply `containerSkani` (or a general `container` containing q2-skani); with Conda, the selected environment must contain the `skani` plugin. The shared `threshold` remains a clustering cutoff, not an ANI percentage, and may need adjusting when switching methods.
    - `abundance_estimation`: Contig and dereplicated MAG abundance estimation
 
 4. **Annotation**:

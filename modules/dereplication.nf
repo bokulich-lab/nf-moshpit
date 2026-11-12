@@ -44,9 +44,9 @@ process COMPARE_MINHASHES {
     script:
     ignore_abundance = params.dereplication.sourmash.trackAbundance ? false : true
     if (params.binning.qc.busco.enabled) {
-      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_dist_matrix_${params.binning.qc.busco.selectLineage}"
+      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_sourmash_dist_matrix_${params.binning.qc.busco.selectLineage}"
     } else {
-      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_dist_matrix"
+      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_sourmash_dist_matrix"
     }
     """
     qiime sourmash compare \
@@ -78,13 +78,14 @@ process COMPARE_GENOMES_SKANI {
     median_flag = params.dereplication.skani.median ? "--p-median True" : ""
     faster_small_flag = params.dereplication.skani.fasterSmall ? "--p-faster-small True" : ""
     if (params.binning.qc.busco.enabled) {
-      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_dist_matrix_${params.binning.qc.busco.selectLineage}"
+      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_skani_dist_matrix_${params.binning.qc.busco.selectLineage}"
     } else {
-      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_dist_matrix"
+      dist_matrix_key = "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_skani_dist_matrix"
     }
     """
     qiime skani compare-seqs \
       --verbose \
+      --i-genomes "${params.q2cacheDir}:${bins_file}" \
       --p-threads ${task.cpus} \
       --p-preset ${params.dereplication.skani.preset} \
       --p-marker-c ${params.dereplication.skani.markerC} \

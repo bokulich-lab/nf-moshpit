@@ -232,7 +232,7 @@ dereplication:
   enabled: true
   method: "sourmash" # sourmash, skani
   clusterOptions: ""
-  threshold: 0.99
+  threshold: 0.99 # clustering cutoff, not ANI; tune for the selected method
   fetchArtifact: false
   sourmash:
     clusterOptions: ""

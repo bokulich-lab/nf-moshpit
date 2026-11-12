@@ -476,8 +476,8 @@ def validateWorkflowDependencies() {
         errors.add("ERROR: Dereplication is enabled, but binning is disabled")
     }
 
-    if (params.dereplication.enabled && params.dereplication.method != 'sourmash') {
-        errors.add('ERROR: dereplication.method currently supports only sourmash; skani is not implemented')
+    if (params.dereplication.enabled && !(params.dereplication.method in ['sourmash', 'skani'])) {
+        errors.add('ERROR: dereplication.method must be sourmash or skani')
     }
 
     if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'sourmash') {
@@ -486,6 +486,18 @@ def validateWorkflowDependencies() {
         }
     }
     
+    if (params.dereplication.enabled && params.dereplication.method == 'skani') {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerSkani) && !paramIsSet(params.container)) {
+            errors.add('ERROR: Skani dereplication is enabled but no Skani container is specified (set containerSkani or container)')
+        }
+        if (!(params.dereplication.skani.preset in ['fast', 'medium', 'slow', 'small-genomes'])) {
+            errors.add('ERROR: dereplication.skani.preset must be fast, medium, slow, or small-genomes')
+        }
+        def markerC = params.dereplication.skani.markerC
+        if (!(markerC instanceof Number) || markerC < 1 || markerC != markerC.toBigInteger()) {
+            errors.add('ERROR: dereplication.skani.markerC must be a positive integer')
+        }
+    }
     return errors
 }
 
@@ -497,6 +509,7 @@ def validateOptionalCondaTools() {
     if (params.binning.enabled && params.binning.qc.checkm.enabled) plugins << 'checkm'
     if (params.humann3.enabled) plugins << 'humann3'
     if (params.dereplication.enabled && params.dereplication.method == 'sourmash') plugins << 'sourmash'
+    if (params.dereplication.enabled && params.dereplication.method == 'skani') plugins << 'skani'
     plugins.each { plugin ->
         def env = params.condaEnv.toString()
         def command = [System.getenv('CONDA_EXE') ?: 'conda', 'run', '--no-capture-output', env.contains('/') ? '-p' : '-n', env, 'qiime']
