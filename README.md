@@ -19,7 +19,7 @@ There are multiple ways to provide data to the workflow. The workflow checks the
 1. **Import from a FASTQ manifest** (`params.inputReadsManifest`) — a CSV with columns `id`, `forward`, and optionally `reverse`. Reads are imported via `IMPORT_READS` into per-sample QIIME 2 caches.
 2. **Use existing reads from a QIIME 2 cache** (`params.inputReads`, `params.inputReadsCache`, and `params.metadata`) — provide the cache key name, path to the cache directory, and a TSV metadata file listing sample IDs to extract. Samples are partitioned from the collated artifact into per-sample caches.
 3. **Download from SRA via [q2-fondue](https://github.com/bokulich-lab/q2-fondue)** (`params.fondueAccessionIds`) — a TSV file with accession IDs. Requires `params.email`.
-4. **Simulate reads with MASON** (`params.read_simulation.samples`) — a TSV specifying per-sample simulation parameters and reference genomes. Uses `SIMULATE_READS_MASON`. This is the simulation input recognized by parameter validation.
+4. **Simulate reads with MASON** (`params.read_simulation.samples`) — a CSV specifying per-sample simulation parameters and reference genomes. Uses `SIMULATE_READS_MASON`. This is the simulation input recognized by parameter validation.
 
 > **Note:** A legacy fallback path (`FETCH_GENOMES` + `SIMULATE_READS`, using parameters such as `read_simulation.nGenomes` and `read_simulation.sampleNames`) still exists in the workflow code, but it is not accepted by parameter validation on its own. For new runs, use one of the four validated input methods above.
 
@@ -160,7 +160,6 @@ nextflow run main.nf -params-file params.yml -profile slurm,singularity -work-di
 
 This approach is recommended as it provides a cleaner way to manage all configuration parameters in a single file, rather than modifying multiple config files.
 
-Alternatively, you can use the browser-based configurator in the [`ui/`](ui/) directory. Open `ui/index.html` in a browser to step through all options from `params.template.yml` and download a ready-to-run `params.yml`. See [`ui/README.md`](ui/README.md) for details.
 
 ## Configuration details
 Some of the most useful configuration parameters are explained below.
@@ -179,7 +178,7 @@ Some of the most useful configuration parameters are explained below.
 | params.containerHumann3 | Optional override for q2-humann3 processes (required when HUMAnN 3 is enabled unless `container` is set). | [params.template.yml](params.template.yml) |
 | params.containerSourmash | Optional override for q2-sourmash processes. | [params.template.yml](params.template.yml) |
 | params.containerCheckM | Path to the CheckM container image (required when CheckM QC is enabled). | [params.template.yml](params.template.yml) |
-| params.containerSkani | Path to the Skani container image (reserved for future Skani dereplication support). | [params.template.yml](params.template.yml) |
+| params.containerSkani | Optional override for q2-skani processes. | [params.template.yml](params.template.yml) |
 | params.internetModule | Name of the HPC module that provides internet access (required for processes that download data). | [params.template.yml](params.template.yml) |
 | params.email | Your e-mail address — required only when using q2-fondue. | [params.template.yml](params.template.yml) |
 | params.inputReadsManifest | CSV manifest with `id`, `forward`, and optionally `reverse` columns for FASTQ import. | [params.template.yml](params.template.yml) |
@@ -195,7 +194,6 @@ The workflow uses several directories to store various outputs and intermediate 
 | Directory parameter | Description | Default value |
 | ------------------- | ----------- | ------------- |
 | params.outputDir | Base output directory for all results and intermediate files. | `$launchDir/results` |
-| params.storeDir | Directory where all temporary results will be stored (important for resumption). | `${params.outputDir}/keys` |
 | params.publishDir | Directory where final results (qza and qzv) will be stored. | `${params.outputDir}/results` |
 | params.traceDir | Directory where Nextflow trace/report files will be saved. | `${params.outputDir}/pipeline_info` |
 | params.tmpDir | Temporary directory to be used by Singularity/Docker (uses system default if not specified). | `null` (system default) |
@@ -252,7 +250,7 @@ The workflow is divided into several modules, each with its own parameters defin
 
 1. **Read Acquisition**:
    - `fondue`: Parameters for downloading reads from SRA using q2-fondue
-   - `read_simulation`: Parameters for MASON read simulation (`samples` TSV) and legacy genome simulation
+   - `read_simulation`: Parameters for MASON read simulation (`samples` CSV) and legacy genome simulation
 
 2. **Read Processing**:
    - `read_subsampling`: Parameters for subsampling reads
@@ -264,7 +262,7 @@ The workflow is divided into several modules, each with its own parameters defin
    - `genome_assembly`: Parameters for metagenomic assembly (`megahit` or `metaspades`)
    - `assembly_qc`: Assembly quality control, including optional QUAST evaluation
    - `binning`: Genome binning with optional BUSCO and CheckM QC and MAG filtering
-   - `dereplication`: MAG dereplication (currently uses sourmash; skani parameters exist but are not yet wired)
+   - `dereplication`: MAG dereplication using `method: sourmash` (default) or `method: skani`. Skani compares MAGs directly and skips Sourmash sketching. Configure its options under `dereplication.skani`, and supply `containerSkani` (or a general `container` containing q2-skani); with Conda, the selected environment must contain the `skani` plugin. The shared `threshold` remains a clustering cutoff, not an ANI percentage, and may need adjusting when switching methods.
    - `abundance_estimation`: Contig and dereplicated MAG abundance estimation
 
 4. **Annotation**:
@@ -330,7 +328,7 @@ Profiles within the same category are mutually exclusive; combine one from each 
 | params.container | Docker image tag (e.g. `moshpit-ci:local`). | [params.template.yml](params.template.yml) |
 | params.tmpDir | Temporary directory for Docker (optional). | [params.template.yml](params.template.yml) |
 
-A [Dockerfile](Dockerfile) is provided for building a pipeline container. CI uses `-profile docker,quick_test`.
+Configure the workflow by editing `params.yml` copied from `params.template.yml`. For container execution, supply compatible QIIME 2 MOSHPIT plugin images through `container` or the plugin-specific overrides, using Docker tags with `-profile docker` or SIF image paths with `-profile singularity`. Obtain the images from your MOSHPIT installation or build them using the relevant QIIME 2 plugin repositories and installation instructions. This workflow repository does not provide a container build recipe.
 
 Currently, the workflow is optimized for the `slurm` executor with `conda`, `singularity`, or `docker`. Processes that require internet access (e.g. database fetching, q2-fondue) need the `params.internetModule` HPC module to be set so those jobs can load it.
 
@@ -383,7 +381,6 @@ cd nf-moshpit
    nano params.yml
    ```
 
-   Alternatively, open [`ui/index.html`](ui/index.html) in a browser to configure parameters interactively and download the resulting YAML.
 
 2. **Configure basic parameters**:
    - `runId`: Set a unique identifier for your run (e.g., `Analysis1`)
@@ -395,7 +392,7 @@ cd nf-moshpit
    - To import FASTQ files: Set `inputReadsManifest` to a CSV with `id`, `forward`, and optionally `reverse` columns
    - To use existing reads from a cache: Set `inputReads`, `inputReadsCache`, and `metadata`
    - To download from SRA: Set `fondueAccessionIds` and `email`
-   - To simulate reads: Set `read_simulation.samples` to a TSV with simulation parameters
+   - To simulate reads: Set `read_simulation.samples` to a CSV with simulation parameters
 
 4. **Configure modules**:
    For each analysis step, decide whether to enable it by setting `enabled: true` or `enabled: false`. Some modules use the `enabledFor` parameter (which accepts a comma-separated list of inputs):
@@ -559,7 +556,7 @@ functional_annotation:
 # containerHumann3: /path/to/humann3.sif
 ```
 
-This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a TSV and leave `inputReadsManifest` unset.
+This configuration imports reads from a manifest, assembles them, performs binning and dereplication, and runs taxonomic and functional annotation on the resulting MAGs. For simulated data instead, set `read_simulation.samples` to a CSV and leave `inputReadsManifest` unset.
 
 For more detailed information about all available parameters, refer to the [params.template.yml](params.template.yml) file.
 
@@ -581,7 +578,7 @@ The validation checks for:
    - Manifest file: `inputReadsManifest`
    - Existing reads: `inputReads`, `inputReadsCache`, and `metadata`
    - Accession IDs: `fondueAccessionIds`
-   - Read simulation: `read_simulation.samples` (MASON simulation TSV)
+   - Read simulation: `read_simulation.samples` (MASON simulation CSV)
 
    If multiple input methods are configured, the workflow uses the priority order described at the top of this README and emits a warning.
 
@@ -619,10 +616,38 @@ ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication
 
 ### Recommended Configuration Process
 
-1. Start with the template parameters file: `cp params.template.yml params.yml` (or use the [configurator UI](ui/))
+1. Start with the template parameters file: `cp params.template.yml params.yml`
 2. Set the mandatory parameters (runId, outputDir, container/condaEnv, and email if using fondue)
 3. Configure your input data method
 4. Enable the workflow modules you want to use
 5. For each enabled module, set the required database paths
 6. Set `internetModule` on HPC clusters if any enabled step requires internet access (database fetching, fondue, etc.)
 7. Run the workflow — validation will automatically check your parameters
+
+Base defaults perform read QC and assembly without database analyses. Use `-profile reads_only` for QC alone or `-profile mags` for binning, dereplication and abundance estimation. Explicit requests with disabled prerequisite stages fail validation; the resolved stages are printed at launch.
+
+Use Nextflow `-resume` to reuse unchanged tasks and run newly enabled stages.
+Keep the launch directory's `.nextflow` task cache, the Nextflow work directory,
+and the actual QIIME 2 caches used by those tasks. Restore archived sample caches
+before resuming. Nextflow determines task reuse from its normal task hashes;
+changes to inputs or task settings can cause affected tasks to run again.
+
+Many tasks return marker files that refer to artifacts stored in external QIIME
+caches. Nextflow does not validate those external artifacts when reusing a cached
+task: a surviving marker does not prove that its QIIME artifact still exists or
+is unchanged. Preserve those caches and avoid modifying their artifacts in place.
+
+### Primary bins and BUSCO quality control
+
+With `binning.das_tool.enabled: false`, BUSCO evaluates every enabled binner when
+`binning.qc.busco.enabled: true`; BUSCO-based filtering likewise applies to each
+binner when enabled. `binning.primary` selects an enabled binner for downstream
+analysis.
+
+With DAS Tool enabled (requiring at least two enabled binners), refined DAS Tool
+bins automatically become the primary bins for all downstream analyses and cache
+keys. The configured `binning.primary` is ignored, as reported at startup. Enabled
+BUSCO evaluation and BUSCO-based filtering run only on the refined bins; individual
+binner results are not evaluated or filtered with BUSCO. BUSCO remains optional
+through `binning.qc.busco.enabled`. CheckM follows its separate setting and continues to evaluate each enabled binner
+and the refined DAS Tool bins.

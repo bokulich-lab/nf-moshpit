@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process FETCH_GENOMES {
     label "needsInternet"
     publishDir params.publishDir
@@ -71,7 +72,6 @@ process SIMULATE_READS_MASON {
     tag "${sample_id}"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     clusterOptions params.read_simulation.clusterOptions
 
     input:
@@ -153,10 +153,14 @@ process FETCH_SEQS {
         printf '/LIBS/GUID = "%s"\n' `uuidgen` > \$HOME/.ncbi/user-settings.mkfg
     else
         if [ -f "/.dockerenv" ] || [ -n "\${SINGULARITY_CONTAINER:-}" ] || [ -n "\${APPTAINER_CONTAINER:-}" ]; then
-          echo 'NCBI config files exist - copying the config into the QIIME 2 container home directory.'
           if [ -d "/home/qiime2" ]; then
             mkdir -p /home/qiime2/.ncbi
-            cp \$HOME/.ncbi/user-settings.mkfg /home/qiime2/.ncbi/user-settings.mkfg
+            if [ "\$HOME/.ncbi/user-settings.mkfg" -ef "/home/qiime2/.ncbi/user-settings.mkfg" ]; then
+              echo 'NCBI configuration is already available in the QIIME 2 container home directory.'
+            else
+              echo 'Copying NCBI configuration into the QIIME 2 container home directory.'
+              cp "\$HOME/.ncbi/user-settings.mkfg" "/home/qiime2/.ncbi/user-settings.mkfg"
+            fi
             ls /home/qiime2/.ncbi
             echo "Success - required config files were created."
           else
@@ -231,7 +235,6 @@ process FETCH_SEQS {
 
 process SUBSAMPLE_READS {
     label "readSubsampling"
-    storeDir params.storeDir
     cpus 1
     scratch true
     tag "${sample_id}"
@@ -271,7 +274,6 @@ process SUBSAMPLE_READS {
 
 process PROCESS_READS_FASTP {
     label "fastp"
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     errorStrategy { task.exitStatus in [125, 126] ? 'ignore' : 'retry' }
@@ -364,7 +366,6 @@ process REMOVE_HOST {
     label "needsInternet"
     errorStrategy 'retry'
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     
@@ -478,13 +479,15 @@ process IMPORT_READS {
     time { 2.h * task.attempt }
 
     input:
-    tuple val(_id), path(reads_fwd), path(reads_rev)
+    tuple val(_id), path(read_files, stageAs: 'reads??/*', arity: '1..2'), val(paired)
 
     output:
     tuple val(_id), path(key), emit: result
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
+    reads_fwd = read_files[0]
+    reads_rev = paired ? read_files[1] : ""
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     key = "${params.runId}_reads_${_id}"
     """
@@ -494,13 +497,13 @@ process IMPORT_READS {
     fi
 
     echo "Creating manifest file..."
-    if [ -n "${reads_rev}" ]; then
+    if [ "${paired}" = "true" ]; then
         echo -e "sample-id\tforward-absolute-filepath\treverse-absolute-filepath" > manifest.tsv
         echo -e "${_id}\t\$(readlink -f ${reads_fwd})\t\$(readlink -f ${reads_rev})" >> manifest.tsv
         semanticType="PairedEndSequencesWithQuality"
         dataFormat="PairedEndFastqManifestPhred33V2"
     else
-        echo -e "sample-id\tforward-absolute-filepath" > manifest.tsv
+        echo -e "sample-id\tabsolute-filepath" > manifest.tsv
         echo -e "${_id}\t\$(readlink -f ${reads_fwd})" >> manifest.tsv
         semanticType="SequencesWithQuality"
         dataFormat="SingleEndFastqManifestPhred33V2"
@@ -520,7 +523,6 @@ process IMPORT_READS {
 
 process PARTITION_DEREP_MAGS {
     cpus 1
-    storeDir params.storeDir
     time { 2.h * task.attempt }
     memory { 4.GB * task.attempt }
     maxRetries 3
@@ -532,7 +534,7 @@ process PARTITION_DEREP_MAGS {
     path q2_cache
 
     output:
-    path "${params.runId}_mags_${params.binning.primary}_derep_partitioned_*", emit: result
+    path "${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_*", emit: result
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
@@ -567,7 +569,7 @@ process PARTITION_DEREP_MAGS {
       fi
       
       q2cacheDir="${params.q2TemporaryCachesDir}/mags/batch_\${batch_id}"
-      key="${params.runId}_mags_${params.binning.primary}_derep_partitioned_\${batch_id}"
+      key="${params.runId}_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_\${batch_id}"
       
       if [ ! -d \$q2cacheDir ]; then
         echo "Creating cache \$q2cacheDir..."
@@ -600,7 +602,6 @@ process COLLATE_PARTITIONS {
     time { 2.h * task.attempt }
     memory { 2.GB * task.attempt }
     errorStrategy 'retry'
-    storeDir params.storeDir
     maxRetries 3
  
     input:
@@ -685,7 +686,6 @@ process COLLATE_PARTITIONS_DEREP {
 }
 
 process TABULATE_READ_COUNTS {
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }
@@ -952,7 +952,6 @@ PY
 
 process FILTER_SAMPLES {
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     time { 2.h * task.attempt }
@@ -1216,5 +1215,33 @@ process FIX_CACHE_PERMISSIONS {
     [[ -d "\${CACHE}/data" ]] && chmod -R g+rx "\${CACHE}/data"
 
     echo "All done!"
+    """
+}
+
+// Cache keys are identifiers, never launch-directory paths.
+process PARTITION_CACHED_READS {
+    tag "${sample_id}"
+    scratch true
+    memory 2.GB
+    time 2.h
+    input:
+    tuple val(sample_id), val(reads_key)
+    output:
+    tuple val(sample_id), path(key), emit: result
+    val true, emit: completion, topic: 'moshpit_analysis_done'
+    script:
+    key = "${params.runId}_reads_partitioned_${sample_id}"
+    out_cache = "${params.q2TemporaryCachesDir}/${sample_id}"
+    """
+    test -f '${params.inputReadsCache}/keys/${reads_key}' || { echo 'Input cache key does not exist'; exit 1; }
+    printf 'id\n%s\n' '${sample_id}' > _metadata.tsv
+    if [ ! -d '${out_cache}' ]; then
+        qiime tools cache-create --cache '${out_cache}'
+    fi
+    qiime demux filter-samples --verbose \
+        --i-demux '${params.inputReadsCache}:${reads_key}' \
+        --m-metadata-file _metadata.tsv \
+        --o-filtered-demux '${out_cache}:${key}'
+    touch '${key}'
     """
 }

@@ -1,9 +1,17 @@
 #!/usr/bin/env nextflow
 
+include { effectivePrimaryBinner } from './binning_policy'
+
 // Parameter validation script
 
 def paramIsSet(value) {
     value != null && value.toString().trim() != '' && value.toString().toLowerCase() != 'null'
+}
+
+def usingCondaRuntime() {
+    workflow.session.config.conda?.enabled == true &&
+        workflow.session.config.docker?.enabled != true &&
+        workflow.session.config.singularity?.enabled != true
 }
 
 def effectiveContainer(paramValue) {
@@ -40,7 +48,7 @@ def validateBinningParams() {
         enabledBinners << 'das_tool'
     }
 
-    def primary = params.binning.primary?.toString()?.trim()
+    def primary = effectivePrimaryBinner(params.binning)
     if (!primary || !(primary in validBinners)) {
         errors.add("ERROR: binning.primary must be one of: ${validBinners.join(', ')}")
     } else if (!enabledBinners.isEmpty() && !(primary in enabledBinners)) {
@@ -95,6 +103,27 @@ def validateBinningParams() {
     return errors
 }
 
+// Validate delimited inputs before Nextflow creates path inputs or schedules tasks.
+def validateInputTable(path, required, separator, label) {
+    def lines = file(path).readLines().findAll { it.trim() }
+    if (!lines) throw new IllegalArgumentException("${label} is empty: ${path}")
+    def headers = lines[0].split(separator, -1)*.trim()
+    if (!headers.containsAll(required)) {
+        throw new IllegalArgumentException("${label} must use ${separator == ',' ? 'CSV (comma)' : 'TSV (tab)'} delimiters with columns: ${required.join(', ')}")
+    }
+}
+
+def sampleReadQuery(minimum) {
+    "'\"Demultiplexed sequence count\">=${minimum}'"
+}
+
+def manifestReads(row) {
+    if (!row.id?.trim() || !row.forward?.trim()) throw new IllegalArgumentException('Reads manifest requires nonempty id and forward values')
+    def paths = [file(row.forward, checkIfExists: true)]
+    if (row.reverse?.trim()) paths << file(row.reverse, checkIfExists: true)
+    return tuple(row.id, paths, paths.size() == 2)
+}
+
 // Function to validate mandatory parameters
 def validateMandatoryParams() {
     def errors = []
@@ -105,7 +134,7 @@ def validateMandatoryParams() {
     
     // Either a default/annotate container or condaEnv must be specified
     def annotateContainer = effectiveContainer(params.containerAnnotate) ?: effectiveContainer(params.container)
-    if (!annotateContainer && !paramIsSet(params.condaEnv)) {
+    if (!annotateContainer && !usingCondaRuntime()) {
         errors.add("ERROR: Either container, containerAnnotate, or condaEnv must be specified")
     }
     
@@ -166,11 +195,29 @@ def validateMandatoryParams() {
         errors.add("WARNING: Multiple input methods specified. The workflow will prioritize them in this order: inputReadsManifest, (inputReads+inputReadsCache+metadata), fondueAccessionIds, read_simulation")
     }
     
+    if (paramIsSet(params.read_simulation.samples) && file(params.read_simulation.samples).isFile()) {
+        validateInputTable(params.read_simulation.samples, ['id', 'profile', 'readCount', 'readLength', 'genomesPath'], ',', 'MASON samples')
+    }
     // Validate specific parameters for each method
+    if (hasManifestInput && file(params.inputReadsManifest).exists()) {
+        validateInputTable(params.inputReadsManifest, ['id', 'forward'], ',', 'Reads manifest')
+    }
     if (hasManifestInput && !file(params.inputReadsManifest).exists()) {
         errors.add("ERROR: inputReadsManifest file does not exist: ${params.inputReadsManifest}")
     }
     
+    if (hasExistingReadsInput) {
+        if (!file("${params.inputReadsCache}/keys/${params.inputReads}").isFile()) {
+            errors.add("ERROR: Input cache key does not exist: ${params.inputReadsCache}/keys/${params.inputReads}")
+        }
+        if (file(params.metadata).isFile()) {
+            validateInputTable(params.metadata, ['id'], '\t', 'Cached-read metadata')
+            def lines = file(params.metadata).readLines()
+            def idColumn = lines[0].split('\t', -1).findIndexOf { it == 'id' }
+            def ids = lines.drop(1).findAll { it.trim() && !it.startsWith('#') }.collect { it.split('\t', -1)[idColumn] }
+            if (ids.any { !it.trim() } || ids.size() != ids.unique(false).size()) errors.add('ERROR: Cached-read metadata requires unique nonempty sample IDs')
+        }
+    }
     if (hasExistingReadsInput && !file(params.metadata).exists()) {
         errors.add("ERROR: metadata file does not exist: ${params.metadata}")
     }
@@ -205,8 +252,8 @@ def validateDatabaseParams() {
             errors.add("ERROR: Taxonomic classification is enabled but no Kraken2 database cache, key, or fetchCollection is specified")
         }
         
-        if (params.taxonomic_classification.bracken.enabled) {
-            if (!params.databases.bracken.cache && !params.databases.bracken.key) {
+        if (params.taxonomic_classification.bracken.enabled && params.taxonomic_classification.enabledFor.contains('reads')) {
+            if (!params.databases.bracken.cache || !params.databases.bracken.key) {
                 errors.add("ERROR: Bracken is enabled but no database cache or key is specified")
             }
         }
@@ -232,7 +279,7 @@ def validateDatabaseParams() {
             errors.add("ERROR: CheckM is enabled but no database path is specified")
         }
         
-        if (!paramIsSet(params.containerCheckM) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerCheckM) && !paramIsSet(params.container)) {
             errors.add("ERROR: CheckM is enabled but no CheckM container is specified (set containerCheckM or container)")
         }
     }
@@ -259,7 +306,7 @@ def validateDatabaseParams() {
         if (!params.databases.humann3Metaphlan.cache && !params.databases.humann3Metaphlan.key) {
             errors.add("ERROR: HUMAnN 3 is enabled but no MetaPhlAn database cache or key is specified")
         }
-        if (!paramIsSet(params.containerHumann3) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerHumann3) && !paramIsSet(params.container)) {
             errors.add("ERROR: HUMAnN 3 is enabled but no HUMAnN 3 container is specified (set containerHumann3 or container)")
         }
     }
@@ -272,6 +319,12 @@ def validateModuleParams() {
     def errors = []
 
     errors.addAll(validateBinningParams())
+    if (params.sample_filtering.containsKey('min_reads')) {
+        errors.add("ERROR: Obsolete sample_filtering.min_reads is unsupported; use minReads (minimum is inclusive). Remove min_reads, including when minReads is also set, to avoid conflicting values.")
+    }
+    if (params.sample_filtering.minReads == null || !(params.sample_filtering.minReads.toString() ==~ /[0-9]+/)) {
+        errors.add('ERROR: sample_filtering.minReads must be a nonnegative integer')
+    }
     
     // Validate genome assembly parameters
     if (params.genome_assembly.enabled) {
@@ -284,7 +337,7 @@ def validateModuleParams() {
     if (params.genome_assembly.assembler.toLowerCase() == 'spades' && !(params.genome_assembly.spades.mode in ['meta', 'isolate', 'standard'])) {
         errors.add('ERROR: genome_assembly.spades.mode must be meta, isolate, or standard')
     }
-    def annotationTargets = params.functional_annotation.enabledFor?.split(',')*.trim() ?: []
+    def annotationTargets = (params.functional_annotation.enabledFor?.split(',')*.trim() ?: []).findAll { it }
     if (params.functional_annotation.transferFromContigs && !annotationTargets.contains('contigs')) {
         errors.add('ERROR: transferFromContigs requires functional_annotation.enabledFor to include contigs')
     }
@@ -292,7 +345,7 @@ def validateModuleParams() {
         def abundanceTargetsForTfa = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
         def taxonomyTargetsForTfa = params.taxonomic_classification.enabledFor?.split(',')*.trim() ?: []
         if (!annotationTargets.contains('contigs') || !abundanceTargetsForTfa.contains('contigs') || !taxonomyTargetsForTfa.contains('contigs')) {
-            errors.add('WARNING: TFA requires contig annotation, contig abundance, and Kraken2 contig classification')
+            errors.add('ERROR: TFA requires contig annotation, contig abundance, and Kraken2 contig classification')
         }
         if (!params.functional_annotation.annotation.extract.types?.trim()) errors.add('ERROR: TFA requires at least one annotation extract type')
     }
@@ -301,14 +354,19 @@ def validateModuleParams() {
     if (usesSampleMetadata && paramIsSet(params.metadata) && !file(params.metadata).isFile()) {
         errors.add("ERROR: Sample metadata must be an existing TSV file: ${params.metadata}")
     }
-    if (annotationTargets && !params.genome_assembly.enabled) errors.add('WARNING: Functional annotation is enabled but genome assembly is disabled')
+    if (annotationTargets && !params.genome_assembly.enabled) errors.add('ERROR: Functional annotation is enabled but genome assembly is disabled')
 
+    [params.taxonomic_classification.enabledFor, params.functional_annotation.enabledFor, params.abundance_estimation.enabledFor].each { requested ->
+        if (requested?.split(',')*.trim()?.any { it in ['contigs', 'mags', 'derep'] } && !params.genome_assembly.enabled) {
+            errors.add('ERROR: Requested contig/MAG analyses require genome_assembly.enabled')
+        }
+    }
     def abundanceTargets = params.abundance_estimation.enabledFor?.split(',')*.trim() ?: []
     def usesAssemblyContainer = params.genome_assembly.enabled ||
         params.binning.enabled ||
         paramIsSet(params.read_simulation.samples) ||
         abundanceTargets.any { it in ['contigs', 'derep'] }
-    if (!paramIsSet(params.condaEnv) && usesAssemblyContainer) {
+    if (!usingCondaRuntime() && usesAssemblyContainer) {
         def assemblyContainer = effectiveContainer(params.containerAssembly) ?: effectiveContainer(params.container)
         if (!assemblyContainer) {
             errors.add("ERROR: Assembly plugin processes are required but no assembly container is specified (set containerAssembly or container)")
@@ -319,7 +377,7 @@ def validateModuleParams() {
         params.dereplication.enabled ||
         abundanceTargets.any { it in ['contigs', 'derep'] } ||
         params.functional_annotation.enabledFor?.contains('derep')
-    if (!paramIsSet(params.condaEnv) && usesMagContainer) {
+    if (!usingCondaRuntime() && usesMagContainer) {
         def magContainer = effectiveContainer(params.containerMag) ?:
             effectiveContainer(params.containerAnnotate) ?:
             effectiveContainer(params.container)
@@ -340,12 +398,12 @@ def validateModuleParams() {
         
         // If "mags" or "derep" is enabled, ensure binning is also enabled
         if ((targets.contains("mags") || targets.contains("derep")) && !params.binning.enabled) {
-            errors.add("WARNING: Taxonomic classification for MAGs or dereplicated MAGs is enabled, but binning is disabled")
+            errors.add("ERROR: Taxonomic classification for MAGs or dereplicated MAGs is enabled, but binning is disabled")
         }
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Taxonomic classification for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Taxonomic classification for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -360,7 +418,7 @@ def validateModuleParams() {
         }
         
         if (targets.contains("contigs") && !params.genome_assembly.enabled) {
-            errors.add("WARNING: Kaiju classification for contigs is enabled, but genome assembly is disabled")
+            errors.add("ERROR: Kaiju classification for contigs is enabled, but genome assembly is disabled")
         }
     }
     
@@ -376,12 +434,12 @@ def validateModuleParams() {
         
         // If "mags" or "derep" is enabled, ensure binning is also enabled
         if ((targets.contains("mags") || targets.contains("derep")) && !params.binning.enabled) {
-            errors.add("WARNING: Functional annotation for MAGs or dereplicated MAGs is enabled, but binning is disabled")
+            errors.add("ERROR: Functional annotation for MAGs or dereplicated MAGs is enabled, but binning is disabled")
         }
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Functional annotation for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -397,7 +455,7 @@ def validateModuleParams() {
         
         // If "derep" is enabled, ensure dereplication is also enabled
         if (targets.contains("derep") && !params.dereplication.enabled) {
-            errors.add("WARNING: Abundance estimation for dereplicated MAGs is enabled, but dereplication is disabled")
+            errors.add("ERROR: Abundance estimation for dereplicated MAGs is enabled, but dereplication is disabled")
         }
     }
     
@@ -410,37 +468,83 @@ def validateWorkflowDependencies() {
     
     // Dependency: If binning is enabled, assembly must be enabled
     if (params.binning.enabled && !params.genome_assembly.enabled) {
-        errors.add("WARNING: Binning is enabled, but genome assembly is disabled")
+        errors.add("ERROR: Binning is enabled, but genome assembly is disabled")
     }
     
     // Dependency: If dereplication is enabled, binning must be enabled
     if (params.dereplication.enabled && !params.binning.enabled) {
-        errors.add("WARNING: Dereplication is enabled, but binning is disabled")
+        errors.add("ERROR: Dereplication is enabled, but binning is disabled")
     }
 
-    if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'skani') {
-        if (!paramIsSet(params.containerSkani) && !paramIsSet(params.container)) {
-            errors.add("ERROR: Skani dereplication is enabled but no Skani container is specified (set containerSkani or container)")
-        }
+    if (params.dereplication.enabled && !(params.dereplication.method in ['sourmash', 'skani'])) {
+        errors.add('ERROR: dereplication.method must be sourmash or skani')
     }
 
     if (params.dereplication.enabled && params.dereplication.method?.toString()?.toLowerCase() == 'sourmash') {
-        if (!paramIsSet(params.containerSourmash) && !paramIsSet(params.container)) {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerSourmash) && !paramIsSet(params.container)) {
             errors.add("ERROR: Sourmash dereplication is enabled but no Sourmash container is specified (set containerSourmash or container)")
         }
     }
     
+    if (params.dereplication.enabled && params.dereplication.method == 'skani') {
+        if (!usingCondaRuntime() && !paramIsSet(params.containerSkani) && !paramIsSet(params.container)) {
+            errors.add('ERROR: Skani dereplication is enabled but no Skani container is specified (set containerSkani or container)')
+        }
+        if (!(params.dereplication.skani.preset in ['fast', 'medium', 'slow', 'small-genomes'])) {
+            errors.add('ERROR: dereplication.skani.preset must be fast, medium, slow, or small-genomes')
+        }
+        def markerC = params.dereplication.skani.markerC
+        if (!(markerC instanceof Number) || markerC < 1 || markerC != markerC.toBigInteger()) {
+            errors.add('ERROR: dereplication.skani.markerC must be a positive integer')
+        }
+    }
+    return errors
+}
+
+// Probe the selected environment itself: an unused container cannot satisfy conda.
+def validateOptionalCondaTools() {
+    def errors = []
+    if (!usingCondaRuntime()) return errors
+    def plugins = []
+    if (params.binning.enabled && params.binning.qc.checkm.enabled) plugins << 'checkm'
+    if (params.humann3.enabled) plugins << 'humann3'
+    if (params.dereplication.enabled && params.dereplication.method == 'sourmash') plugins << 'sourmash'
+    if (params.dereplication.enabled && params.dereplication.method == 'skani') plugins << 'skani'
+    plugins.each { plugin ->
+        def env = params.condaEnv.toString()
+        def command = [System.getenv('CONDA_EXE') ?: 'conda', 'run', '--no-capture-output', env.contains('/') ? '-p' : '-n', env, 'qiime']
+        try {
+            def probe = new ProcessBuilder(command + [plugin, '--help']).redirectErrorStream(true).start()
+            // Consume output to avoid blocking on a full pipe.
+            def output = new StringBuffer()
+            probe.consumeProcessOutput(output, output)
+            probe.waitForOrKill(60000)
+            if (probe.exitValue() != 0) errors.add("ERROR: Selected condaEnv lacks a working qiime ${plugin} plugin: ${env}")
+        } catch (Exception e) {
+            errors.add("ERROR: Cannot validate qiime ${plugin} in condaEnv ${env}: ${e.message}")
+        }
+    }
     return errors
 }
 
 // Main validation function
 def validateParameters() {
+    if (usingCondaRuntime() && !paramIsSet(params.condaEnv)) {
+        log.error 'The conda profile requires condaEnv to identify the runtime environment'
+        exit 1
+    }
+    def scaleProfiles = (workflow.profile ?: '').split(',').findAll { it in ['low', 'medium', 'high', 'quick_test'] }
+    if (scaleProfiles.size() > 1) {
+        log.error "Choose only one general scaling profile: ${scaleProfiles.join(', ')}"
+        exit 1
+    }
     // Collect all validation errors
     def allErrors = []
     allErrors.addAll(validateMandatoryParams())
     allErrors.addAll(validateDatabaseParams())
     allErrors.addAll(validateModuleParams())
     allErrors.addAll(validateWorkflowDependencies())
+    allErrors.addAll(validateOptionalCondaTools())
     
     // Print warnings and errors
     def warnings = allErrors.findAll { it.startsWith("WARNING:") }
@@ -460,6 +564,10 @@ def validateParameters() {
     // Log validation success if no errors
     if (!errors) {
         log.info "Parameter validation successful"
+        if (params.binning.enabled && params.binning.das_tool.enabled) {
+            log.info "DAS Tool enabled: effective primary binner is das_tool; configured binning.primary '${params.binning.primary}' is ignored. Enabled BUSCO QC and filtering apply only to refined DAS Tool bins."
+        }
+        log.info "Resolved stages: assembly=${params.genome_assembly.enabled}, binning=${params.binning.enabled}, dereplication=${params.dereplication.enabled}, abundance=${params.abundance_estimation.enabledFor}, taxonomy=${params.taxonomic_classification.enabledFor}, kaiju=${params.taxonomic_classification.kaiju.enabledFor}, annotation=${params.functional_annotation.enabledFor}, humann3=${params.humann3.enabled}"
     }
     
     return !errors
