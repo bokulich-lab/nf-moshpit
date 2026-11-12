@@ -153,10 +153,14 @@ process FETCH_SEQS {
         printf '/LIBS/GUID = "%s"\n' `uuidgen` > \$HOME/.ncbi/user-settings.mkfg
     else
         if [ -f "/.dockerenv" ] || [ -n "\${SINGULARITY_CONTAINER:-}" ] || [ -n "\${APPTAINER_CONTAINER:-}" ]; then
-          echo 'NCBI config files exist - copying the config into the QIIME 2 container home directory.'
           if [ -d "/home/qiime2" ]; then
             mkdir -p /home/qiime2/.ncbi
-            cp \$HOME/.ncbi/user-settings.mkfg /home/qiime2/.ncbi/user-settings.mkfg
+            if [ "\$HOME/.ncbi/user-settings.mkfg" -ef "/home/qiime2/.ncbi/user-settings.mkfg" ]; then
+              echo 'NCBI configuration is already available in the QIIME 2 container home directory.'
+            else
+              echo 'Copying NCBI configuration into the QIIME 2 container home directory.'
+              cp "\$HOME/.ncbi/user-settings.mkfg" "/home/qiime2/.ncbi/user-settings.mkfg"
+            fi
             ls /home/qiime2/.ncbi
             echo "Success - required config files were created."
           else
