@@ -51,7 +51,7 @@ workflow BINNING_QC {
             true
         ).result
 
-        if (binner != 'das_tool' && params.binning.fetchArtifact) {
+        if (params.binning.fetchArtifact) {
             FETCH_ARTIFACT_UNBINNED_CONTIGS(unbinned_all)
             FETCH_ARTIFACT_CONTIG_MAP(contig_map_all)
             FETCH_ARTIFACT_MAGS(bins_all)
