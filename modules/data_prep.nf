@@ -1065,7 +1065,9 @@ process MAKE_REPORT {
 
     script:
     def visualization_json = groovy.json.JsonOutput.toJson(
-        visualizations.collect { [label: it[0].toString(), path: it[1].toString()] }
+        visualizations.collect {
+            [section: it[0].toString(), label: it[1].toString(), path: it[2].toString()]
+        }
     )
     """
     cat <<'EOF' > visualizations.json
@@ -1074,18 +1076,48 @@ process MAKE_REPORT {
 
     python - <<'PY'
     import json
+    from pathlib import Path
+
     from qiime2 import Visualization
     from q2templates.reports import matryoshka_template
 
     with open('visualizations.json') as handle:
         entries = json.load(handle)
 
-    visualizations = {
-        entry["label"]: Visualization.load(entry["path"])
-        for entry in entries
-    }
+    section_order = [
+        "Read quality",
+        "Read profiling",
+        "Assembly and contig analysis",
+        "MAG analysis",
+    ]
+    grouped_visualizations = {section: {} for section in section_order}
+    for entry in entries:
+        section = entry["section"]
+        if section not in grouped_visualizations:
+            raise ValueError(f"Unknown report section: {section}")
 
-    viz = Visualization.make_report(matryoshka_template, visualizations)
+        visualizations = grouped_visualizations[section]
+        label = entry["label"]
+        if label in visualizations:
+            source_name = Path(entry["path"]).name
+            unique_label = f"{label} ({source_name})"
+            suffix = 2
+            while unique_label in visualizations:
+                unique_label = f"{label} ({source_name}, {suffix})"
+                suffix += 1
+            label = unique_label
+
+        visualizations[label] = Visualization.load(entry["path"])
+
+    section_reports = {}
+    for section in section_order:
+        visualizations = grouped_visualizations[section]
+        if visualizations:
+            section_reports[section] = Visualization.make_report(
+                matryoshka_template, dict(sorted(visualizations.items()))
+            )
+
+    viz = Visualization.make_report(matryoshka_template, section_reports)
     viz.save('${params.runId}-report.qzv')
     print('Visualization saved to "${params.runId}-report.qzv"')
     PY

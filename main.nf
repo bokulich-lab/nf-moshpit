@@ -250,7 +250,9 @@ workflow {
     fastp_reports_all = COLLATE_FASTP_REPORTS(fastp_reports, "${params.runId}_fastp_reports", "fastp collate-fastp-reports", "--i-reports", "--o-collated-reports", true).result
     VISUALIZE_FASTP(fastp_reports_all, cache)
 
-    qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv)
+    qzv_reports = qzv_reports.mix(VISUALIZE_FASTP.out.qzv.map { label, path ->
+        tuple("Read quality", label, path)
+    })
     workflow_barrier = workflow_barrier.mix(VISUALIZE_FASTP.out.qzv)
     deepest_signal = VISUALIZE_FASTP.out.qzv
 
@@ -327,13 +329,17 @@ workflow {
     // classify reads
     if (params.taxonomic_classification.enabledFor.contains("reads")) {
         reads_classification = CLASSIFY_READS(reads_partitioned, kraken2_db, FETCH_KRAKEN2_DB.out.bracken_db, cache)
-        qzv_reports = qzv_reports.mix(reads_classification.qzv)
+        qzv_reports = qzv_reports.mix(reads_classification.qzv.map { label, path ->
+            tuple("Read profiling", label, path)
+        })
         workflow_barrier = workflow_barrier.mix(reads_classification.qzv)
     }
 
     if (params.taxonomic_classification.kaiju.enabledFor.contains("reads")) {
         reads_kaiju_classification = CLASSIFY_READS_KAIJU(reads_partitioned, kaiju_db, cache)
-        qzv_reports = qzv_reports.mix(reads_kaiju_classification.qzv)
+        qzv_reports = qzv_reports.mix(reads_kaiju_classification.qzv.map { label, path ->
+            tuple("Read profiling", label, path)
+        })
         workflow_barrier = workflow_barrier.mix(reads_kaiju_classification.qzv)
     }
 
@@ -345,7 +351,9 @@ workflow {
             FETCH_METAPHLAN_DB.out.metaphlan_db,
             cache
         )
-        qzv_reports = qzv_reports.mix(humann_results.qzv)
+        qzv_reports = qzv_reports.mix(humann_results.qzv.map { label, path ->
+            tuple("Read profiling", label, path)
+        })
         workflow_barrier = workflow_barrier.mix(humann_results.qzv)
         workflow_barrier = workflow_barrier.mix(humann_results.gene_families)
         workflow_barrier = workflow_barrier.mix(humann_results.path_abundance)
@@ -356,7 +364,9 @@ workflow {
     // assemble and evaluate
     if (params.genome_assembly.enabled) {
         contigs = ASSEMBLE(reads_partitioned, cache)
-        qzv_reports = qzv_reports.mix(contigs.qzv)
+        qzv_reports = qzv_reports.mix(contigs.qzv.map { label, path ->
+            tuple("Assembly and contig analysis", label, path)
+        })
         workflow_barrier = workflow_barrier.mix(contigs.qzv)
 
         sample_count_metrics = sample_count_metrics.mix(contigs.contigs.count().map { n -> tuple("Samples after contig assembly and filtering", n) })
@@ -380,7 +390,9 @@ workflow {
 
             if (params.abundance_estimation.enabledFor.contains("contigs")) {
                     contigs_collapsed = COLLAPSE_CONTIGS(classification.feature_map, classification.taxonomy, contigs.contig_abundance)
-                    qzv_reports = qzv_reports.mix(contigs_collapsed.qzv)
+                    qzv_reports = qzv_reports.mix(contigs_collapsed.qzv.map { label, path ->
+                        tuple("Assembly and contig analysis", label, path)
+                    })
                     workflow_barrier = workflow_barrier.mix(contigs_collapsed.qzv)
             }
         }
@@ -395,13 +407,17 @@ workflow {
             workflow_barrier = workflow_barrier.mix(contigs_annotated.collated_orthologs)
             if (params.functional_annotation.annotation.extract != "" && params.abundance_estimation.enabledFor.contains("contigs")) {
                 contigs_abundance_combined = COMBINE_CONTIG_ANNOTATION_ABUNDANCE(contigs.contig_abundance, contigs_annotated.counts_per_contig, "contigs", cache)
-                qzv_reports = qzv_reports.mix(contigs_abundance_combined.qzv)
+                qzv_reports = qzv_reports.mix(contigs_abundance_combined.qzv.map { label, path ->
+                    tuple("Assembly and contig analysis", label, path)
+                })
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.qzv)
                 workflow_barrier = workflow_barrier.mix(contigs_abundance_combined.feature_table)
             }
             if (params.functional_annotation.tfa.enabled) {
                 tfa = CONTIG_TFA(contigs.contig_abundance, contigs_annotated.counts_per_contig, classification.taxonomy, classification.feature_map)
-                qzv_reports = qzv_reports.mix(tfa.qzv)
+                qzv_reports = qzv_reports.mix(tfa.qzv.map { label, path ->
+                    tuple("Assembly and contig analysis", label, path)
+                })
                 workflow_barrier = workflow_barrier.mix(tfa.tfa).mix(tfa.gene_taxonomy).mix(tfa.qzv)
             }
         }
@@ -409,7 +425,9 @@ workflow {
         // bin contigs into MAGs and evaluate
         if (params.binning.enabled) {
             binning_results = BINNING(contigs.contigs, contigs.mapped_reads, cache)
-            qzv_reports = qzv_reports.mix(binning_results.qzv)
+            qzv_reports = qzv_reports.mix(binning_results.qzv.map { label, path ->
+                tuple("MAG analysis", label, path)
+            })
             
             sample_count_metrics = sample_count_metrics.mix(binning_results.bins.count().map { n -> tuple("Samples after binning", n) })
             deepest_signal = binning_results.bins_collated
@@ -464,7 +482,9 @@ workflow {
                         }
                         if (params.abundance_estimation.enabledFor.contains("derep") && params.functional_annotation.annotation.extract != "") {
                             mags_abundance_combined = COMBINE_MAG_ANNOTATION_ABUNDANCE(MAG_ABUNDANCE.out.feature_table, mags_derep_extracted.extracted_annotations, "mags_derep", cache)
-                            qzv_reports = qzv_reports.mix(mags_abundance_combined.qzv)
+                            qzv_reports = qzv_reports.mix(mags_abundance_combined.qzv.map { label, path ->
+                                tuple("MAG analysis", label, path)
+                            })
                             deepest_signal = mags_abundance_combined.feature_table.map { _type, key -> key }
                             workflow_barrier = workflow_barrier.mix(mags_abundance_combined.qzv)
                             workflow_barrier = workflow_barrier.mix(mags_abundance_combined.feature_table)
@@ -475,7 +495,7 @@ workflow {
         }
     }
 
-    qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it[1].size() > 0 }
+    qzv_reports_all = qzv_reports.unique().collect(flat: false).filter { it && it.size() > 0 }
     MAKE_REPORT(qzv_reports_all)
 
     read_counts_mqc = REPORT_READ_COUNTS(read_count_tsvs.collect(flat: false)).result
