@@ -1,6 +1,5 @@
 process BIN_CONTIGS_METABAT {
     label "contigBinningMetabat2"
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
@@ -66,7 +65,6 @@ process BIN_CONTIGS_METABAT {
 
 process BIN_CONTIGS_SEMIBIN2 {
     label "contigBinningSemibin2"
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
@@ -130,7 +128,6 @@ process BIN_CONTIGS_SEMIBIN2 {
 
 process EVALUATE_BINS_BUSCO {
     label "busco"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
@@ -220,7 +217,6 @@ process FETCH_BUSCO_DB {
     time { 12.h * task.attempt }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     clusterOptions "--tmp=200G"
 
@@ -248,7 +244,6 @@ process FILTER_MAGS {
     memory { 2.GB * task.attempt }
     time { 1.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     tag "${_id}"
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
 
@@ -299,7 +294,6 @@ process FILTER_MAGS {
 
 process EVALUATE_BINS_CHECKM {
     label "checkm"
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -329,7 +323,6 @@ process EVALUATE_BINS_CHECKM {
 
 process COLLATE_BUSCO_RESULTS {
     label "collationBusco"
-    storeDir params.storeDir
     cpus 1
     time { 2.h * task.attempt }
     memory { 4.GB * task.attempt }
@@ -383,7 +376,6 @@ process COLLATE_BUSCO_RESULTS {
 
 process BIN_CONTIGS_VAMB {
     label 'contigBinningVamb'
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     errorStrategy { task.exitStatus == 125 ? 'ignore' : 'retry' }
@@ -429,7 +421,6 @@ process BIN_CONTIGS_VAMB {
 
 process REFINE_BINS_DAS_TOOL {
     label 'binRefinement'
-    storeDir params.storeDir
     scratch true
     tag "${sample_id}"
     clusterOptions params.binning.das_tool.clusterOptions
@@ -471,7 +462,6 @@ process SUMMARIZE_BINNING {
     cpus 1
     memory 2.GB
     time 1.h
-    storeDir params.storeDir
     scratch true
     tag "${binner}: ${sample_id}"
 

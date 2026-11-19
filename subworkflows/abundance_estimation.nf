@@ -1,3 +1,4 @@
+include { effectivePrimaryBinner } from '../modules/binning_policy'
 include { INDEX_DEREP_MAGS } from '../modules/abundance_estimation'
 include { MAP_READS_TO_DEREP_MAGS } from '../modules/abundance_estimation'
 include { GET_GENOME_LENGTHS as GET_MAG_LENGTHS } from '../modules/abundance_estimation'
@@ -18,9 +19,9 @@ workflow MAG_ABUNDANCE {
         combined = reads.combine(mags_derep_index)
         reads_to_mags = MAP_READS_TO_DEREP_MAGS(combined, q2_cache).result | collect(flat: false)
         if (params.binning.qc.busco.enabled) {
-          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}_${params.binning.qc.busco.selectLineage}"
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${effectivePrimaryBinner(params.binning)}_${params.binning.qc.busco.selectLineage}"
         } else {
-          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${params.binning.primary}"
+          reads_to_mags_key = "${params.runId}_reads_to_derep_mags_${effectivePrimaryBinner(params.binning)}"
         }
         maps_all = COLLATE_PARTITIONS(reads_to_mags, reads_to_mags_key, "assembly collate-alignments", "--i-alignment-maps", "--o-collated-alignment-maps", true).result
         lengths = GET_MAG_LENGTHS(mags_derep, q2_cache, "mags_derep").result

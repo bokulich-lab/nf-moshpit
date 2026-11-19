@@ -1,14 +1,14 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process SEARCH_ORTHOLOGS_EGGNOG {
     label "orthologSearch"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory { (params.functional_annotation.ortholog_search.memory ?: 10).GB }
+    memory { db_memory_gb.GB }
 
     input:
     tuple val(_id), path(input_file)
-    val diamond_db
+    tuple path(diamond_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -21,13 +21,13 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     if (input_type == "mags") {
       q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
       if (params.binning.qc.busco.enabled) {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {        
-        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_partitioned_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_partitioned_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
       }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -37,13 +37,13 @@ process SEARCH_ORTHOLOGS_EGGNOG {
     } else if (input_type == "mags_derep") {
       q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
       if (params.binning.qc.busco.enabled) {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {
-        hits_key = "${params.runId}_eggnog_orthologs_mags_${params.binning.primary}_derep_partitioned_${_id}"
-        table_key = "${params.runId}_eggnog_table_mags_${params.binning.primary}_derep_partitioned_${_id}"
-        loci_key = "${params.runId}_eggnog_loci_mags_${params.binning.primary}_derep_partitioned_${_id}"
+        hits_key = "${params.runId}_eggnog_orthologs_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${_id}"
+        table_key = "${params.runId}_eggnog_table_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${_id}"
+        loci_key = "${params.runId}_eggnog_loci_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${_id}"
       }
     }
     """
@@ -66,15 +66,14 @@ process SEARCH_ORTHOLOGS_EGGNOG {
 
 process ANNOTATE_EGGNOG {
     label "functionalAnnotation"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
     errorStrategy 'retry'
-    memory { (params.functional_annotation.annotation.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
 
     input:
     tuple val(_id), path(input_file)
-    val eggnog_db
+    tuple path(eggnog_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -85,9 +84,9 @@ process ANNOTATE_EGGNOG {
     if (input_type == "mags") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
         if (params.binning.qc.busco.enabled) {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
         } else {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_partitioned_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
         }
     } else if (input_type == "contigs") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
@@ -95,9 +94,9 @@ process ANNOTATE_EGGNOG {
     } else if (input_type == "mags_derep") {
         q2cacheDir = "${params.q2TemporaryCachesDir}/mags/${_id}"
         if (params.binning.qc.busco.enabled) {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
         } else {
-          annotations_key = "${params.runId}_eggnog_annotations_mags_${params.binning.primary}_derep_partitioned_${_id}"
+          annotations_key = "${params.runId}_eggnog_annotations_mags_${effectivePrimaryBinner(params.binning)}_derep_partitioned_${_id}"
         }
     }
     """
@@ -120,7 +119,6 @@ process FETCH_DIAMOND_DB {
     cpus 1
     maxRetries 3
     errorStrategy 'retry'
-    storeDir params.storeDir
     scratch true
 
     output:
@@ -147,7 +145,6 @@ process FETCH_EGGNOG_DB {
     memory 1.GB
     time { 2.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -174,7 +171,6 @@ process EXTRACT_ANNOTATIONS {
     memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt * (params.time_multiplier as double)}
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -191,7 +187,7 @@ process EXTRACT_ANNOTATIONS {
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
-    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
+    def key_input_type = (input_type == "mags_derep") ? "mags_${effectivePrimaryBinner(params.binning)}_derep" : input_type
     if (params.binning.qc.busco.enabled) {
       counts_per_genome_key = "${params.runId}_${key_input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}"
     } else {
@@ -220,7 +216,6 @@ process MULTIPLY_TABLES {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
     time { 1.h * task.attempt * (params.time_multiplier as double) }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
     errorStrategy 'retry'
 
@@ -235,7 +230,7 @@ process MULTIPLY_TABLES {
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
-    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
+    def key_input_type = (input_type == "mags_derep") ? "mags_${effectivePrimaryBinner(params.binning)}_derep" : input_type
     if (params.binning.qc.busco.enabled) {
       feature_table = "${params.runId}_${key_input_type}_${annotation_type}_${params.binning.qc.busco.selectLineage}_ft"
     } else {
@@ -267,7 +262,7 @@ process DRAW_ANNOTATION_BARPLOT {
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
-    def key_input_type = (input_type == "mags_derep") ? "mags_${params.binning.primary}_derep" : input_type
+    def key_input_type = (input_type == "mags_derep") ? "mags_${effectivePrimaryBinner(params.binning)}_derep" : input_type
     if (params.binning.qc.busco.enabled) {
       tool_name = "${key_input_type}-${annotation_type}-${params.binning.qc.busco.selectLineage}"
     } else {
@@ -287,7 +282,6 @@ process TRANSFER_ANNOTATIONS {
     cpus 1
     memory { 4.GB  * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt }
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -300,7 +294,7 @@ process TRANSFER_ANNOTATIONS {
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
-    annotations_key = "${params.runId}_eggnog_transferred_${input_type}_${params.binning.primary}"
+    annotations_key = "${params.runId}_eggnog_transferred_${input_type}_${effectivePrimaryBinner(params.binning)}"
     """
     qiime annotate transfer-eggnog-annotations \
       --verbose \
@@ -315,7 +309,6 @@ process ESTIMATE_TFA {
     cpus 1
     memory { 8.GB * task.attempt * (params.mem_multiplier as double) }
     time { 2.h * task.attempt }
-    storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     scratch true
     tag "${annotation_type}"

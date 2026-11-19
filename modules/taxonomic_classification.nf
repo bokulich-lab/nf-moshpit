@@ -1,15 +1,15 @@
+include { effectivePrimaryBinner } from './binning_policy'
 process CLASSIFY_KRAKEN2 {
     label "taxonomicClassificationKraken2"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
-    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
     errorStrategy "retry"
     maxRetries 3
 
     input:
     tuple val(_id), path(input_file)
-    path kraken2_db
+    tuple path(kraken2_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -21,11 +21,11 @@ process CLASSIFY_KRAKEN2 {
     q2cacheDir = "${params.q2TemporaryCachesDir}/${_id}"
     if (input_type == "mags") {
       if (params.binning.qc.busco.enabled) {
-        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${params.binning.qc.busco.selectLineage}_${_id}"
       } else {
-        reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_partitioned_${_id}"
-        hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_partitioned_${_id}"
+        reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
+        hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_partitioned_${_id}"
       }
     } else if (input_type == "reads") {
         reports_key = "${params.runId}_kraken_reports_reads_partitioned_${_id}"
@@ -53,16 +53,15 @@ process CLASSIFY_KRAKEN2 {
 
 process CLASSIFY_KRAKEN2_DEREP {
     label "taxonomicClassificationKraken2"
-    storeDir params.storeDir
     scratch true
     tag "mags-derep"
     errorStrategy "retry"
     maxRetries 3
-    memory { (params.taxonomic_classification.kraken2.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
 
     input:
     path input_file
-    path kraken2_db
+    tuple path(kraken2_db), val(db_memory_gb)
     path q2cacheDir
 
     output:
@@ -72,11 +71,11 @@ process CLASSIFY_KRAKEN2_DEREP {
 
     script:
     if (params.binning.qc.busco.enabled) {
-      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
-      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep_${params.binning.qc.busco.selectLineage}"
+      reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
+      hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_derep_${params.binning.qc.busco.selectLineage}"
     } else {
-      reports_key = "${params.runId}_kraken_reports_mags_${params.binning.primary}_derep"
-      hits_key = "${params.runId}_kraken_outputs_mags_${params.binning.primary}_derep"
+      reports_key = "${params.runId}_kraken_reports_mags_${effectivePrimaryBinner(params.binning)}_derep"
+      hits_key = "${params.runId}_kraken_outputs_mags_${effectivePrimaryBinner(params.binning)}_derep"
     }
     threads = 4 * task.cpus
     """
@@ -102,7 +101,6 @@ process ESTIMATE_BRACKEN {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double)}
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -139,7 +137,6 @@ process GET_KRAKEN_FEATURES {
     memory { 2.GB * task.attempt }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     input:
@@ -156,8 +153,8 @@ process GET_KRAKEN_FEATURES {
     features = "${params.runId}_kraken_features_${input_type}"
     ft_all = "${params.runId}_kraken_presence_absence_${input_type}"
     if (input_type == "mags") {
-      features = "${params.runId}_kraken_features_mags_${params.binning.primary}"
-      ft_all = "${params.runId}_kraken_presence_absence_mags_${params.binning.primary}"
+      features = "${params.runId}_kraken_features_mags_${effectivePrimaryBinner(params.binning)}"
+      ft_all = "${params.runId}_kraken_presence_absence_mags_${effectivePrimaryBinner(params.binning)}"
     }
     if (input_type == "reads" || input_type == "mags") {
       """
@@ -191,7 +188,6 @@ process MAP_KRAKEN2_TAXONOMY_TO_CONTIGS {
     memory { 2.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     // scratch true
 
     input:
@@ -225,7 +221,6 @@ process COLLAPSE_CONTIGS {
     memory { 4.GB * task.attempt * (params.mem_multiplier as double) }
     errorStrategy "retry"
     maxRetries 3
-    storeDir params.storeDir
     publishDir params.publishDir, mode: 'copy', pattern: '*.qzv'
     // scratch true
 
@@ -256,16 +251,15 @@ process COLLAPSE_CONTIGS {
 
 process CLASSIFY_KAIJU {
     label "taxonomicClassificationKaiju"
-    storeDir params.storeDir
     scratch true
     tag "${_id}"
-    memory { (params.taxonomic_classification.kaiju.memory ?: 48).GB }
+    memory { db_memory_gb.GB }
     errorStrategy "retry"
     maxRetries 3
 
     input:
     tuple val(_id), path(input_file)
-    path kaiju_db
+    tuple path(kaiju_db), val(db_memory_gb)
     val input_type
 
     output:
@@ -354,29 +348,41 @@ process FETCH_KRAKEN2_DB {
     memory 2.GB
     time { 4.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     output:
     path params.databases.kraken2.key, emit: kraken2_db
-    path params.databases.bracken.key, emit: bracken_db
+    path "bracken.ready", emit: bracken_db
     val true, emit: completion, topic: 'moshpit_analysis_done'
 
     script:
+    needsBracken = params.taxonomic_classification.bracken.enabled && params.taxonomic_classification.enabledFor.contains('reads')
+    brackenTarget = needsBracken ? "${params.databases.bracken.cache}:${params.databases.bracken.key}" : 'unused-bracken.qza'
     """
-    if [ -f ${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key} ]; then
-      echo 'Found an existing Kraken 2 database - fetching will be skipped.'
-      touch ${params.databases.kraken2.key}
-      touch ${params.databases.bracken.key}
-      exit 0
+    kraken_exists=false
+    bracken_exists=false
+    if [ -f '${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}' ]; then kraken_exists=true; fi
+    if [ '${needsBracken}' = 'true' ] && [ -f '${params.databases.bracken.cache}/keys/${params.databases.bracken.key}' ]; then bracken_exists=true; fi
+    if \$kraken_exists && { [ '${needsBracken}' = 'false' ] || \$bracken_exists; }; then
+        touch '${params.databases.kraken2.key}' bracken.ready
+        exit 0
     fi
+    if [ -z '${params.databases.kraken2.fetchCollection}' ]; then
+        echo 'Missing Kraken2 or required Bracken artifact. Supply both cache entries or set databases.kraken2.fetchCollection to prepare missing databases.' >&2
+        exit 1
+    fi
+    kraken_target='${params.databases.kraken2.cache}:${params.databases.kraken2.key}'
+    if \$kraken_exists; then kraken_target='unused-kraken2.qza'; fi
+    bracken_target='${brackenTarget}'
+    if \$bracken_exists; then bracken_target='unused-bracken.qza'; fi
     qiime annotate build-kraken-db \
       --verbose \
-      --p-collection ${params.databases.kraken2.fetchCollection} \
-      --o-kraken2-db "${params.databases.kraken2.cache}:${params.databases.kraken2.key}" \
-      --o-bracken-db "${params.databases.bracken.cache}:${params.databases.bracken.key}" \
-    && touch ${params.databases.kraken2.key} \
-    && touch ${params.databases.bracken.key}
+      --p-collection '${params.databases.kraken2.fetchCollection}' \
+      --o-kraken2-db "\$kraken_target" \
+      --o-bracken-db "\$bracken_target"
+    test -f '${params.databases.kraken2.cache}/keys/${params.databases.kraken2.key}'
+    if [ '${needsBracken}' = 'true' ]; then test -f '${params.databases.bracken.cache}/keys/${params.databases.bracken.key}'; fi
+    touch '${params.databases.kraken2.key}' bracken.ready
     """
 }
 
@@ -386,7 +392,6 @@ process FETCH_KAIJU_DB {
     memory 2.GB
     time { 4.h * task.attempt }
     maxRetries 3
-    storeDir params.storeDir
     scratch true
 
     output:

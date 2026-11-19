@@ -29,11 +29,12 @@ def getDirectorySizeInGB(inputPath, basePath) {
     // Calculate directory size in GB
     def directory = new java.io.File(concatenatedPath)
     def sizeInBytes = 0L
-    if (directory.exists() && directory.isDirectory()) {
-        directory.eachFileRecurse { file ->
-            if (file.isFile()) {
-                sizeInBytes += file.length()
-            }
+    if (!directory.isDirectory()) {
+        throw new Exception("Cache artifact data directory does not exist: ${directory}")
+    }
+    directory.eachFileRecurse { file ->
+        if (file.isFile()) {
+            sizeInBytes += file.length()
         }
     }
     def sizeInGB = sizeInBytes / (1024.0 * 1024.0 * 1024.0)
@@ -45,4 +46,13 @@ def getDirectorySizeInGB(inputPath, basePath) {
         sizeInGB: sizeInGB.round(2),
         sizeInGBRoundedUp: sizeInGBRoundedUp
     ]
+}
+
+// Call from a map on the fetch output, never while constructing the workflow.
+// The marker provides ordering; the cache entry supplies the actual artifact.
+def prepareDatabase(marker, database, loadInMemory) {
+    def info = getDirectorySizeInGB("${database.cache}/keys/${database.key}",
+                                    "${database.cache}/data")
+    def memoryGB = loadInMemory ? Math.max(1, info.sizeInGBRoundedUp) : 2
+    return [marker, memoryGB]
 }

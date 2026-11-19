@@ -29,7 +29,8 @@ condaEnv: /path/to/conda/env
 email: user@example.com
 
 # Archive the per-sample caches upon completion
-archive: true
+# Opt in to archiving only after planning cache restoration for resumes.
+archive: false
 
 # Run only after all tasks finish; caches must not be used by another workflow.
 # Archived sample caches have already been removed, so only live caches are scanned.
@@ -68,7 +69,7 @@ fondueAccessionIds: /path/to/tsv
 # Option 4: provide a path to genomes from which the reads should be simulated
 # If the path is not specified, a random selection of genomes will be fetched from NCBI
 read_simulation:
-  samples: /path/to/samples.tsv
+  samples: /path/to/samples.csv
   seed: 100
   clusterOptions: ""
 
@@ -142,7 +143,7 @@ host_removal:
 
 sample_filtering:
   enabled: false
-  min_reads: 4200000
+  minReads: 4200000
 
 genome_assembly:
   enabled: true
@@ -175,7 +176,7 @@ assembly_qc:
 
 binning:
   enabled: true
-  primary: metabat2 # metabat2, semibin2, vamb, das_tool
+  primary: metabat2 # enabled binner: metabat2, semibin2, vamb; ignored when DAS Tool is enabled
   fetchArtifact: false
   metabat2:
     enabled: true
@@ -201,7 +202,7 @@ binning:
     seed: 100
     additionalFlags: ""
   das_tool:
-    enabled: false # requires at least two enabled binners
+    enabled: false # requires >=2 binners; refined bins become primary; BUSCO/filtering run only on refined bins
     clusterOptions: ""
     search_engine: diamond
     score_threshold: 0.5
@@ -231,7 +232,7 @@ dereplication:
   enabled: true
   method: "sourmash" # sourmash, skani
   clusterOptions: ""
-  threshold: 0.99
+  threshold: 0.99 # clustering cutoff, not ANI; tune for the selected method
   fetchArtifact: false
   sourmash:
     clusterOptions: ""
