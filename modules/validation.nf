@@ -18,6 +18,13 @@ def effectiveContainer(paramValue) {
     paramIsSet(paramValue) ? paramValue : null
 }
 
+def hostCommandAvailable(command) {
+    def path = System.getenv('PATH')
+    path != null && path.split(File.pathSeparator).any { directory ->
+        new File(directory, command).canExecute()
+    }
+}
+
 def binnerEnabled(binnerConfig) {
     binnerConfig != null && binnerConfig.enabled == true
 }
@@ -465,6 +472,14 @@ def validateModuleParams() {
 // Validate interdependent parameters
 def validateWorkflowDependencies() {
     def errors = []
+
+    if (params.archive) {
+        def requiredCommands = ['zip', 'unzip', 'zipinfo']
+        def missingCommands = requiredCommands.findAll { !hostCommandAvailable(it) }
+        if (missingCommands) {
+            errors.add("ERROR: Archiving is enabled but required host commands are missing from PATH: ${missingCommands.join(', ')}")
+        }
+    }
     
     // Dependency: If binning is enabled, assembly must be enabled
     if (params.binning.enabled && !params.genome_assembly.enabled) {
